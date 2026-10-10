@@ -1,0 +1,153 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Tests on every push and pull request: the host (Linux, with its C
+# libraries), the website, the story end to end (with signalhub from its
+# own repository, unchanged), the portable builds (no library outside the
+# operating system), and a scan for secrets in the history.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  device:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-device
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - name: C libraries (encoders and the Fyne window)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libvpx-dev libopus-dev \
+            libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./... && go vet -tags headless ./...
+      - run: go test -race ./...
+      - name: Build without a window (servers, CI)
+        run: go build -tags headless ./cmd/desk
+      # The same version as the Makefile's check-go.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --omit=dev
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [device, web]
+    env:
+      SIGNALING_DIR: ${{ github.workspace }}/.signaling
+    steps:
+      - uses: actions/checkout@v7
+      # signalhub lives in its own repository and is used as it is.
+      - uses: actions/checkout@v7
+        with:
+          repository: lordbasex/signalhub
+          path: .signaling
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: |
+            backend-device/go.sum
+            .signaling/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+      - name: C libraries (encoders)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libvpx-dev libopus-dev
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npm ci --no-audit --no-fund && npx tsc -p . && npx playwright install --with-deps chromium
+        working-directory: e2e
+      - run: npx playwright test
+        working-directory: e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/.state/*.log
+
+  # The Linux host as it ships (Debian stable's glibc, libvpx and libopus
+  # inside): ldd may only list the system's and the desktop's libraries.
+  deps-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - run: make device-linux-amd64 VERSION=ci
+      - run: scripts/check-deps.sh linux dist/desk/linux-amd64/go-link-desk
+
+  # The macOS app as it ships (macOS 13+, libvpx and libopus built from
+  # source and linked in): otool may only list /System/Library and /usr/lib.
+  deps-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - uses: actions/cache@v4
+        with:
+          path: dist/.macos-libs
+          key: macos-libs-${{ runner.arch }}-${{ hashFiles('backend-device/build/macos/static-libs.sh') }}
+      - run: make device-darwin-arm64 VERSION=ci
+      - name: The host is a macOS 13 binary
+        run: otool -l dist/desk/darwin-arm64/go-link-desk | grep -A4 LC_BUILD_VERSION | grep -q 'minos 13.0'
+      - run: scripts/check-deps.sh darwin dist/desk/darwin-arm64/go-link-desk.app/Contents/MacOS/go-link-desk
+      # The encoders link libvpx and libopus: built the way the app is, they
+      # must not need any copy of them on the machine either.
+      - name: The encoders link statically
+        working-directory: backend-device
+        run: |
+          L="$PWD/../dist/.macos-libs/arm64"
+          CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=13.0 PKG_CONFIG_LIBDIR="$L/lib/pkgconfig" \
+            CGO_LDFLAGS="-mmacosx-version-min=13.0 -Wl,-w" go test -c -o ../dist/encoder.test ./pkg/encoder
+          ../scripts/check-deps.sh darwin ../dist/encoder.test
+          ../dist/encoder.test -test.run 'VP8|Opus|VT'
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: gitleaks (the whole history)
+        # from GitHub's registry: Docker Hub refuses unauthenticated pulls past its rate limit
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest git /repo --no-banner --redact

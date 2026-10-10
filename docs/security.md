@@ -1,0 +1,52 @@
+# Security
+
+Remote desktop software is a favorite tool of "tech support" scammers. go-link Desk is built so that a session can only exist with the consent of the person at the computer, is always visible while it lasts, and can be ended at any moment.
+
+## Rules
+
+1. **No session without consent.** Either the person at the host accepts it (a dialog with the viewer's declared name and browser, the permissions, and a 60-second timeout), or it comes from an unattended link that person enabled. Unattended access is off by default.
+2. **Always visible.** While a session lasts, the tray icon turns red and a floating panel shows who is connected, the permissions (changeable live), the chat and **Disconnect**.
+3. **Least privilege.** Every permission (view, control, audio, clipboard, files) is shown and can be revoked during the session. The defaults are minimal.
+4. **signalhub is not trusted.** It only relays signaling. Media and input are encrypted end to end (DTLS/SRTP). For linked browsers the host proves itself first (HMAC over a nonce), and only then does the browser show its token.
+5. **No third parties on the website.** Strict Content Security Policy, no third-party scripts, no analytics, self-hosted fonts.
+6. **The macOS app runs with the hardened runtime and no entitlement exceptions,** and is notarized for release.
+
+## Threat model
+
+### A malicious or compromised signaling server
+
+It can see who connects to which room, and the session codes. It can drop or reorder messages, and inject guests.
+
+- It cannot see or change the session: media and DataChannels are DTLS-encrypted end to end, with the fingerprints exchanged in the SDP. **Residual risk:** a server that rewrites the SDP of both sides can sit in the middle of a session it relays. Consent still applies: the person at the host sees the request and the name, and decides.
+- It cannot get a linked browser's token: the host must prove it knows the token's hash first, over the encrypted DataChannel.
+- It cannot start a session without the person at the host accepting (or an unattended link that person made).
+
+### A malicious viewer
+
+- Before it is accepted, it gets nothing: no offer, no media, no channels. Its offers, answers and candidates are ignored.
+- Guessing codes: 10⁹ codes, and signalhub limits `join` to 5 attempts per minute per IP. A code only exists while a host shows it.
+- A session password (optional) is checked by the host with go-link's PIN gate: 5 tries per viewer, and 20 failures in 10 minutes lock the password path for 10 minutes. Viewers already in are not locked out.
+- Its declared `name` and browser are shown as declared, never as verified.
+- Input it sends is limited by the permissions granted, and stops when they are revoked.
+
+### A stolen linked-browser token
+
+- The host keeps only SHA-256(token) in `device.json` (mode 0600).
+- The host lists linked browsers with their name and last use, and can revoke each one; a revoked token is refused.
+- An optional extra password for unattended access is checked by the host over the DataChannel (scrypt or argon2id hash, PIN gate limits), never through signalhub.
+
+### The scammer on the phone
+
+The person at the computer is being told what to do by someone they trust.
+
+- The first time the host shows a code, it shows a warning: nobody legitimate calls you asking for access to your computer.
+- The consent dialog says plainly what the viewer will be able to do.
+- The red tray icon, the floating panel and **Disconnect** stay visible for the whole session.
+- Unattended access is off by default and lives in Settings, away from the main window.
+
+## Checks in CI
+
+- `gitleaks` over the whole history; fake tokens in tests carry a `gitleaks:allow` comment.
+- `govulncheck` for the Go module and `npm audit --omit=dev` for the website.
+- `scripts/check-deps.sh` on the macOS and Linux builds: no library outside the operating system.
+- `.env` files are ignored by git; only `.env.example` templates are committed.
