@@ -5,7 +5,16 @@
 package gui
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2/test"
 
@@ -53,5 +62,124 @@ func TestEveryTextIsTranslated(t *testing.T) {
 		if _, ok := es[k]; !ok {
 			t.Errorf("es lacks %q", k)
 		}
+	}
+}
+
+func TestEveryWindowTextHasATranslation(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`\bLf?\("((?:[^"\\]|\\.)*)"`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") || strings.HasPrefix(f, "i18n") {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+			text, err := strconv.Unquote(`"` + m[1] + `"`)
+			if err != nil {
+				t.Fatalf("%s: %q: %v", f, m[1], err)
+			}
+			if _, ok := catalogs["es"][text]; !ok {
+				t.Errorf("%s: no Spanish for %q", f, text)
+			}
+		}
+	}
+}
+
+func newTestUI(t *testing.T) (*ui, *services.StatusService, *atomic.Int32) {
+	t.Helper()
+	a := test.NewTempApp(t)
+	st := services.NewStatusService("d", "1.0.0", "ws://x")
+	ended := &atomic.Int32{}
+	u := newUI(a, Options{Status: st, EndSession: func() { ended.Add(1) }, Language: "en"})
+	return u, st, ended
+}
+
+func TestTheRequestWindowAnswers(t *testing.T) {
+	u, _, _ := newTestUI(t)
+	req := services.ConsentRequest{PeerID: "P", Knock: models.Knock{Name: "Ana", Browser: "Chrome 141 on macOS"}}
+	for _, tc := range []struct {
+		tap  func(r *request)
+		want error
+	}{
+		{func(r *request) { test.Tap(r.accept) }, nil},
+		{func(r *request) { test.Tap(r.reject) }, services.ErrDeclined},
+	} {
+		var got []error
+		r := u.newRequest(req, time.Now().Add(time.Minute), func(err error) { got = append(got, err) })
+		if r.who.Text != "Ana wants to see your screen." || r.browser.Text != "Browser: Chrome 141 on macOS" {
+			t.Fatalf("shows %q / %q", r.who.Text, r.browser.Text)
+		}
+		tc.tap(r)
+		tc.tap(r) // a second tap answers nothing more
+		if len(got) != 1 || got[0] != tc.want {
+			t.Fatalf("answers %v, want [%v]", got, tc.want)
+		}
+	}
+}
+
+func TestTheScamWarningShowsTheFirstTimeOnly(t *testing.T) {
+	u, _, _ := newTestUI(t)
+	req := services.ConsentRequest{PeerID: "P"}
+	r := u.newRequest(req, time.Now().Add(time.Minute), func(error) {})
+	if r.warning == nil {
+		t.Fatal("no warning the first time")
+	}
+	if r.who.Text != "Someone wants to see your screen." {
+		t.Fatalf("who %q", r.who.Text)
+	}
+	test.Tap(r.reject)
+	if again := u.newRequest(req, time.Now().Add(time.Minute), func(error) {}); again.warning != nil {
+		t.Fatal("warning shown again")
+	}
+}
+
+func TestTheRequestCountsDown(t *testing.T) {
+	u, _, _ := newTestUI(t)
+	now := time.Now()
+	r := u.newRequest(services.ConsentRequest{}, now.Add(10*time.Second), func(error) {})
+	r.tick(now.Add(2500 * time.Millisecond))
+	if r.countdown.Text != "Rejected on its own in 8 s." {
+		t.Fatalf("countdown %q", r.countdown.Text)
+	}
+}
+
+func TestAskEndsWithTheViewerOrTheTime(t *testing.T) {
+	u, _, _ := newTestUI(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := u.Ask(ctx, services.ConsentRequest{PeerID: "P"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestTheSessionShowsItselfUntilItEnds(t *testing.T) {
+	u, st, ended := newTestUI(t)
+	st.SetSession(&models.SessionStatus{RoomID: "R", Code: "915355636"})
+	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Browser: "Firefox 140 on Windows", Since: time.Now()})
+	u.render(st.Snapshot())
+	if !u.panel.shown || u.panel.who.Text != "Ana is viewing your screen" {
+		t.Fatalf("panel shown %v: %q", u.panel.shown, u.panel.who.Text)
+	}
+	if u.state.Text != "In session with Ana" {
+		t.Fatalf("state %q", u.state.Text)
+	}
+	test.Tap(u.panel.disconnect)
+	deadline := time.Now().Add(time.Second)
+	for ended.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if ended.Load() != 1 {
+		t.Fatal("Disconnect did not end the session")
+	}
+	st.SetActive(nil)
+	u.render(st.Snapshot())
+	if u.panel.shown {
+		t.Fatal("the panel outlived the session")
 	}
 }

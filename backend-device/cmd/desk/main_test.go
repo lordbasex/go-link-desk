@@ -21,6 +21,16 @@ func TestParseFlags(t *testing.T) {
 	}
 }
 
+func TestAutoAcceptOnlyWithTheTestCard(t *testing.T) {
+	// Skipping consent must never show anyone a real screen.
+	if _, err := parseFlags([]string{"--test-auto-accept"}); err == nil {
+		t.Fatal("auto-accept with the screen was allowed")
+	}
+	if f, err := parseFlags([]string{"--test-auto-accept", "--source", "testpattern"}); err != nil || !f.autoAccept {
+		t.Fatalf("%+v %v", f, err)
+	}
+}
+
 func TestResolveSignalURL(t *testing.T) {
 	if got, _ := resolveSignalURL("", models.Config{}); got != models.DefaultSignalURL {
 		t.Fatalf("default %q", got)

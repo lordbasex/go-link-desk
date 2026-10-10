@@ -33,7 +33,12 @@ type Options struct {
 	Quit    func() // stops the host
 	Status  *services.StatusService
 	NewCode func() // replaces the session code
-	WebURL  string // where viewers type the code
+	// EndSession disconnects the viewer in session.
+	EndSession func()
+	// SetConsent hands the window's connection requests to the session
+	// (nil: the session keeps its own, the tests' auto-accept).
+	SetConsent func(services.Consent)
+	WebURL     string // where viewers type the code
 	// Language is the window's language (en, es, pt or "" for the
 	// computer's).
 	Language string
@@ -52,8 +57,11 @@ type ui struct {
 	copyBtn  *widget.Button
 	newBtn   *widget.Button
 	trayCode *fyne.MenuItem
+	trayEnd  *fyne.MenuItem
 	trayMenu *fyne.Menu
+	trayLive bool   // the tray shows the red icon
 	current  string // the code on screen, without spaces
+	panel    *sessionPanel
 }
 
 // Run shows the window and the tray icon and blocks until the host stops.
@@ -63,6 +71,10 @@ func Run(opts Options) {
 	u := newUI(a, opts)
 	u.setupTray()
 	u.render(opts.Status.Snapshot())
+	if opts.SetConsent != nil {
+		opts.SetConsent(u) // the request window asks from now on
+		defer opts.SetConsent(nil)
+	}
 	opts.Status.OnChange(func(st models.Status) {
 		fyne.Do(func() { u.render(st) })
 	})
@@ -135,6 +147,7 @@ func newUI(a fyne.App, opts Options) *ui {
 		version,
 	)))
 	u.win.Resize(fyne.NewSize(420, 360))
+	u.panel = u.newSessionPanel()
 	return u
 }
 
@@ -161,10 +174,21 @@ func (u *ui) render(st models.Status) {
 	} else {
 		u.newBtn.Enable()
 	}
-	switch st.Signal.State {
-	case models.SignalConnected:
+	var active *models.ActiveSession
+	if st.Session != nil {
+		active = st.Session.Active
+	}
+	u.panel.render(active)
+	switch {
+	case active != nil:
+		name := active.Name
+		if name == "" {
+			name = L("Someone")
+		}
+		u.state.SetText(Lf("In session with %s", name))
+	case st.Signal.State == models.SignalConnected:
 		u.state.SetText(L("Connected"))
-	case models.SignalDisconnected:
+	case st.Signal.State == models.SignalDisconnected:
 		u.state.SetText(L("Offline, reconnecting…"))
 	default:
 		u.state.SetText(L("Connecting…"))
@@ -174,7 +198,30 @@ func (u *ui) render(st models.Status) {
 		if code == "" {
 			u.trayCode.Label = L("No code yet")
 		}
-		u.trayMenu.Refresh()
+		u.renderTray(active)
+	}
+}
+
+// renderTray turns the tray icon red while a session is on, with a
+// Disconnect item.
+func (u *ui) renderTray(active *models.ActiveSession) {
+	live := active != nil
+	u.trayEnd.Disabled = !live
+	u.trayEnd.Label = L("Disconnect")
+	if live && active.Name != "" {
+		u.trayEnd.Label = Lf("Disconnect %s", active.Name)
+	}
+	u.trayMenu.Refresh()
+	if live == u.trayLive {
+		return
+	}
+	u.trayLive = live
+	if desk, ok := u.app.(desktop.App); ok {
+		icon := trayicon.PNG()
+		if live {
+			icon = trayicon.LivePNG()
+		}
+		desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", icon))
 	}
 }
 
@@ -203,7 +250,13 @@ func (u *ui) setupTray() {
 		u.win.Show()
 		u.win.RequestFocus()
 	})
-	u.trayMenu = fyne.NewMenu("go-link Desk", u.trayCode, fyne.NewMenuItemSeparator(), show)
+	u.trayEnd = fyne.NewMenuItem(L("Disconnect"), func() {
+		if u.opts.EndSession != nil {
+			go u.opts.EndSession()
+		}
+	})
+	u.trayEnd.Disabled = true
+	u.trayMenu = fyne.NewMenu("go-link Desk", u.trayCode, u.trayEnd, fyne.NewMenuItemSeparator(), show)
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", trayicon.PNG()))
 	u.win.SetCloseIntercept(u.win.Hide)

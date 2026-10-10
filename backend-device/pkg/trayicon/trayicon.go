@@ -21,13 +21,18 @@ const size = 64
 var (
 	amber = color.NRGBA{0xF2, 0xA3, 0x3A, 0xFF} // --color-accent
 	dark  = color.NRGBA{0x1A, 0x12, 0x06, 0xFF} // --color-on-accent
+	// live is the tray icon's square while a session is on: red, so the
+	// person at the computer always sees that someone is watching.
+	live = color.NRGBA{0xE5, 0x48, 0x4D, 0xFF}
 )
 
 // Render draws the brand mark (the web's logo: a dark gamepad on an amber
 // rounded square, the gamepad SVG's shapes on a 32x32 canvas) as a px x px
 // PNG. With inset, the square leaves a margin around it, as macOS app icons
 // do (824 of 1024).
-func Render(px int, inset bool) []byte {
+func Render(px int, inset bool) []byte { return render(px, inset, amber) }
+
+func render(px int, inset bool, square color.NRGBA) []byte {
 	img := image.NewNRGBA(image.Rect(0, 0, px, px))
 	side, off := float64(px), 0.0
 	if inset {
@@ -39,7 +44,7 @@ func Render(px int, inset bool) []byte {
 	scanner := rasterx.NewScannerGV(px, px, img, img.Bounds())
 
 	fill := rasterx.NewFiller(px, px, scanner)
-	fill.SetColor(amber)
+	fill.SetColor(square)
 	rasterx.AddRoundRect(off, off, off+side, off+side, 8*u, 8*u, 0, rasterx.RoundGap, fill)
 	fill.Draw()
 
@@ -67,6 +72,10 @@ func Render(px int, inset bool) []byte {
 
 // PNG returns the 64x64 tray icon.
 func PNG() []byte { return Render(size, false) }
+
+// LivePNG returns the 64x64 tray icon shown while a session is on: the
+// same mark on a red square.
+func LivePNG() []byte { return render(size, false, live) }
 
 // AppPNG returns the 512x512 app icon (Dock, task bar, window).
 func AppPNG() []byte { return Render(512, true) }

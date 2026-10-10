@@ -57,6 +57,8 @@ type SessionStatus struct {
 	// Invite is the 22-character invitation the /c/<invite> link carries.
 	Invite  string `json:"-"`
 	Viewers int    `json:"viewers"`
+	// Active is the viewer in session, if any.
+	Active *ActiveSession `json:"active,omitempty"`
 }
 
 // StreamStatus is what the host is sending right now.
