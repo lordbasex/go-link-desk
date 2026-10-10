@@ -36,8 +36,9 @@ async function connect(): Promise<{ ws: WebSocket; next: (type: string) => Promi
   return { ws, next };
 }
 
-test("the host registers and shows a 9-digit session code", () => {
-  expect(sessionCode()).toMatch(/^\d{9}$/);
+test("the hosts register and show a 9-digit session code", () => {
+  expect(sessionCode("accept")).toMatch(/^\d{9}$/);
+  expect(sessionCode("reject")).toMatch(/^\d{9}$/);
   expect(hostLogged(/msg="session room open"/)).toBe(true);
 });
 
@@ -78,5 +79,5 @@ test("the website takes the code and opens its session page", async ({ page }) =
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page).toHaveURL(new RegExp(`/c/${code}$`));
   const grouped = `${code.slice(0, 3)} ${code.slice(3, 6)} ${code.slice(6)}`;
-  await expect(page.getByText(grouped, { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Connect to ${grouped}` })).toBeVisible();
 });
