@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com> -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>go-link Desk</string>
+	<key>CFBundleDisplayName</key>
+	<string>go-link Desk</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.go-link.desk</string>
+	<key>CFBundleExecutable</key>
+	<string>go-link-desk</string>
+	<key>CFBundleIconFile</key>
+	<string>go-link-desk</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@SHORT_VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<!-- ScreenCaptureKit's system audio needs macOS 13. -->
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright (c) 2026 Federico Pereira</string>
+</dict>
+</plist>

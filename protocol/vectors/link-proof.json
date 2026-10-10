@@ -1,0 +1,10 @@
+{
+  "description": "auth_proof for a remembered browser: base64url (no padding) of HMAC-SHA256 keyed with SHA-256(token) over \"go-link-desk link proof\\n\" + nonce. Read by backend-device and frontend tests.",
+  "cases": [
+    {
+      "token": "token-for-the-cross-language-test",
+      "nonce": "nonce-0123456789abcdef",
+      "proof": "RVPYaZWfKSgTKE1cEsFZT3XkFQc90rqOhq3TukeVWWw"
+    }
+  ]
+}

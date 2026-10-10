@@ -1,0 +1,5 @@
+{
+  "description": "The keyboard table shared by the host and the website. A key's index in `keys` is the keycode the input channel's 0x30 key packet carries (docs/protocol.md). Indexes never change once released: new keys go at the end. Filled in phase 3.",
+  "version": 1,
+  "keys": []
+}
