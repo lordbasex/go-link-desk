@@ -106,7 +106,28 @@ func (s *StatusService) SetSession(session *models.SessionStatus) {
 			return
 		}
 		v := *session
+		if v.Active == nil && st.Session != nil && st.Session.RoomID == v.RoomID {
+			v.Active = st.Session.Active // a new code keeps the session on
+		}
 		st.Session = &v
+	})
+}
+
+// SetActive records the viewer in session (nil: none). It does nothing
+// while the session room is closed.
+func (s *StatusService) SetActive(a *models.ActiveSession) {
+	s.update(func(st *models.Status) {
+		if st.Session == nil {
+			return
+		}
+		if a == nil {
+			st.Session.Active = nil
+			st.Session.Viewers = 0
+			return
+		}
+		v := *a
+		st.Session.Active = &v
+		st.Session.Viewers = 1
 	})
 }
 
@@ -175,6 +196,10 @@ func clone(st models.Status) models.Status {
 	}
 	if st.Session != nil {
 		r := *st.Session
+		if r.Active != nil {
+			a := *r.Active
+			r.Active = &a
+		}
 		st.Session = &r
 	}
 	if st.Pairing.IssuedAt != nil {

@@ -4,7 +4,7 @@ import { closeSync, mkdirSync, openSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PORTS, SIGNAL_URL } from "./ports";
-import { STATE_FILE, sessionCode, type Stack } from "./stack";
+import { STATE_FILE, sessionCode, type HostProc, type Stack } from "./stack";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -19,8 +19,8 @@ async function waitFor(what: string, ok: () => Promise<boolean>, ms = 60_000) {
 }
 
 /**
- * Builds and starts the test stack: a signalhub and a headless host of
- * their own, the host with a throwaway HOME (its config and logs never mix
+ * Builds and starts the test stack: a signalhub and two headless hosts of
+ * their own, each with a throwaway HOME (their config and logs never mix
  * with the developer's).
  */
 export default async function globalSetup() {
@@ -28,7 +28,7 @@ export default async function globalSetup() {
   const state = join(here, ".state");
   rmSync(state, { recursive: true, force: true });
   mkdirSync(bin, { recursive: true });
-  mkdirSync(join(state, "home"), { recursive: true });
+  mkdirSync(state, { recursive: true });
 
   // signalhub is its own repository, used unchanged: next to this one, or
   // where SIGNALING_DIR says.
@@ -59,25 +59,37 @@ export default async function globalSetup() {
   closeSync(signalLog);
   await waitFor("signalhub", async () => (await fetch(`http://127.0.0.1:${PORTS.signal}/healthz`)).ok);
 
-  const config = join(state, "device.json");
-  const hostLog = join(state, "host.log");
-  const out = openSync(hostLog, "a");
-  const host = spawn(
-    join(bin, "desk"),
-    [
-      "--headless",
-      "--config", config,
-      "--server-signaling", SIGNAL_URL,
-      "--web-url", `http://localhost:${PORTS.web}`,
-      "--source", "testpattern",
-      ...(process.env.E2E_HOST_DEBUG === "1" ? ["--debug"] : []),
-    ],
-    { env: { ...process.env, HOME: join(state, "home") }, stdio: ["ignore", out, out], detached: true },
-  );
-  closeSync(out);
-  const s: Stack = { signalPid: signal.pid!, hostPid: host.pid!, hostLog, config };
+  // Two hosts: one accepts every viewer (--test-auto-accept, test card
+  // only), the other has no window and nobody to ask, so it turns every
+  // viewer down.
+  const startHost = (name: keyof Stack["hosts"], extra: string[]): HostProc => {
+    const dir = join(state, name);
+    mkdirSync(join(dir, "home"), { recursive: true });
+    const config = join(dir, "device.json");
+    const log = join(dir, "host.log");
+    const out = openSync(log, "a");
+    const host = spawn(
+      join(bin, "desk"),
+      [
+        "--headless",
+        "--config", config,
+        "--server-signaling", SIGNAL_URL,
+        "--web-url", `http://localhost:${PORTS.web}`,
+        "--source", "testpattern",
+        ...extra,
+        ...(process.env.E2E_HOST_DEBUG === "1" ? ["--debug"] : []),
+      ],
+      { env: { ...process.env, HOME: join(dir, "home") }, stdio: ["ignore", out, out], detached: true },
+    );
+    closeSync(out);
+    host.unref();
+    return { pid: host.pid!, log, config };
+  };
+  const s: Stack = {
+    signalPid: signal.pid!,
+    hosts: { accept: startHost("accept", ["--test-auto-accept"]), reject: startHost("reject", []) },
+  };
   writeFileSync(STATE_FILE, JSON.stringify(s));
-  await waitFor("the host's session code", async () => sessionCode(s) !== "");
+  await waitFor("the hosts' session codes", async () => sessionCode("accept", s) !== "" && sessionCode("reject", s) !== "");
   signal.unref();
-  host.unref();
 }

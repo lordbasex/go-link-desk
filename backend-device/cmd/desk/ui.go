@@ -16,7 +16,12 @@ type uiOptions struct {
 	headless bool
 	status   *services.StatusService
 	newCode  func()
-	webURL   string // where viewers type the code
-	language string
-	logger   *slog.Logger
+	// endSession disconnects the viewer in session.
+	endSession func()
+	// setConsent hands the window's consent dialog to the session (nil:
+	// the tests' auto-accept stays).
+	setConsent func(services.Consent)
+	webURL     string // where viewers type the code
+	language   string
+	logger     *slog.Logger
 }

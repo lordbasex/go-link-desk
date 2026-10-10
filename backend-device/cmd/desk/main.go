@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
 // Command desk runs the go-link Desk host: it registers with signalhub,
-// keeps an invite-only session room open and shows its code. Sessions
-// (consent, WebRTC, capture and input) arrive in later phases.
+// keeps an invite-only session room open and shows its code, asks the
+// person at the computer about every viewer that knocks, and streams to
+// the one accepted over WebRTC.
 package main
 
 import (
@@ -24,6 +25,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/lordbasex/go-link-desk/backend-device/internal/controllers"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/repositories"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
@@ -50,6 +52,9 @@ type flags struct {
 	debug    bool
 	source   string
 	version  bool
+	// autoAccept lets every viewer in without asking: end-to-end tests
+	// only, and only with the test card.
+	autoAccept bool
 }
 
 func parseFlags(args []string) (flags, error) {
@@ -62,11 +67,17 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.debug, "debug", false, "verbose logs")
 	fs.StringVar(&f.source, "source", "screen", "what sessions show: screen, or testpattern (diagnostics, CI)")
 	fs.BoolVar(&f.version, "version", false, "print the version and exit")
+	fs.BoolVar(&f.autoAccept, "test-auto-accept", false, "accept every viewer without asking (automated tests only; needs --source testpattern)")
 	if err := fs.Parse(args); err != nil {
 		return f, err
 	}
 	if f.source != "screen" && f.source != "testpattern" {
 		return f, fmt.Errorf("--source must be screen or testpattern, not %q", f.source)
+	}
+	// Sessions need consent: skipping it is only for tests, which never
+	// show anyone a real screen.
+	if f.autoAccept && f.source != "testpattern" {
+		return f, errors.New("--test-auto-accept needs --source testpattern")
 	}
 	return f, nil
 }
@@ -127,7 +138,32 @@ func run(args []string) error {
 	ice := services.NewICEStore()
 	pairing := services.NewPairingService(services.PairingConfig{DeviceID: cfg.DeviceID, DeviceSecret: cfg.DeviceSecret, Logger: logger}, status, ice)
 	opener := services.NewRoomOpener()
-	session := services.NewSessionService(opener, status, services.SessionMeta{Name: hostName(), OS: runtime.GOOS}, logger)
+	meta := services.SessionMeta{Name: hostName(), OS: runtime.GOOS}
+	if f.source == "screen" {
+		// Screen capture arrives with the next version of the host.
+		logger.Warn("screen capture is not in this version yet: sessions show the test card")
+	}
+	api, err := services.NewWebRTCAPI(cfg.UDPPort, false)
+	if err != nil {
+		return err
+	}
+	stream, err := services.NewStreamService(services.StreamConfig{
+		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs,
+		Welcome: meta, Source: "test-pattern", Logger: logger,
+	}, ice)
+	if err != nil {
+		return err
+	}
+	session := services.NewSessionService(opener, status, meta, stream, logger)
+	if f.autoAccept {
+		logger.Warn("every viewer is accepted without asking (--test-auto-accept): for automated tests only")
+		session.SetConsent(services.AutoAccept)
+	}
+	control := controllers.NewControl(logger)
+	controllers.SessionRoutes(control, session)
+	stream.OnControl(control.Dispatch)
+	stream.OnClosed(session.StreamClosed)
+	stream.OnStats(status.SetStream)
 	// The pairing service registers on connect, so it goes first; the
 	// opener must see room_opened before the session does.
 	handlers := services.Dispatcher{pairing, opener, session}
@@ -136,11 +172,17 @@ func run(args []string) error {
 	pairing.SetSender(client)
 	opener.SetSender(client)
 	session.SetSender(client)
+	stream.SetSender(client)
 
 	go func() {
 		if err := client.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("signal client stopped", "err", err)
 			cancel()
+		}
+	}()
+	go func() {
+		if err := stream.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("video source stopped", "err", err)
 		}
 	}()
 	go services.NewMetricsService(ctx, status, 5*time.Second, nil).Run(ctx)
@@ -149,12 +191,20 @@ func run(args []string) error {
 	if f.webURL != "" {
 		web = f.webURL
 	}
+	var setConsent func(services.Consent)
+	if !f.autoAccept {
+		setConsent = session.SetConsent // the window's dialog asks
+	}
 	runUI(uiOptions{
-		ctx:      ctx,
-		quit:     cancel,
-		headless: f.headless,
-		status:   status,
-		newCode:  session.NewCode,
+		setConsent: setConsent,
+		ctx:        ctx,
+		quit:       cancel,
+		headless:   f.headless,
+		status:     status,
+		newCode:    session.NewCode,
+		endSession: func() {
+			session.End(models.EndHost)
+		},
 		webURL:   web,
 		language: cfg.Language,
 		logger:   logger,

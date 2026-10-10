@@ -29,7 +29,7 @@ npm install
 VITE_SIGNAL_URL=ws://127.0.0.1:8090/ws npm run dev    # http://localhost:5180
 ```
 
-Open `http://localhost:5180/c` and type the code shown in the host window. [docs/architecture.md](docs/architecture.md) explains how the pieces fit.
+Open `http://localhost:5180/c` and type the code shown in the host window: the host asks whether to let you in, and then the browser shows the session (for now, the test card). Without a window (`--headless`) the host turns every viewer down, because nobody can accept; to try a session without one, add `--source testpattern --test-auto-accept` (tests only: every viewer gets in without asking). [docs/architecture.md](docs/architecture.md) explains how the pieces fit.
 
 ## Before you open a pull request
 

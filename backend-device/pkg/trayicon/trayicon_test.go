@@ -52,3 +52,17 @@ func TestTheAppIconHasAMarginAndTheMarkInTheMiddle(t *testing.T) {
 		t.Fatalf("expected amber at the top middle, got %d %d alpha %d", r>>8, g>>8, a)
 	}
 }
+
+func TestTheLiveIconIsRed(t *testing.T) {
+	img, err := png.Decode(bytes.NewReader(LivePNG()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := img.Bounds(); b.Dx() != size || b.Dy() != size {
+		t.Fatalf("size %v", b)
+	}
+	// Inside the square, away from the mark's strokes.
+	if r, g, _, a := img.At(size/2, 4).RGBA(); a == 0 || r>>8 < 0xD0 || g>>8 > 0x60 {
+		t.Fatalf("expected red at the top middle, got r %d g %d alpha %d", r>>8, g>>8, a)
+	}
+}

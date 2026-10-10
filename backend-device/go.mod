@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
 	github.com/pion/interceptor v0.1.49
+	github.com/pion/rtcp v1.2.18
 	github.com/pion/rtp v1.10.5
 	github.com/pion/webrtc/v4 v4.2.22
 	github.com/shirou/gopsutil/v4 v4.26.8
@@ -51,7 +52,6 @@ require (
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns/v2 v2.2.1 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtcp v1.2.18 // indirect
 	github.com/pion/sctp v1.11.3 // indirect
 	github.com/pion/sdp/v3 v3.0.20 // indirect
 	github.com/pion/srtp/v3 v3.1.0 // indirect

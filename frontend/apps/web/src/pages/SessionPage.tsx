@@ -1,27 +1,186 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { formatCode, parseInvite } from "@go-link-desk/shared";
+import { MAX_NAME, formatCode, parseInvite, type InviteTarget, type SignalClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
+import { ExpandIcon, HangUpIcon } from "../components/Icons";
+import { StreamInfo } from "../components/StreamInfo";
+import { useFullscreen } from "../components/useFullscreen";
+import { isOver, type Session, type SessionView } from "../session/session";
+import { useSession } from "../session/useSession";
+import { useStreamStats } from "../session/useStreamStats";
+
+const NAME_KEY = "go-link-desk.name";
+
+function savedName(): string {
+  try {
+    return window.localStorage.getItem(NAME_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveName(name: string): void {
+  try {
+    window.localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // storage blocked: asked again next time
+  }
+}
 
 /**
- * /c/<invite or code>: the session with one computer. For now it only
- * reads the address; joining, consent and the remote screen arrive with
- * the next phase.
+ * /c/<invite or code>: a session with one computer. The viewer says its
+ * name, knocks, waits for the person at that computer to accept, and then
+ * sees the screen.
  */
-export function SessionPage() {
+export function SessionPage({ createClient }: { createClient?: () => SignalClient }) {
   const { target: raw = "" } = useParams();
   const target = parseInvite(raw);
   if (!target) return <Navigate to="/c" replace />;
+  return <SessionWith target={target} createClient={createClient} />;
+}
+
+function SessionWith({ target, createClient }: { target: InviteTarget; createClient?: () => SignalClient }) {
+  const [name, setName] = useState(savedName);
+  const [attempt, setAttempt] = useState(0);
+  const { view, session } = useSession({ target, name, attempt, createClient });
   const shown = "code" in target ? formatCode(target.code) : target.invite;
+  const start = () => {
+    saveName(name.trim());
+    setAttempt((n) => n + 1);
+  };
+  if (!view || attempt === 0) return <NameForm code={shown} name={name} setName={setName} onSubmit={start} />;
+  const s = view.status;
+  if (s.kind === "joining" || s.kind === "waiting") {
+    return (
+      <section className="join" aria-live="polite">
+        <h1 className="join-title">{t.session.nameTitle.replace("{code}", shown)}</h1>
+        <p className="notice">{s.kind === "joining" ? t.session.joining : t.session.waiting}</p>
+        {s.kind === "waiting" && <p className="small muted">{t.session.waitingHint}</p>}
+        <div>
+          <button type="button" className="button button-secondary" onClick={() => session?.hangUp()}>
+            {t.session.cancel}
+          </button>
+        </div>
+      </section>
+    );
+  }
+  if (isOver(s)) return <Over view={view} onRetry={start} />;
+  return <Live view={view} session={session} />;
+}
+
+function NameForm({ code, name, setName, onSubmit }: { code: string; name: string; setName: (v: string) => void; onSubmit: () => void }) {
+  const id = useId();
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    onSubmit();
+  };
+  return (
+    <form className="join" onSubmit={submit}>
+      <h1 className="join-title">{t.session.nameTitle.replace("{code}", code)}</h1>
+      <label htmlFor={`${id}-name`} className="field-label">
+        {t.session.nameLabel}
+      </label>
+      <div className="join-row">
+        <input
+          id={`${id}-name`}
+          className="input input-name"
+          autoComplete="name"
+          maxLength={MAX_NAME}
+          autoFocus
+          placeholder={t.session.namePlaceholder}
+          aria-describedby={`${id}-hint`}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button type="submit" className="button button-primary">
+          {t.session.connect}
+        </button>
+      </div>
+      <span id={`${id}-hint`} className="small muted">
+        {t.session.nameHint}
+      </span>
+      <div>
+        <Link to="/c" className="button button-ghost">
+          {t.session.back}
+        </Link>
+      </div>
+    </form>
+  );
+}
+
+function Over({ view, onRetry }: { view: SessionView; onRetry: () => void }) {
+  const s = view.status;
+  const text =
+    s.kind === "rejected"
+      ? t.session.rejected[s.reason]
+      : s.kind === "ended"
+        ? t.session.ended[s.reason]
+        : s.kind === "notFound"
+          ? t.session.notFound
+          : s.kind === "rateLimited"
+            ? t.session.rateLimited
+            : t.session.unreachable;
   return (
     <section className="join">
       <h1 className="join-title">{t.session.title}</h1>
-      <p className="notice">{t.session.pending.replace("{code}", shown)}</p>
-      <div>
+      <p className="notice" role="status">
+        {text}
+      </p>
+      <div className="join-row">
+        {s.kind !== "notFound" && (
+          <button type="button" className="button button-primary" onClick={onRetry}>
+            {t.session.retry}
+          </button>
+        )}
         <Link to="/c" className="button button-secondary">
           {t.session.back}
         </Link>
       </div>
     </section>
+  );
+}
+
+function Live({ view, session }: { view: SessionView; session: Session | null }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fullscreen = useFullscreen(stageRef);
+  const live = view.status.kind === "live" || view.status.kind === "reconnecting";
+  const stats = useStreamStats(session?.hostStream ?? null, live);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || v.srcObject === view.video) return;
+    v.srcObject = view.video;
+    // Muted video autoplays everywhere; sound arrives in a later version.
+    void Promise.resolve(v.play()).catch(() => undefined);
+  }, [view.video]);
+
+  const hostName = view.host?.name || t.session.title;
+  const notice = view.status.kind === "connecting" ? t.session.connecting : view.status.kind === "reconnecting" ? t.session.reconnecting : null;
+  return (
+    <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
+      <div className="stage-bar">
+        <span className="stage-title">{t.session.screenOf.replace("{name}", hostName)}</span>
+        <div className="stage-tools">
+          <StreamInfo stats={stats} sent={view.sent} />
+          <button type="button" className="icon-button" aria-label={t.session.fullscreen} title={t.session.fullscreen} onClick={fullscreen.toggle}>
+            <ExpandIcon />
+          </button>
+          <button type="button" className="button button-danger" onClick={() => session?.hangUp()}>
+            <HangUpIcon />
+            {t.session.disconnect}
+          </button>
+        </div>
+      </div>
+      <div className="stage-screen">
+        <video ref={videoRef} className="screen" autoPlay muted playsInline aria-label={t.session.screenOf.replace("{name}", hostName)} />
+        {notice && (
+          <p className="stage-notice" role="status">
+            {notice}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

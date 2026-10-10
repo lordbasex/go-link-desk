@@ -4,7 +4,6 @@
 type P = { size?: number };
 const base = { fill: "none", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
 
-
 export const ScreenIcon = ({ size = 18 }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
     <rect x="2" y="4" width="20" height="13" rx="2" />
@@ -22,5 +21,24 @@ export const SunIcon = ({ size = 16 }: P) => (
 export const MoonIcon = ({ size = 16 }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
     <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+  </svg>
+);
+
+export const InfoIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.2} {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 7.5v.5" />
+  </svg>
+);
+
+export const ExpandIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </svg>
+);
+
+export const HangUpIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <path d="M18 6 6 18M6 6l12 12" />
   </svg>
 );

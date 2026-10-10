@@ -5,33 +5,51 @@ import { fileURLToPath } from "node:url";
 
 export const STATE_FILE = join(dirname(fileURLToPath(import.meta.url)), ".state", "stack.json");
 
+/** One headless host the setup started. */
+export interface HostProc {
+  pid: number;
+  log: string;
+  config: string;
+}
+
 /** What the setup started, for the tests and the teardown. */
 export interface Stack {
   signalPid: number;
-  hostPid: number;
-  hostLog: string;
-  config: string;
+  hosts: {
+    /** Accepts every viewer (--test-auto-accept). */
+    accept: HostProc;
+    /** Nobody to ask: turns every viewer down. */
+    reject: HostProc;
+  };
 }
+
+export type HostName = keyof Stack["hosts"];
 
 export function stack(): Stack {
   return JSON.parse(readFileSync(STATE_FILE, "utf8")) as Stack;
 }
 
-function hostLog(s: Stack): string {
+/** A host's whole log so far. */
+export function hostLog(host: HostName = "accept", s: Stack = stack()): string {
   try {
-    return readFileSync(s.hostLog, "utf8");
+    return readFileSync(s.hosts[host].log, "utf8");
   } catch {
     return "";
   }
 }
 
-/** The host's current session code (the last one in its log), digits only. */
-export function sessionCode(s: Stack = stack()): string {
-  const all = [...hostLog(s).matchAll(/msg="session code" code="(\d{3} \d{3} \d{3})"/g)];
+/** A host's current session code (the last one in its log), digits only. */
+export function sessionCode(host: HostName = "accept", s: Stack = stack()): string {
+  const all = [...hostLog(host, s).matchAll(/msg="session code" code="(\d{3} \d{3} \d{3})"/g)];
   return all.length ? all[all.length - 1]![1]!.replace(/ /g, "") : "";
 }
 
-/** Whether the host's log has a line matching re. */
-export function hostLogged(re: RegExp, s: Stack = stack()): boolean {
-  return re.test(hostLog(s));
+/** Whether a host's log has a line matching re. */
+export function hostLogged(re: RegExp, host: HostName = "accept", s: Stack = stack()): boolean {
+  return re.test(hostLog(host, s));
+}
+
+/** How many lines of a host's log match re. */
+export function hostLogCount(re: RegExp, host: HostName = "accept", s: Stack = stack()): number {
+  return hostLog(host, s).split("\n").filter((l) => re.test(l)).length;
 }

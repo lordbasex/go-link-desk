@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { STATE_FILE, type Stack } from "./stack";
 
-/** Stops the host and the signalhub the setup started. */
+/** Stops the hosts and the signalhub the setup started. */
 export default async function globalTeardown() {
   let s: Stack;
   try {
@@ -10,7 +10,7 @@ export default async function globalTeardown() {
   } catch {
     return;
   }
-  for (const pid of [s.hostPid, s.signalPid]) {
+  for (const pid of [s.hosts.accept.pid, s.hosts.reject.pid, s.signalPid]) {
     try {
       process.kill(pid, "SIGTERM");
     } catch {

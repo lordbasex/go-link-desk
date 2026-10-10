@@ -14,14 +14,16 @@ func runUI(o uiOptions) {
 		return
 	}
 	gui.Run(gui.Options{
-		Ctx:      o.ctx,
-		Quit:     o.quit,
-		Status:   o.status,
-		NewCode:  o.newCode,
-		WebURL:   o.webURL,
-		Language: o.language,
-		Version:  version,
-		Logger:   o.logger,
+		Ctx:        o.ctx,
+		Quit:       o.quit,
+		Status:     o.status,
+		NewCode:    o.newCode,
+		EndSession: o.endSession,
+		SetConsent: o.setConsent,
+		WebURL:     o.webURL,
+		Language:   o.language,
+		Version:    version,
+		Logger:     o.logger,
 	})
 }
 

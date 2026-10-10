@@ -9,7 +9,7 @@ export default defineConfig({
   server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), "../protocol"] } },
   test: {
     environment: "jsdom",
-    include: ["packages/*/test/**/*.test.ts", "apps/*/src/**/*.test.tsx"],
+    include: ["packages/*/test/**/*.test.ts", "apps/*/src/**/*.test.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
   },
 });
