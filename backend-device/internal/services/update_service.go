@@ -15,7 +15,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 )
 
-// DefaultReleasesURL lists go-link's releases, newest first.
+// DefaultReleasesURL lists go-link Desk's releases, newest first.
 const DefaultReleasesURL = "https://api.github.com/repos/lordbasex/go-link-desk/releases?per_page=10"
 
 // UpdateConfig configures UpdateService.
@@ -29,7 +29,7 @@ type UpdateConfig struct {
 	OnUpdate func(models.UpdateInfo) // called when a newer release shows up
 }
 
-// UpdateService checks now and then whether a newer go-link was released,
+// UpdateService checks now and then whether a newer go-link Desk was released,
 // so the window and the linked browsers can offer the download. It only
 // reads the public releases list; nothing is downloaded or installed.
 type UpdateService struct{ cfg UpdateConfig }
