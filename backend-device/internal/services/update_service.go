@@ -16,7 +16,7 @@ import (
 )
 
 // DefaultReleasesURL lists go-link's releases, newest first.
-const DefaultReleasesURL = "https://api.github.com/repos/lordbasex/go-link/releases?per_page=10"
+const DefaultReleasesURL = "https://api.github.com/repos/lordbasex/go-link-desk/releases?per_page=10"
 
 // UpdateConfig configures UpdateService.
 type UpdateConfig struct {
@@ -74,7 +74,7 @@ func (u *UpdateService) Run(ctx context.Context) {
 			continue
 		}
 		if info.Latest != "" && u.cfg.OnUpdate != nil {
-			u.cfg.Logger.Info("a new go-link version is available", "current", u.cfg.Current, "latest", info.Latest)
+			u.cfg.Logger.Info("a new go-link Desk version is available", "current", u.cfg.Current, "latest", info.Latest)
 			u.cfg.OnUpdate(info)
 		}
 	}
@@ -94,7 +94,7 @@ func (u *UpdateService) Check(ctx context.Context) (models.UpdateInfo, error) {
 		return models.UpdateInfo{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "go-link-device/"+u.cfg.Current)
+	req.Header.Set("User-Agent", "go-link-desk/"+u.cfg.Current)
 	resp, err := u.cfg.Client.Do(req)
 	if err != nil {
 		return models.UpdateInfo{}, err
