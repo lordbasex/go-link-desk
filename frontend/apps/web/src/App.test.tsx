@@ -35,8 +35,8 @@ describe("App", () => {
     await user.type(screen.getByLabelText(en.join.codeLabel), "915355636");
     expect(screen.getByLabelText(en.join.codeLabel)).toHaveValue("915 355 636");
     await user.click(screen.getByRole("button", { name: en.join.connect }));
-    expect(screen.getByRole("heading", { name: en.session.title })).toBeInTheDocument();
-    expect(screen.getByText(/915 355 636/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: en.session.nameTitle.replace("{code}", "915 355 636") })).toBeInTheDocument();
+    expect(screen.getByLabelText(en.session.nameLabel)).toBeInTheDocument();
   });
 
   it("refuses what is not a code", async () => {
