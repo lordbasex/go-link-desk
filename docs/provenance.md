@@ -17,7 +17,7 @@ The same path in both repositories unless noted.
 | `go.mod` | adapted | Module path; only the requirements Desk uses (`go mod tidy`). |
 | `pkg/signalclient/{client,envelope,client_test}.go` | verbatim | |
 | `pkg/ids/*`, `pkg/instancelock/*`, `pkg/jsonkeys/*`, `pkg/sysinfo/*` | verbatim | |
-| `pkg/trayicon/*`, `pkg/watermark/*` | verbatim | The brand mark changes with the product's icon, in a later phase. |
+| `pkg/watermark/*` | verbatim | |
 | `pkg/encoder/{vp8,vp8_test,opus,opus_test,vt_darwin,vt_other}.go` | verbatim | |
 | `pkg/encoder/h264.go` | rewritten | VideoToolbox only, called directly: no ffmpeg subprocess, no `kind` argument, `HasH264`. go-link's x264/ffmpeg path, `FFmpegPath` and `ProbeH264` are gone. |
 | `pkg/encoder/vt_darwin_test.go` | adapted | `NewH264` without the encoder kind. |
@@ -34,15 +34,21 @@ The same path in both repositories unless noted.
 | `internal/services/link_service.go` | adapted | The proof signs `go-link-desk link proof\n<nonce>`. |
 | `internal/services/link_service_test.go` | adapted | `NewStatusService` without the ROM folder. |
 | `internal/services/link_proof_test.go` | adapted | Reads the shared vectors in `protocol/vectors/link-proof.json`. |
-| `internal/services/pin_gate_test.go` | adapted | Only the gate's own tests; the test-room tests move to the session service (phase 1). |
+| `internal/services/pin_gate_test.go` | adapted | Only the gate's own tests; the session password's (phase 6) come with it. |
 | `internal/services/services_test.go` | adapted | `NewStatusService` without the ROM folder. |
 | `internal/services/status_service.go` | adapted | No ROM folder, library, game rooms, saves or video quality; `SetSession`. |
 | `internal/services/metrics_service.go`, `_test.go` | adapted | `device_status` carries `session` (never its code) instead of the library and rooms. |
 | `internal/services/update_service.go`, `_test.go` | adapted | Checks `lordbasex/go-link-desk` releases; user agent `go-link-desk/<version>`. |
-| `internal/services/session_service.go` | rewritten | Desk's own; the room-and-invite pattern of go-link's `internal/services/test_room_service.go`. |
+| `internal/services/session_service.go` | rewritten | Desk's own; the room-and-invite pattern, the guest bookkeeping and the PIN-gate style of signal payloads of go-link's `internal/services/test_room_service.go`. |
+| `internal/services/stream_service.go` | adapted | From go-link's `internal/services/stream_service.go`: `NewWebRTCAPI`, the offer and candidate handling, `announcedCandidates`, `logPath`, pings, `sendText` and `HandleSignal` as they were. No seats, voices, HUD, gamepads, linked-browser kind, files, recordings, H.264 subprocess or video tiers. Each viewer has its own track and VP8 encoder (per-viewer keyframes); new: ICE restart, `Hangup`, `welcome` with the host's name, `stream_stats` per viewer, `client_report` driving the playout ladder, control messages routed to `internal/controllers`. |
+| `internal/services/testcard_source.go` | adapted | No tone (audio is phase 4), no pause; rests while nobody watches. |
+| `internal/services/announce_test.go` | verbatim | |
+| `test/stream_test.go` | adapted | go-link's Pion browser (`browserPeer`, `relay`, `multiRelay`, `waitFor`, `waitForMsg`); Desk's own cases (welcome, stream_stats, round trip, routing, hang-up, a track per viewer). |
 | `internal/gui/i18n.go` | adapted | `GO_LINK_DESK_LANG` instead of `GO_LINK_LANG`. |
-| `internal/gui/gui.go`, `gui_test.go`, `i18n_es.go`, `i18n_pt.go` | rewritten | A minimal window and tray; the app-loop and tray patterns of go-link's `internal/gui/gui.go`. |
-| `cmd/desk/*` | rewritten | From go-link's `cmd/device/main.go` (`run()`'s wiring, `resolveSignalURL`, `isLoopback`, `hostName`), `setup.go` (`loadConfig`, `logOutput`, `wantsHeadless`) and `ui*.go`. |
+| `internal/gui/gui.go`, `gui_test.go`, `consent.go`, `session.go`, `i18n_es.go`, `i18n_pt.go` | rewritten | The window, the connection request, the session panel and the tray; the app-loop and tray patterns of go-link's `internal/gui/gui.go`. |
+| `internal/gui/float_darwin.{m,go}`, `float_other.go` | rewritten | The Cocoa-by-window-title technique of go-link's `internal/gui/panel_darwin.m`; keeps a window floating on every Space. |
+| `pkg/trayicon/trayicon.go`, `_test.go` | adapted | Verbatim plus `LivePNG`, the red icon shown during a session. |
+| `cmd/desk/*`, `internal/controllers/*` | rewritten | From go-link's `cmd/device/main.go` (`run()`'s wiring, `resolveSignalURL`, `isLoopback`, `hostName`), `setup.go` (`loadConfig`, `logOutput`, `wantsHeadless`) and `ui*.go`. |
 | `build/macos/static-libs.sh` | adapted | `MIN_MACOS` 13.0. |
 | `build/macos/make-app.sh` | adapted | `go-link-desk.app` and binary; no go-link HD engine library. |
 | `build/macos/Info.plist` | adapted | `org.go-link.desk`, go-link Desk names, macOS 13, utilities category. |
@@ -75,6 +81,11 @@ The same path in both repositories unless noted.
 | `apps/web/src/components/Icons.tsx` | adapted | go-link's icon conventions; Desk's icons. |
 | `apps/web/{index.html,package.json,tsconfig.json}`, `src/{main.tsx,config.ts,vite-env.d.ts}` | adapted | Desk names, no splash, intro, panel, demo data or roles. |
 | `apps/web/src/i18n/{en,es,pt}.ts`, `src/App.tsx`, `src/App.test.tsx` | rewritten | Desk's texts and routes; go-link's shape. |
+| `packages/shared/src/stream.ts` | adapted | go-link's `HostStream`: offer, answer and candidates, the control channel with pings and pending messages, and `stats()` (plus frames decoded and size). No gamepad, microphone, voices, files or downloads; new: `knock`, `accepted`/`rejected`, `hangUp`, signals applied strictly in order, ICE restarts on the same connection. |
+| `apps/web/src/components/StreamInfo.tsx` | adapted | The (i) button and panel; rows for what Desk measures (frames decoded, size, bitrate, loss), no picture renderer or refresh rate. |
+| `apps/web/src/components/useFullscreen.ts` | adapted | No landscape lock or quiet full screen (a gamepad's). |
+| `apps/web/src/session/{session,useSession}.ts` | rewritten | The join, backlog and host-left handling of go-link's `apps/web/src/signal/useJoinRoom.ts`, plus the knock; one signaling connection per visit. |
+| `apps/web/src/session/test-utils.ts` | rewritten | A fake `SignalClient`, in the spirit of go-link's `test-utils.tsx` `FakeSocket`. |
 
 ## Build, CI and tests
 
@@ -92,9 +103,9 @@ Planned in phase 0, moved because nothing uses them yet:
 
 | go-link file | Phase |
 |---|---|
-| `internal/services/{stream_service,video_tiers,stream_telemetry,encode_load,quality_ladder}.go` | 1 (they are `StreamService` methods) |
-| `internal/services/history_service.go` | 1 (session history instead of game history) |
+| `internal/services/{video_tiers,stream_telemetry,encode_load,quality_ladder}.go` | 2 (sizes, quality and congestion control come with the screen) |
+| `internal/services/history_service.go` | 6 (session history, with the host's settings) |
 | `internal/services/{upload_service,download_service}.go` | 5 (files) |
 | `internal/services/{recorder,recording_service}.go` | 8 (recording) |
-| `frontend/apps/web/src/components/{CopyButton,QrCode,useFullscreen,StreamInfo}.tsx`, `screenshot.ts` | 1 (session page) |
+| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 2 and 4 (the host's QR, screenshots with the tools menu) |
 | `frontend/apps/web/src/components/ui/{PageHero,Skeleton,useInfiniteList}` | 6 (my computers) |

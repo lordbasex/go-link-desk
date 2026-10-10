@@ -23,11 +23,18 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### A malicious viewer
 
-- Before it is accepted, it gets nothing: no offer, no media, no channels. Its offers, answers and candidates are ignored.
+- Before it is accepted, it gets nothing: no offer, no media, no channels. Its offers, answers and candidates are ignored, and so is everything it sends after it is turned down or its session ends.
+- It cannot flood the person at the host with requests: one knock per join, one request on screen at a time (others get `busy`), and signalhub limits `join` to 5 a minute per IP.
+- Its declared name and browser are cut to 40 and 60 printable characters, without line breaks or control and format characters (no right-to-left overrides), so they cannot pass for the dialog's own text.
 - Guessing codes: 10⁹ codes, and signalhub limits `join` to 5 attempts per minute per IP. A code only exists while a host shows it.
 - A session password (optional) is checked by the host with go-link's PIN gate: 5 tries per viewer, and 20 failures in 10 minutes lock the password path for 10 minutes. Viewers already in are not locked out.
-- Its declared `name` and browser are shown as declared, never as verified.
+- Its declared `name` and browser are shown as declared, never as verified, and the dialog says so.
 - Input it sends is limited by the permissions granted, and stops when they are revoked.
+
+### A host without anyone in front of it
+
+- A host without a window (headless, or a build without the GUI) has nobody to ask, so it turns every knock down. Unattended access, in phase 6, is the only way in without a person accepting.
+- `--test-auto-accept` exists for the end-to-end tests. The host refuses it unless the source is the test card, and logs a warning when it is on.
 
 ### A stolen linked-browser token
 

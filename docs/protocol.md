@@ -22,26 +22,38 @@ Status of each part: **implemented** (in this repository and tested), **from go-
 - The code is 9 digits (`915355636`, shown as `915 355 636`). It has no expiry; a new `invite_create` replaces it.
 - A room opened `invite_only` cannot be joined by its `room_id`.
 
-## 2. Session start (proposed, phase 1)
+## 2. Session start (implemented)
 
 All of these travel in signalhub's opaque `signal.payload`, with the same pattern as go-link's PIN gate (`pin_required` / `pin_result`).
 
 ```
 viewer → host   {"kind":"knock","name":"Ana","ua":"Chrome 141 on macOS"}
-host   → viewer {"kind":"pin_required"}                       (only when a session password is set)
-viewer → host   {"kind":"pin","pin":"…"}
-host   → viewer {"kind":"pin_result","ok":false,"reason":"wrong","left":4}
-host   → viewer {"kind":"accepted","permissions":{"view":true,"control":true,"audio":true,"clipboard":false,"files":false}}
-host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"}
-host   → viewer {"kind":"offer","sdp":"…"}                    (only after accepted)
+host   → viewer {"kind":"accepted","permissions":{"view":true,"control":false,"audio":false,"clipboard":false,"files":false}}
+host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"|"unavailable"}
+host   → viewer {"kind":"offer","sdp":"…"}                    (only after accepted; again for an ICE restart)
 viewer → host   {"kind":"answer","sdp":"…"}
 both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
 ```
 
-- The person at the host decides within 60 seconds; no answer is `rejected` with `timeout`.
-- The host never sends an offer, and ignores every offer, answer or candidate, from a viewer that was not accepted.
-- `name` and `ua` are what the viewer declares: shown to the person at the host as such, never trusted.
-- An ICE restart (the host offers again with `iceRestart`) keeps a session alive when the network changes.
+- The person at the host decides within 60 seconds; no answer is `rejected` with `timeout`. A host without a window has nobody to ask and answers `unavailable` at once.
+- **One session at a time.** A knock while another viewer is in session, or while another knock is being asked, is `rejected` with `busy`.
+- **One knock per guest.** A guest that was turned down, or whose session ended, is ignored until it leaves signalhub's session; to try again it joins again (signalhub limits `join` to 5 a minute per IP).
+- The host never sends an offer, and ignores every offer, answer or candidate, from a viewer that was not accepted. A viewer never sends an offer.
+- `name` (up to 40 characters) and `ua` (up to 60) are what the viewer declares. The host keeps printable characters only, without line breaks or control and format characters, and shows them as declared, never as verified.
+- `view` is always granted; the other permissions are part of the message from the start and are granted in the phases that use them.
+- The host leaving signalhub (`peer_left` from the host) ends the session for the viewer. The viewer leaving signalhub (`peer_left` to the host) ends it for the host.
+- **ICE restart.** When the connection is `disconnected` for 3 seconds, or `failed`, the host offers again with new ICE credentials over signalhub, up to 3 times in a row; after that the session ends with `network`. The viewer answers every offer on the same connection, applying signals strictly in order (a new candidate must never pass its offer).
+
+| Session end reason | Meaning |
+|---|---|
+| `host` | The person at the host pressed Disconnect. |
+| `viewer` | The viewer hung up (`session_end` on `control`) or left signalhub. |
+| `network` | The connection failed and could not be brought back. |
+| `signal` | The host lost signalhub, and the room with it. |
+
+### Proposed
+
+A session password (phase 6), with go-link's PIN gate: `pin_required` after the knock, `pin`, and `pin_result {ok, reason, left}`.
 
 ## 3. Linked browsers (from go-link)
 
@@ -57,16 +69,28 @@ For unattended access (phase 6). The browser links once with the host's pairing 
 
 The host proves itself first, so a fake signaling server never learns a token. A browser that shows no valid token within 15 seconds is dropped. The vector both sides test against is `protocol/vectors/link-proof.json`.
 
-## 4. DataChannels (proposed, phase 1 and 3)
+## 4. DataChannels
 
-The host creates them, as in go-link.
+The host creates them, as in go-link. `control` is implemented; the others come in their phases.
 
-| Label | Settings | Content |
+| Label | Settings | Content | Status |
+|---|---|---|---|
+| `control` | ordered, reliable, JSON | see below | implemented |
+| `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only | proposed, phase 3 |
+| `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` | proposed, phase 3 |
+| `files` | ordered, reliable | go-link's file protocol (section 6) | proposed, phase 5 |
+
+### `control` messages
+
+| Message | Direction | Content |
 |---|---|---|
-| `control` | ordered, reliable, JSON | go-link's (`welcome`, `ping`/`pong`, `client_report`, `video_want`, `stream_stats`) plus `displays`, `display_select`, `cursor`, `clipboard`, `chat`, `permissions` and `session_end` |
-| `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only |
-| `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` |
-| `files` | ordered, reliable | go-link's file protocol (section 6) |
+| `welcome` | host → viewer | `{host: {name, os}, source}` when the channel opens; `source` is `test-pattern` or `screen`. |
+| `ping` / `pong` | host → viewer → host | `{id}` every 2 s; the round trip over the peer-to-peer path. |
+| `stream_stats` | host → viewer | `{fps, width, height, kbps, codec}` every 2 s: what the host sends this viewer, to compare with what arrives. |
+| `client_report` | viewer → host | `{metrics: {freeze_ms, video_loss_pct, jitter_ms, hidden}}` every 2 s. The host moves the viewer's playout delay with it (go-link's `playout_delay.go`). |
+| `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
+
+Later phases add `video_want`, `displays`, `display_select`, `cursor`, `clipboard`, `chat` and `permissions`. A message type nobody handles is dropped. A message is at most 64 KiB.
 
 Two input channels, because a lost pointer move does not matter but a lost click or key does: go-link sends everything on one unreliable channel, which is fine for a gamepad that repeats its state and wrong for a keyboard (stuck keys).
 

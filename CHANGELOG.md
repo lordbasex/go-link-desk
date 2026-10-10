@@ -4,6 +4,18 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (sessions)
+
+- **A session from end to end, with the test card:** the viewer types the code, says its name and knocks; the person at the computer gets a connection request (the declared name and browser, what the viewer will be able to do, 60 seconds to answer, and the first time a warning about phone scams) and accepts or rejects. Only an accepted viewer gets a WebRTC offer: the video (VP8) and a `control` channel with the host's name, round trips, what the host sends and what the browser receives.
+- **Always visible on the host:** while a session lasts, the tray icon turns red and gets a Disconnect item, and a small panel floats above every window with who is connected, since when, what they can do and Disconnect.
+- **Every way a session ends:** Disconnect on either side, the viewer leaving (signalhub's `peer_left`), the host leaving, or the network. The viewer is told why.
+- **One session at a time:** a second viewer gets "busy". A host without a window turns every viewer down (nobody can accept).
+- **ICE restart:** when the connection drops, the host offers again with new credentials, so a session survives a network change.
+- **Each viewer gets its own track and encoder,** so a keyframe one browser needs costs nobody else anything.
+- **On the website,** `/c/<code>` asks for your name (remembered), waits for the answer, and shows the remote screen filling the window (fitted, never cropped, drawn smooth), with session details (latency, path, frames sent, received and decoded, size, bitrate, loss, codec), full screen and Disconnect. In English, Spanish and Portuguese.
+- **`--test-auto-accept`** accepts every viewer without asking, for the end-to-end tests only: the host refuses it unless `--source testpattern`.
+- **End-to-end tests** with a real Chromium: a viewer gets in and decodes frames, a second one is turned away as busy, leaving ends the session and frees the host, Disconnect ends it, and a host with nobody to ask turns the viewer down.
+
 ### Added (host)
 
 - **The host registers with signalhub and shows a session code:** `cmd/desk` registers as `app: "go-link-desk"`, opens an invite-only room and asks for its invitation; the 9-digit code and the `/c/<invite>` link show in a minimal window (Fyne, with a tray icon, in English, Spanish and Portuguese) or, with `--headless`, in the log. "New code" replaces the invitation and the old code stops working. The room and its code are opened again after every reconnect.
