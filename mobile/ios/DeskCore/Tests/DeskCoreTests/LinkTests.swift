@@ -1,0 +1,121 @@
+// Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+
+import XCTest
+@testable import DeskCore
+
+/** Linking with the pairing code, and coming back to a linked computer (docs/protocol.md, "Unattended access"). */
+@MainActor
+final class LinkTests: XCTestCase {
+    private var sockets: FakeSockets!
+    private var clock: ManualScheduler!
+    private var peers: FakePeers!
+
+    private func session(_ door: Door) -> DeskSession {
+        sockets = FakeSockets()
+        clock = ManualScheduler()
+        peers = FakePeers()
+        let signal = SignalClient(url: "wss://signal.example/ws", factory: sockets, scheduler: clock)
+        let s = DeskSession(door: door, name: "Ana", ua: "go-link Desk on iOS", signal: signal, peers: peers, scheduler: clock)
+        s.start()
+        sockets.last.receive(#"{"type":"hello","peer_id":"me"}"#)
+        return s
+    }
+
+    private func fromHost(_ payload: String) {
+        sockets.last.receive(#"{"type":"signal","from":"H","payload":\#(payload)}"#)
+    }
+
+    func testTheProofMatchesTheSharedVector() throws {
+        let data = try Data(contentsOf: repoRoot().appendingPathComponent("protocol/vectors/link-proof.json"))
+        let root = try XCTUnwrap(JSONText.parseObject(String(decoding: data, as: UTF8.self)))
+        for c in root["cases"].arr {
+            XCTAssertEqual(DeskSession.linkProof(token: c["token"].str(), nonce: c["nonce"].str()), c["proof"].str())
+        }
+        XCTAssertTrue(DeskSession.same("abc", "abc"))
+        XCTAssertFalse(DeskSession.same("abc", "abd"))
+        XCTAssertGreaterThanOrEqual(DeskSession.randomNonce().count, 40)
+    }
+
+    func testClaimLinksThisDevice() {
+        let s = session(.claim("123456789"))
+        XCTAssertEqual(sockets.last.sent.last, obj(#"{"type":"claim","app":"go-link-desk","code":"123456789"}"#))
+        var linked: DeviceLink?
+        s.events.linked = { linked = $0 }
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        XCTAssertEqual(s.status, .waiting)
+        fromHost(#"{"kind":"accepted","permissions":{"control":true}}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        XCTAssertEqual(peer.control.last, #"{"type":"auth"}"#)
+        peer.events.onControlMessage(#"{"type":"auth_ok","device_id":"D","link_id":"L","token":"T"}"#)
+        XCTAssertEqual(linked, DeviceLink(deviceId: "D", linkId: "L", token: "T"))
+    }
+
+    func testReachProvesTheComputerBeforeTheToken() {
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "secret-token")
+        let s = session(.reach(link))
+        XCTAssertEqual(sockets.last.sent.last, obj(#"{"type":"reach","app":"go-link-desk","device_id":"D"}"#))
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        let challenge = JSONText.parseObject(peer.control.last!)!
+        XCTAssertEqual(challenge["type"], "auth_challenge")
+        let nonce = challenge["nonce"].str()
+        // accepted may overtake auth_ok: it waits.
+        fromHost(#"{"kind":"accepted","permissions":{"control":true}}"#)
+        XCTAssertEqual(s.status, .waiting)
+        XCTAssertFalse(peer.control.contains { $0.contains("secret-token") })
+        peer.events.onControlMessage(#"{"type":"auth_proof","link_id":"L","proof":"\#(DeskSession.linkProof(token: "secret-token", nonce: nonce))"}"#)
+        XCTAssertEqual(peer.control.last, #"{"type":"auth","link_id":"L","token":"secret-token"}"#)
+        // The password, wrong then right.
+        peer.events.onControlMessage(#"{"type":"auth_ok","link_id":"L"}"#)
+        XCTAssertEqual(s.status, .connecting) // the early acceptance applies now
+    }
+
+    func testAWrongProofSendsNothing() {
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "secret-token")
+        let s = session(.reach(link))
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        peer.events.onControlMessage(#"{"type":"auth_proof","link_id":"L","proof":"forged"}"#)
+        XCTAssertEqual(s.status, .untrusted)
+        XCTAssertFalse(peer.control.contains { $0.contains("secret-token") })
+    }
+
+    func testPasswordAndUnlinked() {
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "t")
+        let s = session(.reach(link))
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        let nonce = JSONText.parseObject(peer.control.last!)!["nonce"].str()
+        peer.events.onControlMessage(#"{"type":"auth_proof","link_id":"L","proof":"\#(DeskSession.linkProof(token: "t", nonce: nonce))"}"#)
+        peer.events.onControlMessage(#"{"type":"auth_ok","link_id":"L"}"#)
+        peer.events.onControlMessage(#"{"type":"password_required"}"#)
+        XCTAssertEqual(s.status, .password(PasswordPrompt()))
+        s.sendPassword("nope")
+        XCTAssertEqual(peer.control.last, #"{"type":"password","password":"nope"}"#)
+        peer.events.onControlMessage(#"{"type":"password_result","ok":false,"reason":"wrong","left":4}"#)
+        XCTAssertEqual(s.status, .password(PasswordPrompt(wrong: true, left: 4, checking: false)))
+        peer.events.onControlMessage(#"{"type":"password_result","ok":true}"#)
+        XCTAssertEqual(s.status, .waiting)
+
+        let u = session(.reach(link))
+        var forgot = false
+        u.events.unlinked = { forgot = true }
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        peers.created[0].events.onControlMessage(#"{"type":"auth_failed"}"#)
+        XCTAssertTrue(forgot)
+        XCTAssertEqual(u.status, .unlinked)
+
+        let off = session(.reach(link))
+        sockets.last.receive(#"{"type":"error","error":"device not connected"}"#)
+        XCTAssertEqual(off.status, .offline)
+    }
+}

@@ -51,6 +51,8 @@ targets:
         # ProMotion: the picture may be shown at up to 120 Hz.
         CADisableMinimumFrameDurationOnPhone: true
         ITSAppUsesNonExemptEncryption: false
+        # Linked computers open with Face ID (their keys are in the keychain behind it).
+        NSFaceIDUsageDescription: go-link Desk uses Face ID to open the computers you linked, so nobody else can reach them from this device.
         # Downloads from the computer show in the Files app (On My iPhone › go-link Desk).
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true

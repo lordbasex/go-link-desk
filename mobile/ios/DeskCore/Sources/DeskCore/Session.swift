@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+import CryptoKit
 import Foundation
 
 // One visit to a computer with its session code, the iOS port of the Mac
@@ -40,6 +41,38 @@ public protocol RtcPeerFactory: AnyObject {
     func create(iceServers: [IceServer], events: RtcPeerEvents) -> RtcPeer
 }
 
+/** A computer linked before: its id, the link's id and this device's secret for it. */
+public struct DeviceLink: Equatable, Sendable {
+    public let deviceId: String
+    public let linkId: String
+    public let token: String
+
+    public init(deviceId: String, linkId: String, token: String) {
+        self.deviceId = deviceId
+        self.linkId = linkId
+        self.token = token
+    }
+}
+
+/** How a session reaches its computer. */
+public enum Door: Equatable, Sendable {
+    /** The 9-digit session code: the person there accepts this time. */
+    case join(String)
+    /** The computer's pairing code: the person there accepts, and this device is linked. */
+    case claim(String)
+    /** A computer linked before: nobody accepts (unattended access). */
+    case reach(DeviceLink)
+}
+
+/** The unattended password the computer asks for. */
+public struct PasswordPrompt: Equatable, Sendable {
+    /** The last try was wrong, with this many tries left. */
+    public var wrong = false
+    public var left = 0
+    /** A password is being checked. */
+    public var checking = false
+}
+
 /** Where a session is, from the knock to its end. */
 public enum SessionStatus: Equatable, Sendable {
     case joining
@@ -48,6 +81,8 @@ public enum SessionStatus: Equatable, Sendable {
     case connecting
     case live
     case reconnecting
+    /** A linked computer asks for its unattended password. */
+    case password(PasswordPrompt)
     /** declined, timeout, busy, unavailable or off. */
     case rejected(String)
     /** host, viewer, network, signal or idle. */
@@ -55,10 +90,18 @@ public enum SessionStatus: Equatable, Sendable {
     case notFound
     case rateLimited
     case unreachable
+    /** The linked computer is not on. */
+    case offline
+    /** The computer no longer has this link: it was forgotten here. */
+    case unlinked
+    /** Whoever answered could not prove it is the linked computer. Nothing was sent to it. */
+    case untrusted
+    /** Too many wrong passwords: blocked (this device) or locked (retryAfter seconds). */
+    case passwordRefused(reason: String, retryAfter: Int)
 
     public var isOver: Bool {
         switch self {
-        case .joining, .waiting, .connecting, .live, .reconnecting: return false
+        case .joining, .waiting, .connecting, .live, .reconnecting, .password: return false
         default: return true
         }
     }
@@ -109,6 +152,10 @@ public final class SessionEvents {
     public var cursorPos: ((_ x: Double, _ y: Double, _ visible: Bool) -> Void)?
     public var clipboard: ((String) -> Void)?
     public var chat: ((String) -> Void)?
+    /** Linked with the pairing code: keep it to come back without a code. */
+    public var linked: ((DeviceLink) -> Void)?
+    /** The computer no longer has this link: forget it. */
+    public var unlinked: (() -> Void)?
 
     public init() {}
 }
@@ -132,7 +179,7 @@ public final class DeskSession: RtcPeerEvents {
     /** The display shown now, if the computer listed it. */
     public var display: Display? { displays.first { $0.id == currentDisplay } }
 
-    private let code: String
+    private let door: Door
     private let name: String
     private let ua: String
     private let signal: SignalClient
@@ -153,6 +200,10 @@ public final class DeskSession: RtcPeerEvents {
     private var clipIn = ClipboardAssembler()
     private var shapes: [String: CursorShape] = [:]
     private var pointerSeq: UInt16 = 0
+    private var nonce = ""
+    private var proven = false
+    private var authed = false
+    private var early: Permissions?
 
     /**
      * code: the 9 digits. name and ua: what the person at the computer
@@ -160,8 +211,12 @@ public final class DeskSession: RtcPeerEvents {
      * signal: a signalhub connection of its own, closed at the end
      * (leaving signalhub is how a viewer leaves the room).
      */
-    public init(code: String, name: String, ua: String, signal: SignalClient, peers: RtcPeerFactory, scheduler: Scheduler) {
-        self.code = code
+    public convenience init(code: String, name: String, ua: String, signal: SignalClient, peers: RtcPeerFactory, scheduler: Scheduler) {
+        self.init(door: .join(code), name: name, ua: ua, signal: signal, peers: peers, scheduler: scheduler)
+    }
+
+    public init(door: Door, name: String, ua: String, signal: SignalClient, peers: RtcPeerFactory, scheduler: Scheduler) {
+        self.door = door
         self.name = name
         self.ua = ua
         self.signal = signal
@@ -201,17 +256,22 @@ public final class DeskSession: RtcPeerEvents {
     private func ask() {
         guard !asked, !status.isOver else { return }
         asked = true
-        signal.send(Envelopes.join(code: code))
+        switch door {
+        case let .join(code): signal.send(Envelopes.join(code: code))
+        case let .claim(code): signal.send(.obj(("type", "claim"), ("app", .string(DeskProtocol.app)), ("code", .string(code))))
+        case let .reach(link): signal.send(.obj(("type", "reach"), ("app", .string(DeskProtocol.app)), ("device_id", .string(link.deviceId))))
+        }
     }
 
     private func handle(_ env: Envelope) {
         switch env.type {
-        case "joined":
+        case "joined", "paired":
             inRoom(env.remote)
         case "error":
             guard status == .joining else { return }
             switch env.error {
             case ServerError.rateLimited: finish(.rateLimited)
+            case ServerError.deviceOffline: finish(.offline)
             default: finish(.notFound)
             }
         case "signal":
@@ -230,16 +290,25 @@ public final class DeskSession: RtcPeerEvents {
         joinTimer?.cancel()
         set(.waiting)
         sendSignal(RtcSignals.knock(name: name, ua: ua, codecs: DeskSession.codecs))
+        // A linked computer proves itself first: the token goes only to the
+        // computer it was linked to (sent when the control channel opens).
+        if case let .reach(link) = door {
+            nonce = DeskSession.randomNonce()
+            control(.obj(("type", "auth_challenge"), ("link_id", .string(link.linkId)), ("nonce", .string(nonce))))
+        }
     }
 
     private func onSignal(_ s: HostSignal) {
         switch s {
         case let .accepted(p):
             guard !status.isOver else { return }
-            admitted = true
-            permissions = p
-            set(connected ? .live : .connecting)
-            events.permissions?(p)
+            // A linked computer lets this device in only once it proved
+            // itself and took the token; its acceptance may overtake auth_ok.
+            if case .reach = door, !authed {
+                early = p
+                return
+            }
+            admit(p)
         case let .rejected(reason):
             finish(.rejected(reason))
         case .offer:
@@ -257,6 +326,15 @@ public final class DeskSession: RtcPeerEvents {
             }
             apply(s)
         }
+    }
+
+    private func admit(_ p: Permissions) {
+        admitted = true
+        permissions = p
+        set(connected ? .live : .connecting)
+        events.permissions?(p)
+        // Accepted with the pairing code: now ask for the link's token.
+        if case .claim = door { control(.obj(("type", "auth"))) }
     }
 
     private func apply(_ s: HostSignal) {
@@ -353,8 +431,93 @@ public final class DeskSession: RtcPeerEvents {
             let r = o["reason"].str(20)
             finish(.ended(["host", "viewer", "network", "signal", "idle", "revoked"].contains(r) ? r : "host"))
         default:
+            linkMessage(m)
+        }
+    }
+
+    /** The link's messages: the computer's proof, the token, the password. */
+    private func linkMessage(_ m: JSONObject) {
+        let o = JSON.object(m)
+        switch m["type"].str(40) {
+        case "auth_proof":
+            guard case let .reach(link) = door, !nonce.isEmpty else { return }
+            let proof = o["proof"].str(100)
+            guard o["link_id"].str(64) == link.linkId, DeskSession.same(proof, DeskSession.linkProof(token: link.token, nonce: nonce)) else {
+                finish(.untrusted)
+                return
+            }
+            nonce = ""
+            proven = true
+            control(.obj(("type", "auth"), ("link_id", .string(link.linkId)), ("token", .string(link.token))))
+        case "auth_ok":
+            if case .claim = door {
+                let device = o["device_id"].str(64), linkId = o["link_id"].str(64), token = o["token"].str(200)
+                if !device.isEmpty, !linkId.isEmpty, !token.isEmpty {
+                    events.linked?(DeviceLink(deviceId: device, linkId: linkId, token: token))
+                }
+                return
+            }
+            guard case let .reach(link) = door, proven, o["link_id"].str(64) == link.linkId else { return }
+            authed = true
+            if let p = early {
+                early = nil
+                admit(p)
+            }
+        case "auth_failed", "unlinked":
+            if case .join = door { return }
+            events.unlinked?()
+            finish(.unlinked)
+        case "password_required":
+            guard case .reach = door, authed, !status.isOver else { return }
+            set(.password(PasswordPrompt()))
+        case "password_result":
+            guard case let .password(prompt) = status else { return }
+            if o["ok"].isTrue {
+                set(.waiting)
+                return
+            }
+            let reason = o["reason"].str(20)
+            if reason == "blocked" || reason == "locked" {
+                finish(.passwordRefused(reason: reason, retryAfter: Int(max(0, o["retry_after"].num))))
+                return
+            }
+            var next = prompt
+            next.wrong = true
+            next.checking = false
+            next.left = Int(max(0, o["left"].num))
+            set(.password(next))
+        default:
             break
         }
+    }
+
+    /** Sends the unattended password the computer asked for. */
+    public func sendPassword(_ password: String) {
+        guard case var .password(prompt) = status, !password.isEmpty else { return }
+        prompt.checking = true
+        set(.password(prompt))
+        control(.obj(("type", "password"), ("password", .string(String(password.prefix(512))))))
+    }
+
+    /** The proof a linked computer gives: base64url of HMAC-SHA256 keyed with SHA-256(token) (protocol/vectors/link-proof.json). */
+    static func linkProof(token: String, nonce: String) -> String {
+        let key = SymmetricKey(data: SHA256.hash(data: Data(token.utf8)))
+        let mac = HMAC<SHA256>.authenticationCode(for: Data(("go-link-desk link proof\n" + nonce).utf8), using: key)
+        return Data(mac).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+
+    /** Compares two proofs in constant time. */
+    static func same(_ a: String, _ b: String) -> Bool {
+        let x = Array(a.utf8), y = Array(b.utf8)
+        guard x.count == y.count else { return false }
+        return zip(x, y).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
+    }
+
+    /** 32 random bytes, base64url. */
+    static func randomNonce() -> String {
+        var b = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, b.count, &b)
+        return Data(b).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
 
     private func cursor(_ m: JSONObject) {

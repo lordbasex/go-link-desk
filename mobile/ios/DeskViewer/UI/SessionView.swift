@@ -18,8 +18,21 @@ struct SessionView: View {
                 RemoteScreen(model: model)
                     .ignoresSafeArea()
             }
-            if let text = statusText {
+            if case let .password(prompt) = model.status {
+                PasswordCard(prompt: prompt, name: model.label) { model.session.sendPassword($0) } cancel: { model.close() }
+            } else if let text = statusText {
                 StatusCard(text: text, busy: !model.status.isOver, over: model.status.isOver) { model.close() } cancel: { model.close() }
+            }
+            if model.justLinked && model.status == .live {
+                Label(String(format: String(localized: "Linked: next time, it opens with %@, without anyone accepting."), LinkStore.biometryName), systemImage: LinkStore.biometrySymbol)
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.75), in: Capsule())
+                    .padding(.top, 56)
+                    .onTapGesture { model.justLinked = false }
+                    .task { try? await Task.sleep(for: .seconds(6)); model.justLinked = false }
             }
             if !model.status.isOver && model.status != .joining && model.status != .waiting {
                 if model.locked { lockBadge } else { toolbar }
@@ -80,11 +93,19 @@ struct SessionView: View {
         case .notFound: return String(localized: "That code does not lead anywhere. It may have changed: ask for the current one.")
         case .rateLimited: return String(localized: "Too many tries. Wait a minute and try again.")
         case .unreachable: return String(localized: "The server does not answer. Check the connection.")
+        case .password: return nil
+        case .offline: return String(localized: "The computer is not on, or go-link Desk is closed there.")
+        case .unlinked: return String(localized: "That computer no longer has this link (it was removed there). It was forgotten here: link it again with its pairing code.")
+        case .untrusted: return String(localized: "Whoever answered could not prove it is your linked computer. Nothing was sent to it.")
+        case let .passwordRefused(reason, retryAfter):
+            return reason == "locked"
+                ? String(format: String(localized: "Too many wrong passwords. Try again in %d minutes."), max(1, retryAfter / 60))
+                : String(localized: "Too many wrong passwords.")
         }
     }
 
     private var title: String {
-        model.hostName.isEmpty ? CodeInput.group(model.code) : model.hostName
+        model.hostName.isEmpty ? model.label : model.hostName
     }
 
     private var toolbar: some View {
@@ -325,5 +346,55 @@ private struct StatsPanel: View {
             Text(k).foregroundStyle(.white.opacity(0.6)).frame(width: 44, alignment: .leading)
             Text(v)
         }
+    }
+}
+
+/** The unattended password the linked computer asks for. */
+private struct PasswordCard: View {
+    let prompt: PasswordPrompt
+    let name: String
+    let send: (String) -> Void
+    let cancel: () -> Void
+    @State private var password = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "lock.shield").font(.largeTitle).foregroundStyle(Theme.accent)
+            Text("This computer asks for its unattended access password.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white)
+            SecureField("Password", text: $password)
+                .textContentType(.password)
+                .focused($focused)
+                .padding(10)
+                .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(.white)
+                .onSubmit(go)
+            if prompt.wrong {
+                Text(verbatim: String(format: String(localized: "Wrong password. %d tries left."), prompt.left)).font(.footnote).foregroundStyle(.orange)
+            }
+            HStack {
+                Button("Cancel", role: .cancel, action: cancel).buttonStyle(.bordered).tint(.white)
+                Button(action: go) {
+                    if prompt.checking { ProgressView() } else { Text("Unlock") }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .disabled(password.isEmpty || prompt.checking)
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: 380)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .padding()
+        .frame(maxHeight: .infinity)
+        .onAppear { focused = true }
+        .onChange(of: prompt.wrong) { password = "" }
+    }
+
+    private func go() {
+        guard !password.isEmpty, !prompt.checking else { return }
+        send(password)
     }
 }

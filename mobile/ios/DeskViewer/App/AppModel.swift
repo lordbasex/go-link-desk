@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     @Published var touchMode: Bool { didSet { defaults.set(touchMode, forKey: "touch_mode") } }
     @Published var preset: Preset { didSet { defaults.set(preset.rawValue, forKey: "preset") } }
     @Published var session: SessionModel?
+    let links = LinkStore()
+    /** Why the last link or unlock failed, for Home. */
+    @Published var linkError: String?
 
     init() {
         name = defaults.string(forKey: "name") ?? ""
@@ -60,10 +63,57 @@ final class AppModel: ObservableObject {
     }
 
     func connect(code: String) {
-        guard session == nil, let digits = Recents.digits(code) else { return }
-        let s = SessionModel(app: self, code: digits)
+        guard let digits = Recents.digits(code) else { return }
+        open(.join(digits), label: CodeInput.group(digits))
+    }
+
+    /** Links this device to a computer with its pairing code (Settings › Unattended access there). */
+    func link(code: String) {
+        guard LinkStore.canProtect else {
+            linkError = LinkStore.LinkError.noPasscode.errorDescription
+            return
+        }
+        guard let digits = Recents.digits(code) else { return }
+        open(.claim(digits), label: CodeInput.group(digits))
+    }
+
+    /** Comes back to a linked computer: Face ID (or the passcode) first. */
+    func reach(_ c: LinkedComputer) {
+        guard session == nil else { return }
+        Task {
+            do {
+                let link = try await links.unlock(c)
+                open(.reach(link), label: c.name)
+            } catch let e as LinkStore.LinkError {
+                if case .cancelled = e { return }
+                linkError = e.errorDescription
+            } catch {
+                linkError = error.localizedDescription
+            }
+        }
+    }
+
+    private func open(_ door: Door, label: String) {
+        guard session == nil else { return }
+        let s = SessionModel(app: self, door: door, label: label)
         session = s
         s.start()
+    }
+
+    /** Keeps a link made with the pairing code (again when the computer says its name). */
+    func link(_ link: DeviceLink, name: String, os: String) {
+        do {
+            try links.save(link, name: name, os: os)
+            session?.justLinked = true
+        } catch {
+            linkError = error.localizedDescription
+        }
+        objectWillChange.send()
+    }
+
+    func forgetLink(_ deviceId: String) {
+        links.forget(deviceId)
+        objectWillChange.send()
     }
 
     func remember(_ r: Recent) {

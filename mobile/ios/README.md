@@ -22,6 +22,7 @@ It is distributed through **TestFlight** (see [TestFlight](#testflight)).
 What `DeskCore` holds:
 
 - the signalhub client;
+- the three doors (code, pairing code, linked computer), with the computer's proof (tested against `protocol/vectors/link-proof.json`) and the unattended password;
 - the files channel (browse, download, send);
 - the session (join, knock, offer and answer, the control messages);
 - the input channel's packets, tested against `protocol/vectors/input.json`;
@@ -38,6 +39,15 @@ What `DeskViewer` does:
 Dependencies are Swift packages only: [stasel/WebRTC](https://github.com/stasel/WebRTC) (a prebuilt libwebrtc, BSD-3, pinned in `project.yml`) and the local `DeskCore`.
 
 ## Using it
+
+**Three ways in:**
+
+- **A session code** (Home): the person at the computer accepts this time.
+- **Link a computer** (My computers › Link, with its pairing code from Settings › Unattended access there): the person there accepts once, and this device is linked.
+- **A linked computer** (My computers): it opens after Face ID, Touch ID, Optic ID or the device's passcode, without anyone accepting.
+  - Each link's token is in the keychain, only on this device (never in a backup or iCloud), behind `.userPresence`.
+  - The computer proves itself before the token goes out.
+  - If the computer has an unattended password, it is asked too.
 
 **Fingers, trackpad mode (the default):**
 

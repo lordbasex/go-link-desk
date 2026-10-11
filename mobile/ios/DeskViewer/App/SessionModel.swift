@@ -16,7 +16,14 @@ final class SessionModel: ObservableObject, MediaListener {
     /** The session's steps and numbers in the unified log (never a code or a name). */
     static let log = Logger(subsystem: "org.go-link.desk.ios", category: "session")
 
-    let code: String
+    let door: Door
+    /** The session code, for a session by code ("" otherwise). */
+    var code: String {
+        if case let .join(c) = door { return c }
+        return ""
+    }
+    /** What the toolbar shows before the computer says its name. */
+    let label: String
     private unowned let app: AppModel
     private let peers = DeskPeers()
     private(set) var session: DeskSession!
@@ -45,6 +52,10 @@ final class SessionModel: ObservableObject, MediaListener {
     }
     @Published var toast: String?
     private var toastTimer: Timer?
+    /** The link made with the pairing code, saved again when the computer says its name. */
+    private var pendingLink: DeviceLink?
+    /** Linked in this session, to say so. */
+    @Published var justLinked = false
     /** Locked to watch: the screen sends nothing until it is unlocked. */
     @Published var locked = false {
         didSet { if locked { keyboard = false } }
@@ -60,15 +71,16 @@ final class SessionModel: ObservableObject, MediaListener {
     private var hidden = false
     private var lifecycle: [NSObjectProtocol] = []
 
-    init(app: AppModel, code: String) {
+    init(app: AppModel, door: Door, label: String) {
         self.app = app
-        self.code = code
+        self.door = door
+        self.label = label
     }
 
     func start() {
         peers.media = self
         let signal = SignalClient(url: app.signalURL, factory: URLSessionSockets(), scheduler: MainScheduler.shared)
-        let s = DeskSession(code: code, name: app.knockName, ua: app.agent, signal: signal, peers: peers, scheduler: MainScheduler.shared)
+        let s = DeskSession(door: door, name: app.knockName, ua: app.agent, signal: signal, peers: peers, scheduler: MainScheduler.shared)
         session = s
         let ev = s.events
         ev.status = { [weak self] st in self?.statusChanged(st) }
@@ -76,7 +88,15 @@ final class SessionModel: ObservableObject, MediaListener {
             guard let self else { return }
             self.hostName = name
             self.hostOS = os
-            self.app.remember(Recent(code: self.code, name: name, os: os, at: Date()))
+            switch self.door {
+            case let .join(code):
+                self.app.remember(Recent(code: code, name: name, os: os, at: Date()))
+            case let .reach(link):
+                self.app.links.update(link.deviceId) { $0.name = name; $0.os = os; $0.lastUsed = Date() }
+                self.app.objectWillChange.send()
+            case .claim:
+                if let link = self.pendingLink { self.app.link(link, name: name, os: os) }
+            }
         }
         ev.permissions = { [weak self] p in self?.permissions = p }
         ev.displays = { [weak self] d, current in
@@ -91,6 +111,15 @@ final class SessionModel: ObservableObject, MediaListener {
         }
         ev.clipboard = { text in UIPasteboard.general.string = text }
         ev.chat = { [weak self] text in self?.received(text) }
+        ev.linked = { [weak self] link in
+            guard let self else { return }
+            self.pendingLink = link
+            self.app.link(link, name: self.hostName, os: self.hostOS)
+        }
+        ev.unlinked = { [weak self] in
+            guard let self, case let .reach(link) = self.door else { return }
+            self.app.forgetLink(link.deviceId)
+        }
         // The picture is sent smaller while the app is in the background.
         let nc = NotificationCenter.default
         lifecycle = [
