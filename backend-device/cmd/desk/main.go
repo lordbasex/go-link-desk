@@ -166,7 +166,14 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	save := store.Save
 	if f.unattended {
+		// For this run only: what is saved keeps the file's own setting.
+		saved := cfg.Unattended
+		save = func(c models.Config) error {
+			c.Unattended = saved
+			return store.Save(c)
+		}
 		cfg.Unattended.Enabled = true
 		if f.password != "" {
 			if cfg.Unattended.PasswordHash, err = services.HashPassword(f.password); err != nil {
@@ -174,7 +181,7 @@ func run(args []string) error {
 			}
 		}
 	}
-	settings := services.NewSettingsService(cfg, store.Save, logger)
+	settings := services.NewSettingsService(cfg, save, logger)
 	status := services.NewStatusService(cfg.DeviceID, version, target)
 	status.SetSavedLinks(len(cfg.Links))
 	links := services.NewLinkService(services.LinkConfig{
