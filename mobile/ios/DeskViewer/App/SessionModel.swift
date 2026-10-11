@@ -33,6 +33,14 @@ final class SessionModel: ObservableObject, MediaListener {
     @Published var showStats = false
     @Published var keyboard = false
     @Published var muted = false
+    /** The computer's files, once its channel opens (with the files permission). */
+    @Published private(set) var files: FilesModel?
+    @Published var showFiles = false
+    @Published var showGuide = false
+    /** Locked to watch: the screen sends nothing until it is unlocked. */
+    @Published var locked = false {
+        didSet { if locked { keyboard = false } }
+    }
     /** The computer's pointer image and where it is (0..1), when it moves by itself. */
     @Published private(set) var cursor: CursorShape?
     private(set) var hostPointer: (x: Double, y: Double, visible: Bool)?
@@ -110,6 +118,11 @@ final class SessionModel: ObservableObject, MediaListener {
         } else if st == .live {
             // The screen stays on while the computer is shown.
             UIApplication.shared.isIdleTimerDisabled = true
+            // The first time, how to use it.
+            if !UserDefaults.standard.bool(forKey: "guide_seen") {
+                UserDefaults.standard.set(true, forKey: "guide_seen")
+                showGuide = true
+            }
         }
     }
 
@@ -176,8 +189,14 @@ final class SessionModel: ObservableObject, MediaListener {
         track.isEnabled = !muted
     }
 
+    func onFiles(_ client: FilesClient) {
+        files = FilesModel(client: client)
+    }
+
     func onMediaClosed() {
         video = nil
         audio = nil
+        files = nil
+        showFiles = false
     }
 }

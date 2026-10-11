@@ -9,6 +9,8 @@ import Foundation
 protocol MediaListener: AnyObject {
     func onVideo(_ track: RTCVideoTrack)
     func onAudio(_ track: RTCAudioTrack)
+    /** The files channel opened (with the files permission). */
+    func onFiles(_ files: FilesClient)
     /** The connection is closing: its tracks go away. */
     func onMediaClosed()
 }
@@ -17,9 +19,9 @@ protocol MediaListener: AnyObject {
  * The app's side of the WebRTC link with the computer, adapted from
  * go-link's player app (IOSRtcPeer): it answers the computer's offer,
  * receives its picture and sound, and speaks the "control", "pointer" and
- * "input" channels the computer opens. A video call's tracks (the host's
- * camera) and the files channel are left alone: this app does not have
- * them yet.
+ * "input" channels the computer opens, and its "files" channel. A video
+ * call's tracks (the host's camera) are left alone: this app does not
+ * have calls yet.
  */
 @MainActor
 final class DeskRtcPeer: NSObject, RtcPeer {
@@ -29,6 +31,7 @@ final class DeskRtcPeer: NSObject, RtcPeer {
     private var control: RTCDataChannel?
     private var pointer: RTCDataChannel?
     private var input: RTCDataChannel?
+    private var files: FilesChannelAdapter?
     private var closed = false
 
     init(engine: WebRtcEngine, iceServers: [IceServer], events: RtcPeerEvents, media: MediaListener) {
@@ -102,7 +105,9 @@ final class DeskRtcPeer: NSObject, RtcPeer {
         control?.delegate = nil
         // Let the last control message (session_end) go before closing.
         let old = pc
-        let channels = [control, pointer, input]
+        files?.client?.onClosed()
+        let channels = [control, pointer, input, files?.channel]
+        files = nil
         control = nil
         pointer = nil
         input = nil
@@ -141,6 +146,7 @@ extension DeskRtcPeer: RTCPeerConnectionDelegate {
         // Listen at once: the computer's first message (welcome) may come
         // before the main queue gets to this channel.
         if dataChannel.label == "control" { dataChannel.delegate = self }
+        let filesAdapter = dataChannel.label == "files" ? FilesChannelAdapter(dataChannel) : nil
         DispatchQueue.main.async {
             guard !self.closed else { return }
             switch dataChannel.label {
@@ -151,8 +157,14 @@ extension DeskRtcPeer: RTCPeerConnectionDelegate {
                 self.pointer = dataChannel
             case "input":
                 self.input = dataChannel
+            case "files":
+                guard let filesAdapter else { return }
+                self.files = filesAdapter
+                let client = FilesClient(channel: filesAdapter, scheduler: MainScheduler.shared)
+                filesAdapter.client = client
+                self.media?.onFiles(client)
             default:
-                dataChannel.close() // files: not in this app yet
+                dataChannel.close()
             }
         }
     }
@@ -206,5 +218,59 @@ final class DeskPeers: RtcPeerFactory {
         let p = DeskRtcPeer(engine: .shared, iceServers: iceServers, events: events, media: media!)
         current = p
         return p
+    }
+}
+
+/**
+ * The "files" data channel for FilesClient: text and binary messages go to
+ * the client on the main queue, and so does the queue draining under half
+ * the upload window. Its delegate is set before the main queue sees the
+ * channel, so no first message is lost.
+ */
+final class FilesChannelAdapter: NSObject, FilesChannel, RTCDataChannelDelegate, @unchecked Sendable {
+    let channel: RTCDataChannel
+    @MainActor weak var client: FilesClient?
+
+    init(_ channel: RTCDataChannel) {
+        self.channel = channel
+        super.init()
+        channel.delegate = self
+    }
+
+    func sendText(_ text: String) -> Bool {
+        guard let d = text.data(using: .utf8) else { return false }
+        return channel.sendData(RTCDataBuffer(data: d, isBinary: false))
+    }
+
+    func sendData(_ bytes: [UInt8]) -> Bool {
+        channel.sendData(RTCDataBuffer(data: Data(bytes), isBinary: true))
+    }
+
+    var bufferedAmount: UInt64 { channel.bufferedAmount }
+    var isOpen: Bool { channel.readyState == .open }
+
+    func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
+        if dataChannel.readyState == .closed || dataChannel.readyState == .closing {
+            DispatchQueue.main.async { self.client?.onClosed() }
+        }
+    }
+
+    func dataChannel(_ dataChannel: RTCDataChannel, didReceiveMessageWith buffer: RTCDataBuffer) {
+        let data = buffer.data
+        let binary = buffer.isBinary
+        guard data.count <= 128 * 1024 else { return }
+        DispatchQueue.main.async {
+            if binary {
+                self.client?.onBinary(data)
+            } else if let text = String(data: data, encoding: .utf8) {
+                self.client?.onText(text)
+            }
+        }
+    }
+
+    func dataChannel(_ dataChannel: RTCDataChannel, didChangeBufferedAmount amount: UInt64) {
+        if dataChannel.bufferedAmount <= (1 << 20) / 2 {
+            DispatchQueue.main.async { self.client?.onBufferedLow() }
+        }
     }
 }

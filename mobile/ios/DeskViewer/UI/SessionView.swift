@@ -19,12 +19,16 @@ struct SessionView: View {
                 StatusCard(text: text, busy: !model.status.isOver, over: model.status.isOver) { model.close() } cancel: { model.close() }
             }
             if !model.status.isOver && model.status != .joining && model.status != .waiting {
-                toolbar
+                if model.locked { lockBadge } else { toolbar }
             }
             if model.showStats, model.status == .live {
                 StatsPanel(stats: model.stats, sent: nil)
                     .padding(.top, 64)
             }
+        }
+        .sheet(isPresented: $model.showGuide) { GuideView(touchMode: model.touchMode) }
+        .sheet(isPresented: $model.showFiles) {
+            if let f = model.files { FilesView(model: f) }
         }
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
@@ -80,7 +84,15 @@ struct SessionView: View {
                         .accessibilityLabel(Text("Keyboard"))
                     keysMenu
                 }
+                if model.permissions.files && model.files != nil {
+                    Button { model.showFiles = true } label: { Image(systemName: "folder") }
+                        .accessibilityLabel(Text("Files"))
+                }
                 screenMenu
+                Button { withAnimation { model.locked = true } } label: { Image(systemName: "lock") }
+                    .accessibilityLabel(Text("Lock"))
+                Button { model.showGuide = true } label: { Image(systemName: "questionmark.circle") }
+                    .accessibilityLabel(Text("How to use it"))
                 Button { withAnimation { barHidden = true } } label: { Image(systemName: "chevron.up") }
                     .accessibilityLabel(Text("Hide the toolbar"))
             }
@@ -90,6 +102,28 @@ struct SessionView: View {
         .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
         .padding(.top, 6)
+    }
+
+    /** Locked: a small lock in a corner; holding it for a second unlocks. */
+    private var lockBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.fill")
+            Text("Hold to unlock").font(.caption)
+        }
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.black.opacity(0.45), in: Capsule())
+        .onLongPressGesture(minimumDuration: 1) {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            withAnimation { model.locked = false }
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Text("Unlock"))
+        .accessibilityAction { model.locked = false }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.top, 6)
+        .padding(.trailing, 12)
     }
 
     private var keysMenu: some View {

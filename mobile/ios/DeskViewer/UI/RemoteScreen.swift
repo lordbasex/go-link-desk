@@ -24,6 +24,10 @@ import UIKit
 final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
     var session: DeskSession?
     var touchMode = false
+    /** Locked: nothing is sent and the view stays still (to watch). */
+    var locked = false {
+        didSet { if locked && !oldValue { releaseAll() } }
+    }
     /** The computer is a Mac: the bar says ⌘ and ⌥ instead of Win and Alt. */
     var mac = false {
         didSet { if mac != oldValue { accessory.relabel(mac: mac) } }
@@ -208,6 +212,10 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
         addGestureRecognizer(wheel)
     }
 
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        !locked
+    }
+
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         // Pinch and two-finger scroll together; a long press hands over to the slide.
         (g is UIPinchGestureRecognizer && other is UIPanGestureRecognizer) || (g is UIPanGestureRecognizer && other is UIPinchGestureRecognizer)
@@ -324,7 +332,7 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
 
     // A trackpad's or mouse's buttons: indirect pointer touches.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let t = touches.first, t.type == .indirectPointer {
+        if let t = touches.first, t.type == .indirectPointer, !locked {
             place(t.location(in: self))
             session?.button(event?.buttonMask.contains(.secondary) == true ? .right : .left, down: true, x: pointer.x, y: pointer.y)
             pointerButton = event?.buttonMask.contains(.secondary) == true ? .right : .left
@@ -399,6 +407,7 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
     var hasText: Bool { true }
 
     func insertText(_ text: String) {
+        if locked { return }
         if text == "\n" {
             press("Enter")
             return
@@ -411,7 +420,7 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
         session?.input(InputPacket.textEvent(text))
     }
 
-    func deleteBackward() { press("Backspace") }
+    func deleteBackward() { if !locked { press("Backspace") } }
 
     /** Presses and lets go of a key, with the latched modifiers held around it. */
     func press(_ code: String) {
@@ -446,6 +455,7 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if locked { return }
         var rest = Set<UIPress>()
         for p in presses {
             guard let key = p.key, let code = Keys.code(hidUsage: key.keyCode.rawValue), let k = Keys.keycode(code) else {
@@ -465,8 +475,10 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
                 rest.insert(p)
                 continue
             }
-            held.remove(k)
-            session?.input(InputPacket.keyEvent(k, down: false, mods: Self.mods(key.modifierFlags)))
+            // Only what went down here goes up (not a key held while locked).
+            if held.remove(k) != nil {
+                session?.input(InputPacket.keyEvent(k, down: false, mods: Self.mods(key.modifierFlags)))
+            }
         }
         if !rest.isEmpty { super.pressesEnded(rest, with: event) }
     }
@@ -513,6 +525,7 @@ struct RemoteScreen: UIViewRepresentable {
     func updateUIView(_ v: RemoteScreenView, context: Context) {
         v.show(model.video)
         v.touchMode = model.touchMode
+        v.locked = model.locked
         v.setCursor(model.cursor, pointsWidth: model.displays.first { $0.id == model.currentDisplay }?.pointsWidth ?? 0)
         v.mac = model.hostOS == "darwin"
         v.setSoftKeyboard(model.keyboard)

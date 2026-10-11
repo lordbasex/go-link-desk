@@ -22,6 +22,7 @@ It is distributed through **TestFlight** (see [TestFlight](#testflight)).
 What `DeskCore` holds:
 
 - the signalhub client;
+- the files channel (browse, download, send);
 - the session (join, knock, offer and answer, the control messages);
 - the input channel's packets, tested against `protocol/vectors/input.json`;
 - the keys by position (`KeyCodes.gen.swift`, generated from `protocol/keycodes.json`);
@@ -57,6 +58,13 @@ Dependencies are Swift packages only: [stasel/WebRTC](https://github.com/stasel/
 - Over the on-screen keyboard, a bar has Esc, Tab, Ctrl, Alt/⌥, Win/⌘, ⇧, the arrows, Delete, Home/End, Page Up/Down and F1 to F12. The modifiers latch for the next key, so Ctrl then C is Ctrl+C.
 
 **The toolbar:**
+
+- Files (with the files permission):
+  - browse the computer's home folder;
+  - tap a file to download it into the Files app (On My iPhone or iPad › go-link Desk);
+  - Send takes a file from the Files app, or a photo or video, to the computer's Downloads/go-link Desk.
+- Lock, to watch without touching anything. Nothing is sent and the view stays still; hold the lock for a second to unlock.
+- ? opens the guide to the gestures, keys and toolbar. It also opens by itself the first time a session starts.
 
 - Special keys:
   - on a Mac: switch apps, Spotlight, force quit, lock, screenshot;
