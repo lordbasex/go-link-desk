@@ -13,6 +13,8 @@ package remoteview
 void rv_main_open(uintptr_t handle, const char *labelsJSON);
 void rv_main_state(const char *stateJSON);
 void rv_main_show(void);
+void rv_about(const char *version, const char *credits);
+void rv_app_menu(const char *labelsJSON);
 void rv_prefs(uintptr_t handle, const char *specJSON, int show);
 void rv_dock_icon(const uint8_t *png, int n);
 void rv_theme(int mode);
@@ -102,6 +104,24 @@ const (
 
 // SetTheme picks the windows' theme (ThemeSystem follows macOS).
 func SetTheme(mode int) { C.rv_theme(C.int(mode)) }
+
+// ShowAbout shows the About panel: the version, and what the app is.
+func ShowAbout(version, credits string) {
+	v, c := C.CString(version), C.CString(credits)
+	defer C.free(unsafe.Pointer(v))
+	defer C.free(unsafe.Pointer(c))
+	C.rv_about(v, c)
+}
+
+// SetAppMenu makes the app menu go-link Desk's: About, Settings… (⌘,),
+// the system's entries, and Quit. The labels: about, settings, services,
+// hide, hideOthers, showAll, quit.
+func SetAppMenu(labels map[string]string) {
+	b, _ := json.Marshal(labels)
+	c := C.CString(string(b))
+	defer C.free(unsafe.Pointer(c))
+	C.rv_app_menu(c)
+}
 
 // ShowMain brings the main window to the front.
 func ShowMain() { C.rv_main_show() }

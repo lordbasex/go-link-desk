@@ -70,6 +70,15 @@ func (u *ui) openMain() {
 		return
 	}
 	u.native = true
+	remoteview.SetAppMenu(map[string]string{
+		"about":      L("About go-link Desk"),
+		"settings":   L("Settings…"),
+		"services":   L("Services"),
+		"hide":       L("Hide go-link Desk"),
+		"hideOthers": L("Hide others"),
+		"showAll":    L("Show all"),
+		"quit":       L("Quit go-link Desk"),
+	})
 	if u.opts.Settings != nil {
 		cfg := u.opts.Settings.Get()
 		u.prefs.start, u.prefs.startSet = cfg, true
@@ -196,6 +205,8 @@ func (u *ui) MainAction(name, arg string) {
 		}
 	case "settings":
 		fyne.Do(u.showSettings)
+	case "about":
+		fyne.Do(u.showAbout)
 	case "setting":
 		fyne.Do(func() { u.setting(arg) })
 	case "allow":

@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **About go-link Desk:** the version, what the app is, its license and website. On macOS it is the system's About panel, first in the app menu, which is now go-link Desk's own (About, Settings… with ⌘,, Hide, Quit) in the app's language; elsewhere, a small window. Also in the menu bar icon's menu.
+
 ### Added (the app as a viewer, phase 6b)
 
 - **go-link Desk connects to other computers too,** in one window: Home has the address bar (a 9-digit session code, or a pairing code to link the computer for unattended access), and each session opens in a tab, or in a window of its own (Settings).
