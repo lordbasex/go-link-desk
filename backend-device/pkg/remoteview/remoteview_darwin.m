@@ -1642,6 +1642,9 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 - (void)settings:(id)s {
 	action(self.handle, @"settings", @"");
 }
+- (void)about:(id)s {
+	action(self.handle, @"about", @"");
+}
 - (void)allow:(NSButton *)s {
 	action(self.handle, @"allow", s.identifier);
 }
@@ -1753,6 +1756,68 @@ void rv_main_open(uintptr_t handle, const char *labelsJSON) {
 		m.labels = labels;
 		gMain = m;
 		[m build];
+	});
+}
+
+// rv_about shows the About panel: the app's name, version, icon (the one
+// in the Dock) and what it is.
+void rv_about(const char *version, const char *credits) {
+	NSString *v = [NSString stringWithUTF8String:version];
+	NSString *c = [NSString stringWithUTF8String:credits];
+	onMain(^{
+		NSMutableParagraphStyle *p = [[NSMutableParagraphStyle alloc] init];
+		p.alignment = NSTextAlignmentCenter;
+		NSAttributedString *text = [[NSAttributedString alloc] initWithString:c attributes:@{
+			NSFontAttributeName : [NSFont systemFontOfSize:11],
+			NSForegroundColorAttributeName : NSColor.secondaryLabelColor,
+			NSParagraphStyleAttributeName : p,
+		}];
+		[NSApp activateIgnoringOtherApps:YES];
+		[NSApp orderFrontStandardAboutPanelWithOptions:@{
+			NSAboutPanelOptionApplicationName : @"go-link Desk",
+			NSAboutPanelOptionApplicationVersion : v,
+			NSAboutPanelOptionVersion : @"",
+			NSAboutPanelOptionApplicationIcon : NSApp.applicationIconImage,
+			NSAboutPanelOptionCredits : text,
+			@"Copyright" : @"© 2026 Federico Pereira",
+		}];
+	});
+}
+
+// rv_app_menu puts "About go-link Desk" and "Settings…" (⌘,) first in the
+// app menu, in place of what the toolkit put there, with the app's name.
+void rv_app_menu(const char *labelsJSON) {
+	NSData *json = [NSData dataWithBytes:labelsJSON length:strlen(labelsJSON)];
+	NSDictionary *l = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
+	if (![l isKindOfClass:NSDictionary.class]) l = @{};
+	NSString *a = l[@"about"] ?: @"About go-link Desk", *st = l[@"settings"] ?: @"Settings…", *q = l[@"quit"] ?: @"Quit go-link Desk";
+	onMain(^{
+		NSMenu *bar = NSApp.mainMenu;
+		if (!bar) {
+			bar = [[NSMenu alloc] init];
+			NSApp.mainMenu = bar;
+		}
+		if (bar.numberOfItems == 0) [bar addItem:[[NSMenuItem alloc] init]];
+		NSMenuItem *appItem = [bar itemAtIndex:0];
+		NSMenu *menu = [[NSMenu alloc] initWithTitle:@"go-link Desk"];
+		NSMenuItem *ab = [menu addItemWithTitle:a action:@selector(about:) keyEquivalent:@""];
+		ab.target = gMain;
+		[menu addItem:NSMenuItem.separatorItem];
+		NSMenuItem *pr = [menu addItemWithTitle:st action:@selector(settings:) keyEquivalent:@","];
+		pr.target = gMain;
+		[menu addItem:NSMenuItem.separatorItem];
+		NSMenuItem *services = [menu addItemWithTitle:l[@"services"] ?: @"Services" action:nil keyEquivalent:@""];
+		services.submenu = [[NSMenu alloc] init];
+		NSApp.servicesMenu = services.submenu;
+		[menu addItem:NSMenuItem.separatorItem];
+		[menu addItemWithTitle:l[@"hide"] ?: @"Hide go-link Desk" action:@selector(hide:) keyEquivalent:@"h"];
+		NSMenuItem *others = [menu addItemWithTitle:l[@"hideOthers"] ?: @"Hide Others" action:@selector(hideOtherApplications:) keyEquivalent:@"h"];
+		others.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+		[menu addItemWithTitle:l[@"showAll"] ?: @"Show All" action:@selector(unhideAllApplications:) keyEquivalent:@""];
+		[menu addItem:NSMenuItem.separatorItem];
+		[menu addItemWithTitle:q action:@selector(terminate:) keyEquivalent:@"q"];
+		appItem.submenu = menu;
+		appItem.title = @"go-link Desk";
 	});
 }
 

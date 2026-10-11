@@ -52,3 +52,9 @@ const (
 
 // SetTheme does nothing in this build.
 func SetTheme(int) {}
+
+// ShowAbout does nothing here: the app shows its own About window.
+func ShowAbout(string, string) {}
+
+// SetAppMenu does nothing here.
+func SetAppMenu(map[string]string) {}

@@ -97,6 +97,7 @@ type ui struct {
 	copied   *time.Timer     // puts "Copy" back on the button
 	call     *callWindow     // nil without a call
 	settings *settingsWindow // nil without Settings
+	about    fyne.Window     // the About window, off macOS
 	// native: the main window is the system's own (Home and the
 	// sessions' tabs), not win.
 	native   bool
@@ -383,6 +384,7 @@ func (u *ui) setupTray() {
 	if u.settings != nil {
 		u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("Settings…"), u.showSettings))
 	}
+	u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", u.trayPNG()))
 	u.win.SetCloseIntercept(u.win.Hide)
