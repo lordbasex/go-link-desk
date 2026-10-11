@@ -16,6 +16,7 @@ export const es: Messages = {
     devices: "Mis equipos",
     downloadMac: "Descargar go-link Desk para macOS",
     iosSoon: "iPhone y iPad: pronto en la App Store",
+    androidSoon: "Celulares y tablets Android: pronto en Google Play",
     steps: [
       { title: "1. Abrí go-link Desk", text: "En la computadora a controlar. No necesita instalador." },
       { title: "2. Leé el código", text: "Nueve dígitos, en su ventana." },
@@ -222,7 +223,7 @@ export const es: Messages = {
   },
   privacy: {
     title: "Privacidad",
-    updated: "go-link Desk: la app de computadora, este sitio y la app para iPhone y iPad. Octubre de 2026.",
+    updated: "go-link Desk: la app de computadora, este sitio y las apps para iPhone, iPad y Android. Octubre de 2026.",
     sections: [
       {
         title: "No se recolecta nada",
@@ -245,7 +246,7 @@ export const es: Messages = {
       {
         title: "Lo que queda en tus equipos",
         text: [
-          "La app de computadora guarda sus ajustes, sus logs y las computadoras y navegadores que vinculás, en esa computadora. Este sitio guarda tu tema, idioma, nombre y computadoras vinculadas en tu navegador. La app para iPhone y iPad guarda tu nombre, sus ajustes y tus computadoras recientes en el equipo. Podés borrarlos cuando quieras.",
+          "La app de computadora guarda sus ajustes, sus logs y las computadoras y navegadores que vinculás, en esa computadora. Este sitio guarda tu tema, idioma, nombre y computadoras vinculadas en tu navegador. Las apps para iPhone, iPad y Android guardan tu nombre, sus ajustes y tus computadoras recientes y vinculadas en el equipo; la llave de una computadora vinculada queda en el llavero o el almacén de claves del equipo, detrás de Face ID, la huella o el bloqueo de pantalla. Podés borrarlos cuando quieras.",
         ],
       },
       {

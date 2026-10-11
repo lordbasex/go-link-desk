@@ -13,12 +13,17 @@ import (
 // also used by CI and the end-to-end tests (--source testpattern).
 type TestCardSource struct {
 	Width, Height, FPS int
+	// Picture, when set, is shown instead of the card, silently: a still
+	// I420 frame of Width x Height (screenshots of a desktop, --test-picture).
+	Picture []byte
 }
 
 // Run produces frames at FPS, and the 1 kHz tone for viewers that may
 // hear it, while anyone watches, until ctx ends.
 func (t *TestCardSource) Run(ctx context.Context, sink MediaSink) error {
-	go tone(ctx, sink)
+	if t.Picture == nil {
+		go tone(ctx, sink)
+	}
 	pattern := testpattern.New(t.Width, t.Height)
 	interval := time.Second / time.Duration(t.FPS)
 	ticker := time.NewTicker(interval)
@@ -34,7 +39,11 @@ func (t *TestCardSource) Run(ctx context.Context, sink MediaSink) error {
 			continue
 		}
 		now := time.Now()
-		sink.VideoFrame(Frame{I420: pattern.Frame(now, sink.Controls()), Width: t.Width, Height: t.Height, PTS: now.Sub(start)})
+		frame := t.Picture
+		if frame == nil {
+			frame = pattern.Frame(now, sink.Controls())
+		}
+		sink.VideoFrame(Frame{I420: frame, Width: t.Width, Height: t.Height, PTS: now.Sub(start)})
 	}
 }
 

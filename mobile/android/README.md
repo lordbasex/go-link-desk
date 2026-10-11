@@ -55,4 +55,7 @@ Debug builds only: `adb shell am start -n org.golink.desk/.MainActivity --es cod
 
 ## Release
 
+The store listing, graphics, screenshots script and the Play Console answers are in [play/](play/README.md).
+
+
 `make bundle VERSION=1.0.0` builds the App Bundle for Google Play, signed with the upload key named by `DESK_SIGNING` (a properties file outside the repository with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`) or by the `DESK_KEYSTORE*` environment variables. Nothing secret is committed.

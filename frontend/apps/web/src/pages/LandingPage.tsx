@@ -21,6 +21,8 @@ export function LandingPage() {
           <a href="https://github.com/lordbasex/go-link-desk/releases/latest">{t.landing.downloadMac}</a>
           {" · "}
           {t.landing.iosSoon}
+          {" · "}
+          {t.landing.androidSoon}
         </p>
       </section>
       <ol className="steps">
