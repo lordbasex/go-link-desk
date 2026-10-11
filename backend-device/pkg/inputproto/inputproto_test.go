@@ -3,6 +3,7 @@
 package inputproto
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -57,6 +58,9 @@ func TestTheSharedVectors(t *testing.T) {
 		if p != want {
 			t.Errorf("%s:\n got  %+v\n want %+v", v.Name, p, want)
 		}
+		if got := Encode(want); !bytes.Equal(got, b) {
+			t.Errorf("%s: Encode = %x, want %x", v.Name, got, b)
+		}
 	}
 }
 
@@ -87,5 +91,15 @@ func TestSeqNewer(t *testing.T) {
 		if got := SeqNewer(tc.seq, tc.last); got != tc.want {
 			t.Errorf("SeqNewer(%d, %d) = %v", tc.seq, tc.last, got)
 		}
+	}
+}
+
+func TestEncodeCutsLongTextAtACharacter(t *testing.T) {
+	b := Encode(Packet{Type: TypeText, Text: strings.Repeat("ñ", MaxText)})
+	if len(b)-1 > MaxText {
+		t.Fatalf("%d bytes of text", len(b)-1)
+	}
+	if _, err := Decode(b); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -33,3 +33,19 @@ func Index(code string) uint16 {
 	}
 	return 0
 }
+
+// fromMac maps a macOS virtual key code to its keycode.
+var fromMac = func() map[int]uint16 {
+	m := map[int]uint16{}
+	for i, k := range Keys {
+		if i > 0 && k.Mac >= 0 {
+			if _, dup := m[k.Mac]; !dup {
+				m[k.Mac] = uint16(i)
+			}
+		}
+	}
+	return m
+}()
+
+// FromMac returns the keycode of a macOS virtual key code (0: none).
+func FromMac(code int) uint16 { return fromMac[code] }

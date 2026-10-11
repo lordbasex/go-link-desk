@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-// Package inputproto reads the viewer's input packets (docs/protocol.md,
-// section 5): pointer moves on the unreliable "pointer" channel, and
+// Package inputproto reads and writes the viewer's input packets
+// (docs/protocol.md, section 5): pointer moves on the unreliable "pointer" channel, and
 // buttons, wheel, keys, text and release-all on the reliable "input"
 // channel. Big endian; protocol/vectors/input.json is the reference.
 package inputproto
@@ -117,4 +117,50 @@ func Decode(b []byte) (Packet, error) {
 // wrap-around: a move older than the last applied is dropped.
 func SeqNewer(seq, last uint16) bool {
 	return seq != last && seq-last < 0x8000
+}
+
+// Encode writes one packet: the bytes Decode reads back. A text longer
+// than MaxText is cut at a character's start.
+func Encode(p Packet) []byte {
+	u16 := func(b []byte, v uint16) []byte { return binary.BigEndian.AppendUint16(b, v) }
+	b := []byte{p.Type}
+	switch p.Type {
+	case TypeAbs:
+		b = u16(b, p.Seq)
+		b = append(b, p.Display)
+		b = u16(u16(b, p.X), p.Y)
+	case TypeRel:
+		b = u16(u16(u16(b, p.Seq), uint16(p.DX)), uint16(p.DY))
+	case TypeButton:
+		b = append(b, p.Button, flag(p.Down), p.Display)
+		b = u16(u16(b, p.X), p.Y)
+	case TypeWheel:
+		b = u16(u16(b, uint16(p.DX)), uint16(p.DY))
+		b = append(b, p.Mode)
+	case TypeKey:
+		down := flag(p.Down)
+		if p.Down && p.Repeat {
+			down = 2
+		}
+		b = u16(b, p.Keycode)
+		b = append(b, down, p.Mods)
+	case TypeText:
+		text := p.Text
+		if len(text) > MaxText {
+			cut := MaxText
+			for cut > 0 && !utf8.RuneStart(text[cut]) {
+				cut--
+			}
+			text = text[:cut]
+		}
+		b = append(b, text...)
+	}
+	return b
+}
+
+func flag(v bool) byte {
+	if v {
+		return 1
+	}
+	return 0
 }

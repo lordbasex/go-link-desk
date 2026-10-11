@@ -49,3 +49,14 @@ func TestLookup(t *testing.T) {
 		t.Fatal("an unknown code has an index")
 	}
 }
+
+func TestFromMac(t *testing.T) {
+	for code, want := range map[int]string{0x00: "KeyA", 0x09: "KeyV", 0x37: "MetaLeft", 0x36: "MetaRight", 0x24: "Enter", 0x7B: "ArrowLeft", 0x39: "CapsLock"} {
+		if got := FromMac(code); got == 0 || Keys[got].Code != want {
+			t.Errorf("FromMac(%#x) = %d (%s), want %s", code, got, Keys[got].Code, want)
+		}
+	}
+	if FromMac(0x7FFF) != 0 {
+		t.Error("an unknown key has a keycode")
+	}
+}

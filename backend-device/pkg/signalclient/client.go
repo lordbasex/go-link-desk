@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -92,6 +93,21 @@ func CheckURL(raw string) (encrypted bool, err error) {
 		return false, fmt.Errorf("signalclient: URL %q has no host", raw)
 	}
 	return encrypted, nil
+}
+
+// IsLoopback reports whether the URL points at this machine (where
+// ws:// without TLS is fine).
+func IsLoopback(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // endpoint adds ?v=1 unless the URL already names a version.
