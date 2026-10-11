@@ -101,6 +101,10 @@ The host creates them, as in go-link. `control`, `pointer` and `input` are imple
 | `permissions` | host → viewer | `{view, control, audio, clipboard, files}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
 | `clipboard` | both | `{id, part, parts, text, paste?}`: one piece of a clipboard's text, at most 16 KiB of UTF-8, never splitting a character; a text is at most 1 MiB. Only with `permissions.clipboard`. Host → viewer: something new was copied on the host. Viewer → host: the viewer pasted (Cmd+V or Ctrl+V); `paste` on the last piece asks the host to paste it (Cmd+V) where its cursor is, for a viewer that may control. A piece out of order drops the text. |
 | `chat` | both | `{text}`: a chat message, at most 2000 characters. The host keeps printable text and line breaks (at most 20 lines) and drops control and format characters. |
+| `call_request` | viewer → host | `{video, audio}`: asks for a video call, saying what the viewer will send. The person at the host takes it or not. |
+| `call_state` | host → viewer | `{state, host_video, host_audio}`: `ringing`, `active`, `declined` or `ended`, and whether the host's camera and microphone are on. |
+| `call_media` | viewer → host | `{video, audio}`: the viewer turned its camera or microphone on or off. |
+| `call_end` | viewer → host | hangs up. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
 A message type nobody handles is dropped. A message is at most 64 KiB.
@@ -124,6 +128,10 @@ A message type nobody handles is dropped. A message is at most 64 KiB.
 Every viewer's offer has an Opus track (48 kHz, stereo, 96 kbps) next to its video, in the same media stream: allowing the sound later needs no new negotiation. Nothing is sent on it unless the viewer may hear (`permissions.audio`). On the screen, ScreenCaptureKit captures the computer's sound without the host's own (`excludesCurrentProcessAudio`), only while a viewer may hear it; the test card plays a 1 kHz tone. One encoder serves every viewer: the sound is the same for all.
 
 The viewer plays it in its own `<audio>` element (the video stays muted). Browsers let a page start sound only after a click; the Connect click usually counts, otherwise the page shows a button.
+
+### Video call
+
+Every offer also carries a call's media, so a call starts and ends without a new negotiation: the host's camera (the viewer's screen codec) and microphone (Opus, mono) as send-only tracks in the stream `go-link-desk-call`, and two receive-only lines for the viewer's camera and microphone. The viewer answers those two send-only, with no track until a call is taken (`replaceTrack`). The host's receive line for video offers only H.264 in packetization mode 1 (Constrained Baseline first), what every browser's camera encoder sends; the host decodes it with VideoToolbox. Nothing of the viewer's camera or microphone is decoded, shown or played unless a call is active, and the host's camera and microphone are not opened until the person at the host takes it.
 
 ### Latency
 

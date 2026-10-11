@@ -9,7 +9,7 @@ Remote desktop software is a favorite tool of "tech support" scammers. go-link D
 3. **Least privilege.** Every permission (view, control, audio, clipboard, files) is shown and can be revoked during the session. The defaults are minimal.
 4. **signalhub is not trusted.** It only relays signaling. Media and input are encrypted end to end (DTLS/SRTP). For linked browsers the host proves itself first (HMAC over a nonce), and only then does the browser show its token.
 5. **No third parties on the website.** Strict Content Security Policy, no third-party scripts, no analytics, self-hosted fonts.
-6. **The macOS app runs with the hardened runtime and no entitlement exceptions,** and is notarized for release.
+6. **The macOS app runs with the hardened runtime and no code-signing exceptions** (its only entitlements are the camera and the microphone, for video calls), and is notarized for release.
 
 ## Threat model
 
@@ -38,6 +38,12 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Clipboard and chat messages are bounded (16 KiB a piece, 1 MiB a text, 2000 characters a chat message), checked as UTF-8, and a text with a missing piece is dropped. A viewer's paste is pressed on the host only if it may also control.
 - The sound is sent only with its permission, unticked by default: it can carry a call or a meeting on the host. The host's own sounds are left out.
 - The host's log never records clipboard text or chat words.
+
+### The video call
+
+- A viewer cannot turn on the host's camera or microphone: they open only when the person at the host takes a call, and close when it ends, the session ends, or they untick them.
+- A viewer's camera and microphone are dropped by the host unless a call is active, so a viewer cannot push pictures or sound onto the host's screen or speakers.
+- The macOS app has the camera and audio-input entitlements (the hardened runtime blocks the devices otherwise); macOS still asks the person the first time.
 
 ### The screen
 
