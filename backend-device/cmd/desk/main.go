@@ -70,6 +70,7 @@ type flags struct {
 	// sets its password: end-to-end tests only.
 	unattended bool
 	password   string
+	name       string
 	// connect opens a session to another computer at start (its 9-digit
 	// session code).
 	connect string
@@ -95,6 +96,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
+	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
 	fs.StringVar(&f.testViewer, "test-viewer", "", "run only the viewer, without a window, through join, claim or reach (automated tests only)")
@@ -125,6 +127,9 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.unattended && !f.autoAccept {
 		return f, errors.New("--test-unattended needs --test-auto-accept")
+	}
+	if f.name != "" && f.source != "testpattern" {
+		return f, errors.New("--test-name needs --source testpattern")
 	}
 	if f.unattended && f.password == "" {
 		return f, errors.New("--test-unattended needs --test-unattended-password: unattended access always has a password")
@@ -221,6 +226,9 @@ func run(args []string) error {
 	pairing := services.NewPairingService(services.PairingConfig{DeviceID: cfg.DeviceID, DeviceSecret: cfg.DeviceSecret, Logger: logger}, status, ice)
 	opener := services.NewRoomOpener()
 	meta := services.SessionMeta{Name: hostName(), OS: runtime.GOOS}
+	if f.name != "" {
+		meta.Name = f.name
+	}
 	source := "test-pattern"
 	if f.source == "screen" {
 		if capture.Supported {
