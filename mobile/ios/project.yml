@@ -6,7 +6,7 @@ name: GoLinkDesk
 options:
   bundleIdPrefix: org.go-link
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "26.0"
   developmentLanguage: en
   createIntermediateGroups: true
 configFiles:
@@ -39,7 +39,6 @@ targets:
         LSRequiresIPhoneOS: true
         UILaunchScreen:
           UIColorName: LaunchBackground
-        UIRequiresFullScreen: false
         UISupportedInterfaceOrientations:
           [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad:

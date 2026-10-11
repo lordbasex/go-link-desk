@@ -9,7 +9,7 @@ import PackageDescription
 // tests on the Mac with `swift test`.
 let package = Package(
     name: "DeskCore",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS("26.0"), .macOS(.v14)],
     products: [
         .library(name: "DeskCore", targets: ["DeskCore"]),
     ],

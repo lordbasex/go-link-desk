@@ -105,7 +105,7 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
 
     /** Tells the computer the size the picture is shown at, in pixels (once the view settles). */
     private func wantSize() {
-        let scale = window?.screen.scale ?? UIScreen.main.scale
+        let scale = traitCollection.displayScale
         let want = CGSize(width: (bounds.width * scale).rounded(), height: (bounds.height * scale).rounded())
         guard want.width > 0, want != lastWant else { return }
         lastWant = want

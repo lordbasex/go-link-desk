@@ -3,7 +3,7 @@
 
 The iPhone and iPad app connects to another computer with the 9-digit code go-link Desk shows there. Once the person at that computer accepts, it shows the computer's screen and controls it. It only connects: an iPhone or iPad is never shared.
 
-- SwiftUI, iOS 17 or newer.
+- SwiftUI, iOS and iPadOS 26 or newer.
 - Bundle id `org.go-link.desk.ios`.
 - It speaks the same protocol as the website ([docs/protocol.md](../../docs/protocol.md)), so the computer cannot tell them apart.
 

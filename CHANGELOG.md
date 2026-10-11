@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-11
+
+The first release: go-link Desk for macOS (13 or newer, Intel and Apple silicon, signed and notarized), for iPhone and iPad (iOS and iPadOS 26 or newer, on the App Store), and the website (desk.go-link.org). Tested on an iPhone 17 Pro Max and an iPad Pro (M4), connecting to a Mac.
+
 ### Added (the iPhone and iPad app, phase 6c)
 
 - **go-link Desk for iPhone and iPad** (`mobile/ios`): connect to another computer with its 9-digit code, and see and use it once the person there accepts. Home has the code and the recent computers; Settings has your name, the fingers and your own signaling server. English, Spanish and Portuguese.
