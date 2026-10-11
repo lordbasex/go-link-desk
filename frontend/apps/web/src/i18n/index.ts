@@ -6,7 +6,7 @@ import { pt } from "./pt";
 
 export type Lang = "en" | "es" | "pt";
 
-/** Languages of the switcher, in order. English is the default. */
+/** Languages of the switcher, in order. English unless the browser prefers Spanish or Portuguese. */
 export const LANGS: readonly { id: Lang; label: string; name: string }[] = [
   { id: "en", label: "EN", name: "English" },
   { id: "es", label: "ES", name: "Español" },
@@ -16,6 +16,19 @@ export const LANGS: readonly { id: Lang; label: string; name: string }[] = [
 const DICTIONARIES: Record<Lang, Messages> = { en, es, pt };
 const KEY = "go-link-desk.lang";
 
+/**
+ * The browser's language among ours: Spanish or Portuguese when the
+ * browser prefers it (es-AR, pt-BR…), else English.
+ */
+export function browserLang(prefs: readonly string[]): Lang {
+  for (const p of prefs) {
+    const base = p.toLowerCase().split("-")[0];
+    if (base === "es" || base === "pt" || base === "en") return base;
+  }
+  return "en";
+}
+
+/** The language picked in the switcher, else the browser's. */
 function savedLang(): Lang {
   try {
     const v = window.localStorage.getItem(KEY);
@@ -23,7 +36,8 @@ function savedLang(): Lang {
   } catch {
     // storage blocked
   }
-  return "en";
+  const prefs = window.navigator.languages?.length ? window.navigator.languages : [window.navigator.language ?? "en"];
+  return browserLang(prefs);
 }
 
 let current: Lang = typeof window === "undefined" ? "en" : savedLang();
