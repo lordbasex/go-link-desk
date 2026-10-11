@@ -93,32 +93,39 @@ func (f *ConfigFile) LoadOrCreate() (cfg models.Config, created bool, err error)
 // Save writes the configuration atomically: a temporary file is written
 // and renamed over the old one, so a crash never leaves half a file.
 func (f *ConfigFile) Save(cfg models.Config) error {
-	dir := filepath.Dir(f.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
-	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".device-*.json")
-	if err != nil {
+	if err := writePrivate(f.path, append(data, '\n')); err != nil {
 		return fmt.Errorf("save config: %w", err)
+	}
+	return nil
+}
+
+// writePrivate writes a file only its owner reads, atomically: a
+// temporary file is written and renamed over the old one, so a crash never
+// leaves half a file.
+func writePrivate(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
 	}
 	defer os.Remove(tmp.Name()) // no-op after a successful rename
 	if err := tmp.Chmod(0o600); err != nil {
 		tmp.Close()
-		return fmt.Errorf("save config: %w", err)
+		return err
 	}
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
-		return fmt.Errorf("save config: %w", err)
+		return err
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("save config: %w", err)
+		return err
 	}
-	if err := os.Rename(tmp.Name(), f.path); err != nil {
-		return fmt.Errorf("save config: %w", err)
-	}
-	return nil
+	return os.Rename(tmp.Name(), path)
 }
