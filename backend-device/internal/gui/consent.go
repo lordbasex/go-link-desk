@@ -91,7 +91,11 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	if name == "" {
 		name = L("Someone")
 	}
-	r.who = widget.NewLabelWithStyle(Lf("%s wants to see your screen.", name), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	who := Lf("%s wants to see your screen.", name)
+	if req.Link {
+		who = Lf("%s wants to link this browser to your computer.", name)
+	}
+	r.who = widget.NewLabelWithStyle(who, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	r.who.Wrapping = fyne.TextWrapWord
 	browser := req.Knock.Browser
 	if browser == "" {
@@ -107,7 +111,15 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	r.countdown = widget.NewLabel("")
 	r.countdown.Importance = widget.LowImportance
 
-	items := append([]fyne.CanvasObject{r.who, r.browser, note, widget.NewSeparator(), perms}, r.perms.objects()...)
+	items := []fyne.CanvasObject{r.who, r.browser, note}
+	if req.Link {
+		// Accepting a link is accepting every later visit of that browser.
+		link := widget.NewLabel(L("If you accept, this browser will come back without asking you, whenever go-link Desk is open, with the permissions you tick now. You can revoke it in Settings."))
+		link.Wrapping = fyne.TextWrapWord
+		link.Importance = widget.WarningImportance
+		items = append(items, link)
+	}
+	items = append(append(items, widget.NewSeparator(), perms), r.perms.objects()...)
 	// The first time, the warning about the phone scam: whoever calls and
 	// asks for this is not who they say.
 	if !u.app.Preferences().Bool(scamWarningKey) {

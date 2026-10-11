@@ -26,6 +26,8 @@ func runUI(o uiOptions) {
 		Chat:           o.chat,
 		Call:           o.call,
 		Files:          o.files,
+		Settings:       o.settings,
+		Links:          o.links,
 		AskCalls:       o.setConsent != nil,
 		SetConsent:     o.setConsent,
 		WebURL:         o.webURL,

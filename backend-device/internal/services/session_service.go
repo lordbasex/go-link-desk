@@ -24,6 +24,9 @@ type SessionMeta struct {
 // Viewers is what the session needs from the stream.
 type Viewers interface {
 	AddViewer(peerID string, codecs []string) error
+	// AddWaiting connects a linked browser that gets nothing until Admit.
+	AddWaiting(peerID string, codecs []string) error
+	Admit(peerID string) bool
 	HandleSignal(from string, payload json.RawMessage) error
 	// Hangup sends a last control message and closes the connection.
 	Hangup(peerID string, last []byte)
@@ -46,13 +49,30 @@ type guestState int
 const (
 	guestJoined   guestState = iota // in the room, has not knocked
 	guestKnocking                   // the person at the host is being asked
+	guestWaiting                    // a linked browser, connected but proving itself
 	guestAccepted                   // in session: gets the stream
 	guestDone                       // turned down or session over: ignored until it leaves
 )
 
+// door is how a guest came.
+type door int
+
+const (
+	doorRoom door = iota // join with the session code or link
+	doorCode             // claim with the pairing code: asks to be linked
+	doorLink             // reach: a browser linked before, without anyone asking
+)
+
 type guest struct {
 	state  guestState
+	door   door
+	knock  models.Knock
 	cancel context.CancelFunc // stops the consent dialog while knocking
+}
+
+// UnattendedPolicy says whether linked browsers may come in.
+type UnattendedPolicy interface {
+	UnattendedOn() bool
 }
 
 // SessionService keeps the invite-only room that remote sessions use open
@@ -84,6 +104,7 @@ type SessionService struct {
 	active  string // the viewer in session
 	perm    models.Permissions
 	onPerm  func(peer string, p models.Permissions)
+	policy  UnattendedPolicy
 }
 
 var _ signalclient.Handler = (*SessionService)(nil)
@@ -117,6 +138,33 @@ func (s *SessionService) SetConsent(c Consent) {
 		c = NobodyToAsk
 	}
 	s.consent = c
+}
+
+// SetUnattended sets who says whether linked browsers may come in
+// (without it, they never do).
+func (s *SessionService) SetUnattended(p UnattendedPolicy) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.policy = p
+}
+
+func (s *SessionService) unattendedOn() bool {
+	s.mu.Lock()
+	p := s.policy
+	s.mu.Unlock()
+	return p != nil && p.UnattendedOn()
+}
+
+// AddLink takes a browser that came with the pairing code (byCode) or
+// with reach: it knocks like a room guest. It implements Links.
+func (s *SessionService) AddLink(peerID string, byCode bool) {
+	d := doorLink
+	if byCode {
+		d = doorCode
+	}
+	s.mu.Lock()
+	s.guests[peerID] = &guest{door: d}
+	s.mu.Unlock()
 }
 
 // setTimeout changes the time to answer (tests).
@@ -215,9 +263,9 @@ func (s *SessionService) onSignal(from string, payload json.RawMessage) {
 	}
 	s.mu.Lock()
 	g := s.guests[from]
-	state := guestDone
+	state, d := guestDone, doorRoom
 	if g != nil {
-		state = g.state
+		state, d = g.state, g.door
 	}
 	s.mu.Unlock()
 	switch {
@@ -226,8 +274,15 @@ func (s *SessionService) onSignal(from string, payload json.RawMessage) {
 		if json.Unmarshal(payload, &k) != nil {
 			return
 		}
-		s.knock(from, k.Clean())
-	case state == guestAccepted && (head.Kind == "answer" || head.Kind == "candidate"):
+		switch {
+		case d != doorRoom && !s.unattendedOn():
+			s.turnDown(from, models.RejectOff)
+		case d == doorLink:
+			s.wait(from, k.Clean())
+		default:
+			s.knock(from, k.Clean())
+		}
+	case (state == guestAccepted || state == guestWaiting) && (head.Kind == "answer" || head.Kind == "candidate"):
 		if err := s.viewers.HandleSignal(from, payload); err != nil {
 			s.log.Warn("bad signal", "peer_id", from, "err", err)
 		}
@@ -236,6 +291,100 @@ func (s *SessionService) onSignal(from string, payload json.RawMessage) {
 		// accepted gets nothing, whatever it sends.
 		s.log.Debug("signal ignored", "peer_id", from, "kind", head.Kind)
 	}
+}
+
+// turnDown says no to a guest that knocked; it is ignored afterwards.
+func (s *SessionService) turnDown(peer, reason string) {
+	s.mu.Lock()
+	if g := s.guests[peer]; g != nil {
+		g.state = guestDone
+	}
+	s.mu.Unlock()
+	s.reject(peer, reason)
+}
+
+// wait connects a linked browser that knocked, gated: it must prove its
+// link (and the password, if there is one) before Admit lets it in.
+func (s *SessionService) wait(peer string, k models.Knock) {
+	s.mu.Lock()
+	g := s.guests[peer]
+	if g == nil || s.active != "" {
+		s.mu.Unlock()
+		s.turnDown(peer, models.RejectBusy)
+		return
+	}
+	g.state, g.knock = guestWaiting, k
+	s.mu.Unlock()
+	s.log.Info("linked browser knocks", "peer_id", peer, "browser", k.Browser)
+	if err := s.viewers.AddWaiting(peer, k.Codecs); err != nil {
+		s.log.Error("cannot connect the linked browser", "peer_id", peer, "err", err)
+		s.turnDown(peer, models.RejectUnavailable)
+	}
+}
+
+// Admit starts the session of a linked browser that proved itself, with
+// its link's permissions and nobody asked. It fails if the browser is not
+// waiting, or another session is on.
+func (s *SessionService) Admit(peer string, perm models.Permissions) error {
+	s.mu.Lock()
+	g := s.guests[peer]
+	switch {
+	case g == nil || g.state != guestWaiting:
+		s.mu.Unlock()
+		return errors.New("session: not a waiting browser")
+	case s.active != "":
+		g.state = guestDone
+		s.mu.Unlock()
+		s.reject(peer, models.RejectBusy)
+		s.viewers.RemoveViewer(peer)
+		return errors.New("session: busy")
+	}
+	perm.View = true
+	g.state = guestAccepted
+	s.active = peer
+	s.perm = perm
+	k := g.knock
+	s.mu.Unlock()
+	s.signal(peer, struct {
+		Kind        string             `json:"kind"`
+		Permissions models.Permissions `json:"permissions"`
+	}{"accepted", perm})
+	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm, Unattended: true})
+	s.log.Info("unattended session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
+	s.permissionsChanged(peer, perm)
+	s.viewers.Admit(peer)
+	return nil
+}
+
+// Drop ends whatever a guest has: its session, or its gated connection.
+func (s *SessionService) Drop(peer, reason string) {
+	s.mu.Lock()
+	active := s.active == peer
+	g := s.guests[peer]
+	waiting := g != nil && g.state == guestWaiting
+	if waiting {
+		g.state = guestDone
+	}
+	s.mu.Unlock()
+	switch {
+	case active:
+		s.End(reason)
+	case waiting:
+		s.viewers.RemoveViewer(peer)
+	}
+}
+
+// Active is the session on, if any.
+func (s *SessionService) Active() (peer string, k models.Knock, perm models.Permissions) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active == "" {
+		return "", models.Knock{}, models.Permissions{}
+	}
+	if g := s.guests[s.active]; g != nil {
+		k = g.knock
+	}
+	return s.active, k, s.perm
 }
 
 // knock asks the person at the host about a viewer, one at a time.
@@ -257,13 +406,14 @@ func (s *SessionService) knock(peer string, k models.Knock) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
-	g.state, g.cancel = guestKnocking, cancel
+	g.state, g.cancel, g.knock = guestKnocking, cancel, k
 	consent := s.consent
+	link := g.door == doorCode
 	s.mu.Unlock()
-	s.log.Info("viewer knocks", "peer_id", peer, "name", k.Name, "browser", k.Browser, "codecs", k.Codecs)
+	s.log.Info("viewer knocks", "peer_id", peer, "name", k.Name, "browser", k.Browser, "codecs", k.Codecs, "link", link)
 	go func() {
 		defer cancel()
-		perm, err := consent.Ask(ctx, ConsentRequest{PeerID: peer, Knock: k})
+		perm, err := consent.Ask(ctx, ConsentRequest{PeerID: peer, Knock: k, Link: link})
 		if err == nil && ctx.Err() != nil {
 			err = ctx.Err() // an answer after the time ran out does not count
 		}
@@ -353,6 +503,9 @@ func (s *SessionService) onLeft(peer string) {
 	}
 	if g.cancel != nil {
 		g.cancel()
+	}
+	if g.state == guestWaiting {
+		s.viewers.RemoveViewer(peer)
 	}
 	if wasActive {
 		s.viewers.RemoveViewer(peer)

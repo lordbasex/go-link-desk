@@ -29,7 +29,7 @@ All of these travel in signalhub's opaque `signal.payload`, with the same patter
 ```
 viewer → host   {"kind":"knock","name":"Ana","ua":"Chrome 141 on macOS","codecs":["h264-high","h264","vp8"]}
 host   → viewer {"kind":"accepted","permissions":{"view":true,"control":false,"audio":false,"clipboard":false,"files":false}}
-host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"|"unavailable"}
+host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"|"unavailable"|"off"}
 host   → viewer {"kind":"offer","sdp":"…"}                    (only after accepted; again for an ICE restart)
 viewer → host   {"kind":"answer","sdp":"…"}
 both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
@@ -51,24 +51,36 @@ both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
 | `viewer` | The viewer hung up (`session_end` on `control`) or left signalhub. |
 | `network` | The connection failed and could not be brought back. |
 | `signal` | The host lost signalhub, and the room with it. |
+| `idle` | Nothing came from the viewer (input, chat) for the time set in the host's Settings. |
+| `revoked` | The person at the host revoked the viewer's link (it also gets `unlinked`), or a linked browser failed the password. |
 
-### Proposed
+## 3. Unattended access (implemented)
 
-A session password (phase 6), with go-link's PIN gate: `pin_required` after the knock, `pin`, and `pin_result {ok, reason, left}`.
+A browser links once with the host's **pairing code** (Settings › Unattended access shows it; it is not the session code), and from then on comes back with `reach`, without a code and without anyone accepting. Unattended access is off by default: while it is off, every knock that came through `claim` or `reach` is `rejected` with `off`.
 
-## 3. Linked browsers (from go-link)
+The browser's knock and the WebRTC signals are the ones of section 2, inside signalhub's `signal` payloads; only the door and what happens on the control channel change.
 
-For unattended access (phase 6). The browser links once with the host's pairing code, then comes back with `reach`.
+**Linking (claim).**
 
-1. `claim {app, code}` → both get `paired`. The host opens a data-only WebRTC connection.
-2. First time: browser `auth {}` → host `auth_ok {device_id, link_id, token}`. The browser keeps the token; the host keeps only its SHA-256.
-3. Coming back with `reach {app, device_id}`:
+1. `claim {app, code}` → both get `paired`; signalhub's code is good once, and the host asks for a new one at once.
+2. The browser knocks. The person at the host is asked, in the same request window, whether to **link** this browser: accepting accepts this session and every later visit of this browser, with the permissions ticked now (the link's profile).
+3. `accepted`, the offer, the session as in section 2. On `control`: browser `auth {}` → host `auth_ok {device_id, link_id, token}`. The browser keeps the token; the host keeps only its SHA-256, the browser's declared name and the permissions.
+
+**Coming back (reach).**
+
+1. `reach {app, device_id}` → the browser gets `paired`, the host `reached` (signalhub proves nothing about this browser). The browser knocks.
+2. The host connects it **gated**: the offer and the answer go through, but the browser gets nothing on the connection (no picture, sound, pointer, displays, not even `welcome`) and nothing it sends reaches the session, until it is let in. It has 30 seconds to prove its token.
+3. On `control`:
    1. browser → `auth_challenge {link_id, nonce}` (16 to 128 characters)
-   2. host → `auth_proof {link_id, proof}`, where `proof = base64url(HMAC-SHA256(key = SHA-256(token), "go-link-desk link proof\n" + nonce))`, without padding
+   2. host → `auth_proof {link_id, proof}`, where `proof = base64url(HMAC-SHA256(key = SHA-256(token), "go-link-desk link proof\n" + nonce))`, without padding; or `auth_failed` if it has no such link (revoked)
    3. only when the proof is right: browser → `auth {link_id, token}`
    4. host → `auth_ok` or `auth_failed` (and hangs up)
+4. If the host has an unattended password: host → `password_required {}`; browser → `password {password}`; host → `password_result {ok, reason, left, retry_after}`, where `reason` is `wrong` (with `left` tries), `blocked` (this browser used its 5 tries: the host hangs up) or `locked` (20 wrong passwords in 10 minutes lock every try for 10 minutes: `retry_after` seconds). The browser has 2 minutes to type it. A `password` before `auth_ok` counts for nothing.
+5. The host lets it in: `accepted {permissions}` over signalhub with the link's permissions, and from then on it is a session like any other (`welcome`, the picture, `session_end`). If another session is on, `rejected` with `busy` instead.
 
-The host proves itself first, so a fake signaling server never learns a token. A browser that shows no valid token within 15 seconds is dropped. The vector both sides test against is `protocol/vectors/link-proof.json`.
+The host proves itself first, so a fake signaling server never learns a token. The browser ignores `password_required` and `accepted` until the proof checked out and `auth_ok` came; `accepted` travels over signalhub and may overtake `auth_ok`, so it waits for it. The vector both sides test against is `protocol/vectors/link-proof.json`.
+
+**Revoking.** The person at the host revokes a link in Settings: its record goes from `device.json`, a browser connected with it gets `unlinked` and its session ends with `revoked`, and later its proof fails (`auth_failed`). A browser that gets `auth_failed` or `unlinked` forgets the link. A linked browser may also send `unlink {}` to forget itself on the host.
 
 ## 4. DataChannels
 

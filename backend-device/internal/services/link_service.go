@@ -39,7 +39,7 @@ type LinkConfig struct {
 	DeviceID    string
 	Links       []models.Link             // loaded from device.json
 	Save        func([]models.Link) error // persists the links
-	AuthTimeout time.Duration             // default 15 s, for peers that came with reach
+	AuthTimeout time.Duration             // default 30 s, for peers that came with reach
 	HangUpDelay time.Duration             // default 500 ms, after the last message to a dropped peer
 	Now         func() time.Time
 	Logger      *slog.Logger
@@ -63,6 +63,26 @@ type LinkService struct {
 	// onChange runs (outside the lock) when a browser becomes trusted or
 	// is forgotten.
 	onChange func()
+	// onAuth runs (outside the lock) when a browser proved its token, or
+	// got one: created is true for a link made just now.
+	onAuth func(peerID string, link models.Link, created bool)
+}
+
+// OnAuthenticated registers who is told that a browser proved its link,
+// or was just linked.
+func (l *LinkService) OnAuthenticated(fn func(peerID string, link models.Link, created bool)) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.onAuth = fn
+}
+
+func (l *LinkService) authenticated(peerID string, link models.Link, created bool) {
+	l.mu.Lock()
+	fn := l.onAuth
+	l.mu.Unlock()
+	if fn != nil {
+		fn(peerID, link, created)
+	}
 }
 
 // OnChange registers who is told that the trusted browsers changed.
@@ -85,7 +105,7 @@ func (l *LinkService) changed() {
 // NewLinkService builds the service.
 func NewLinkService(cfg LinkConfig, status *StatusService) *LinkService {
 	if cfg.AuthTimeout <= 0 {
-		cfg.AuthTimeout = 15 * time.Second
+		cfg.AuthTimeout = 30 * time.Second
 	}
 	if cfg.HangUpDelay <= 0 {
 		cfg.HangUpDelay = 500 * time.Millisecond
@@ -139,6 +159,69 @@ func (l *LinkService) Trusted(peerID string) bool {
 	defer l.mu.Unlock()
 	_, ok := l.trusted[peerID]
 	return ok
+}
+
+// ByCode reports whether peerID redeemed the pairing code in this visit
+// (it has no link yet, or got it just now).
+func (l *LinkService) ByCode(peerID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	id, ok := l.trusted[peerID]
+	return ok && id == ""
+}
+
+// LinkOf returns the link a peer proved, if any.
+func (l *LinkService) LinkOf(peerID string) (models.Link, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	id := l.trusted[peerID]
+	i := slices.IndexFunc(l.links, func(r models.Link) bool { return id != "" && r.ID == id })
+	if i < 0 {
+		return models.Link{}, false
+	}
+	return l.links[i], true
+}
+
+// SetLink changes what a linked browser may do and how it is named.
+func (l *LinkService) SetLink(id string, change func(*models.Link)) bool {
+	l.mu.Lock()
+	i := slices.IndexFunc(l.links, func(r models.Link) bool { return r.ID == id })
+	if i < 0 {
+		l.mu.Unlock()
+		return false
+	}
+	change(&l.links[i])
+	l.links[i].ID = id
+	links := slices.Clone(l.links)
+	l.mu.Unlock()
+	l.persist(links)
+	return true
+}
+
+// Revoke forgets one linked browser: it can no longer come back, and if
+// it is connected now it is told and dropped.
+func (l *LinkService) Revoke(id string) {
+	l.mu.Lock()
+	n := len(l.links)
+	l.links = slices.DeleteFunc(l.links, func(r models.Link) bool { return r.ID == id })
+	if len(l.links) == n {
+		l.mu.Unlock()
+		return
+	}
+	links := slices.Clone(l.links)
+	var peers []string
+	for p, linkID := range l.trusted {
+		if linkID == id {
+			peers = append(peers, p)
+		}
+	}
+	l.mu.Unlock()
+	l.persist(links)
+	l.cfg.Logger.Info("browser link revoked", "link_id", id)
+	for _, p := range peers {
+		l.reply(p, map[string]string{"type": msgUnlinked})
+		l.dropLater(p)
+	}
 }
 
 // PairedByCode trusts a browser that just redeemed the pairing code. It
@@ -285,6 +368,7 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 		l.persist(links)
 		l.cfg.Logger.Info("browser remembered", "link_id", rec.ID, "terms", rec.Terms)
 		l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": rec.ID, "token": token})
+		l.authenticated(peerID, rec, true)
 		return
 	case trusted:
 		l.mu.Unlock()
@@ -309,12 +393,14 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 		delete(l.timers, peerID)
 	}
 	links := slices.Clone(l.links)
+	rec := l.links[i]
 	l.mu.Unlock()
 	l.persist(links)
 	l.changed()
 	l.status.AddPeer(peerID, "", l.cfg.Now())
 	l.cfg.Logger.Info("browser back", "peer_id", peerID, "link_id", m.LinkID)
 	l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": m.LinkID})
+	l.authenticated(peerID, rec, false)
 }
 
 // unlink forgets the browser that asked.

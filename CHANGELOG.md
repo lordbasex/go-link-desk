@@ -4,6 +4,19 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (unattended access and my computers, phase 6)
+
+- **Unattended access** (Settings, off by default): a browser linked once with the computer's linking code comes back from My computers without a code and without anyone accepting, also after the computer restarts. Linking asks the person at the computer, and the permissions they tick are the link's.
+- **The computer proves itself first, then the browser its token,** over the encrypted connection; until then the browser is connected but gets nothing, not even the computer's name. The host keeps only the token's hash.
+- **An optional password** for unattended access, after the link: argon2id, 5 tries per browser, and 20 wrong ones in 10 minutes lock it for 10 minutes.
+- **Linked browsers in Settings:** their name, when linked and last used, their permissions (changed there) and Revoke; a revoked browser is turned away, also mid-session.
+- **My computers** on the website (`/devices`): the linked computers with a thumbnail of their screen, favorites first, renamed and forgotten here; the recent sessions; `/link` to link a computer.
+- **Around a session:** disconnect after 5 minutes to an hour without activity, lock the screen when a session ends, keep the display awake while one is on, and open go-link Desk at login (a LaunchAgent on macOS, an autostart entry on Linux).
+- **The host's language** can be picked in Settings.
+- **`--test-unattended`** and **`--test-unattended-password`** for the end-to-end tests (only with `--test-auto-accept`, and never saved).
+- **End-to-end tests:** a browser linked with the code comes back without it after the host restarts, types the password when one is set, and is turned away once its link is revoked; without unattended access the linking code links nothing.
+- **Dependency:** `golang.org/x/crypto` (BSD-3-Clause, already in the build through Pion) is now direct, for argon2id.
+
 ### Added (files, phase 5)
 
 - **Send files to the computer** by dropping them anywhere on the remote screen or choosing them: they land in Downloads › go-link Desk, never over a file already there, with progress on both sides and a Stop button.

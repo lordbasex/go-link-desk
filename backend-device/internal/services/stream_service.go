@@ -151,6 +151,11 @@ type viewer struct {
 	files   *webrtc.DataChannel
 	// hears: the viewer may hear the computer's sound (Permissions.Audio).
 	hears atomic.Bool
+	// gated: a linked browser still proving itself (AddWaiting). It has a
+	// connection and its control channel, but gets nothing (no picture,
+	// sound, pointer, displays, not even the welcome) and nothing it sends
+	// reaches the session, until Admit.
+	gated atomic.Bool
 	codec string        // CodecH264High, CodecH264 or CodecVP8
 	out   *sampleWriter // its track, with the frames and bytes sent
 	// keyframe asks this viewer's encoder for a keyframe: a new viewer, a
@@ -194,6 +199,7 @@ type StreamService struct {
 	mu          sync.Mutex
 	sender      Sender
 	viewers     map[string]*viewer
+	waiting     map[string]*viewer // gated viewers (AddWaiting), until Admit
 	source      MediaSource
 	pings       map[uint64]time.Time
 	pingSeq     uint64
@@ -215,6 +221,7 @@ type StreamService struct {
 	onStall     func(peerID string)
 	onCallTrack func(peerID string, track *webrtc.TrackRemote)
 	onFiles     func(peerID string, isString bool, data []byte)
+	onWaiting   func(peerID string, data []byte)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -250,6 +257,7 @@ func NewStreamService(cfg StreamConfig, ice *ICEStore) (*StreamService, error) {
 		encKbps:  make(map[string]int),
 		encRetry: make(map[string]time.Time),
 		viewers:  make(map[string]*viewer),
+		waiting:  make(map[string]*viewer),
 		pings:    make(map[uint64]time.Time),
 		rtt:      make(map[string]int),
 		hearing:  make(map[string]bool),
@@ -791,6 +799,66 @@ func (s *StreamService) sendSignal(to string, sig RTCSignal) {
 // video codecs its browser said it takes (the knock); the session uses
 // H.264 from the system's encoder when it can, else VP8.
 func (s *StreamService) AddViewer(peerID string, codecs []string) error {
+	return s.addViewer(peerID, codecs, false)
+}
+
+// AddWaiting connects a linked browser that must still prove itself: its
+// control messages go to OnWaiting, and it gets nothing else until Admit.
+func (s *StreamService) AddWaiting(peerID string, codecs []string) error {
+	return s.addViewer(peerID, codecs, true)
+}
+
+// OnWaiting receives the control messages of gated viewers.
+func (s *StreamService) OnWaiting(fn func(peerID string, data []byte)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onWaiting = fn
+}
+
+// Admit lets a gated viewer in: from now on it is a viewer like any other.
+// False if peerID is not waiting.
+func (s *StreamService) Admit(peerID string) bool {
+	s.mu.Lock()
+	v := s.waiting[peerID]
+	if v == nil {
+		s.mu.Unlock()
+		return false
+	}
+	delete(s.waiting, peerID)
+	s.viewers[peerID] = v
+	v.gated.Store(false)
+	v.hears.Store(s.hearing[peerID])
+	s.mu.Unlock()
+	v.keyframe.Store(true)
+	if v.control.ReadyState() == webrtc.DataChannelStateOpen {
+		s.greet(v)
+	}
+	s.signalChanged()
+	return true
+}
+
+// greet tells a viewer who the host is and what it can show.
+func (s *StreamService) greet(v *viewer) {
+	welcome, _ := json.Marshal(struct {
+		Type   string      `json:"type"`
+		Host   SessionMeta `json:"host"`
+		Source string      `json:"source"`
+	}{"welcome", s.cfg.Welcome, s.cfg.Source})
+	s.sendText(v.control, welcome)
+	s.sendDisplays(v)
+}
+
+// find returns a viewer, gated or not.
+func (s *StreamService) find(peerID string) *viewer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if v := s.viewers[peerID]; v != nil {
+		return v
+	}
+	return s.waiting[peerID]
+}
+
+func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) error {
 	pc, err := s.api.NewPeerConnection(webrtc.Configuration{ICEServers: s.iceServers()})
 	if err != nil {
 		return err
@@ -800,6 +868,7 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 		return err
 	}
 	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.HasH264)}
+	v.gated.Store(gated)
 	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
 	video, err := newVideoTrack(trackCodec(v.codec))
 	if err != nil {
@@ -855,13 +924,9 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 	}
 	v.control = control
 	control.OnOpen(func() {
-		welcome, _ := json.Marshal(struct {
-			Type   string      `json:"type"`
-			Host   SessionMeta `json:"host"`
-			Source string      `json:"source"`
-		}{"welcome", s.cfg.Welcome, s.cfg.Source})
-		s.sendText(control, welcome)
-		s.sendDisplays(v)
+		if !v.gated.Load() {
+			s.greet(v)
+		}
 	})
 	control.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if msg.IsString && len(msg.Data) <= maxControlMessage {
@@ -877,7 +942,7 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 		return fail(err)
 	}
 	pointer.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if !msg.IsString {
+		if !msg.IsString && !v.gated.Load() {
 			s.input(v.id, "pointer", msg.Data)
 		}
 	})
@@ -886,7 +951,7 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 		return fail(err)
 	}
 	inputDC.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if !msg.IsString && len(msg.Data) <= maxControlMessage {
+		if !msg.IsString && len(msg.Data) <= maxControlMessage && !v.gated.Load() {
 			s.input(v.id, "input", msg.Data)
 		}
 	})
@@ -898,7 +963,7 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 	}
 	v.files = filesDC
 	filesDC.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if len(msg.Data) > maxControlMessage {
+		if len(msg.Data) > maxControlMessage || v.gated.Load() {
 			return
 		}
 		s.mu.Lock()
@@ -991,9 +1056,15 @@ func (s *StreamService) offer(v *viewer) error {
 		return err
 	}
 	s.mu.Lock()
-	old := s.viewers[peerID]
-	s.viewers[peerID] = v
-	v.hears.Store(s.hearing[peerID])
+	var old *viewer
+	if v.gated.Load() {
+		old = s.waiting[peerID]
+		s.waiting[peerID] = v
+	} else {
+		old = s.viewers[peerID]
+		s.viewers[peerID] = v
+		v.hears.Store(s.hearing[peerID])
+	}
 	s.mu.Unlock()
 	if v.hears.Load() {
 		s.signalChanged()
@@ -1047,10 +1118,9 @@ func (s *StreamService) restartICE(v *viewer) {
 // drop removes a viewer the stream gave up on and says so.
 func (s *StreamService) drop(peerID, reason string) {
 	s.mu.Lock()
-	_, ok := s.viewers[peerID]
 	fn := s.onClosed
 	s.mu.Unlock()
-	if !ok {
+	if s.find(peerID) == nil {
 		return
 	}
 	s.RemoveViewer(peerID)
@@ -1077,9 +1147,7 @@ func (v *viewer) close() {
 
 // HandleSignal applies an answer or ICE candidate from a viewer.
 func (s *StreamService) HandleSignal(from string, payload json.RawMessage) error {
-	s.mu.Lock()
-	v := s.viewers[from]
-	s.mu.Unlock()
+	v := s.find(from)
 	if v == nil {
 		return errors.New("stream: signal from unknown viewer")
 	}
@@ -1126,6 +1194,15 @@ type controlMessage struct {
 func (s *StreamService) handleControl(v *viewer, data []byte) {
 	var msg controlMessage
 	if json.Unmarshal(data, &msg) != nil || msg.Type == "" {
+		return
+	}
+	if v.gated.Load() && msg.Type != "pong" {
+		s.mu.Lock()
+		fn := s.onWaiting
+		s.mu.Unlock()
+		if fn != nil {
+			fn(v.id, data)
+		}
 		return
 	}
 	switch msg.Type {
@@ -1367,9 +1444,7 @@ func (s *StreamService) pingAll() {
 
 // SendControl sends a JSON message on one viewer's control channel.
 func (s *StreamService) SendControl(peerID string, msg []byte) bool {
-	s.mu.Lock()
-	v := s.viewers[peerID]
-	s.mu.Unlock()
+	v := s.find(peerID)
 	if v == nil || v.control == nil || v.control.ReadyState() != webrtc.DataChannelStateOpen {
 		return false
 	}
@@ -1398,9 +1473,7 @@ func (s *StreamService) sendText(dc *webrtc.DataChannel, msg []byte) bool {
 // Hangup sends a last control message (session_end) and closes the
 // viewer's connection once it is out, or after a short wait.
 func (s *StreamService) Hangup(peerID string, last []byte) {
-	s.mu.Lock()
-	v := s.viewers[peerID]
-	s.mu.Unlock()
+	v := s.find(peerID)
 	if v == nil {
 		return
 	}
@@ -1418,6 +1491,10 @@ func (s *StreamService) RemoveViewer(peerID string) {
 	s.mu.Lock()
 	v := s.viewers[peerID]
 	delete(s.viewers, peerID)
+	if v == nil {
+		v = s.waiting[peerID]
+	}
+	delete(s.waiting, peerID)
 	delete(s.stats, peerID)
 	delete(s.rtt, peerID)
 	delete(s.sizes, peerID)
@@ -1439,6 +1516,7 @@ func (s *StreamService) RemoveViewer(peerID string) {
 func (s *StreamService) CloseAll() {
 	s.mu.Lock()
 	ids := slices.Collect(maps.Keys(s.viewers))
+	ids = slices.AppendSeq(ids, maps.Keys(s.waiting))
 	s.mu.Unlock()
 	for _, id := range ids {
 		s.RemoveViewer(id)

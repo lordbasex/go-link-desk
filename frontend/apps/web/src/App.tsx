@@ -3,8 +3,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Header } from "./components/Header";
 import { APP_VERSION, REPO_URL } from "./config";
 import { t } from "./i18n";
+import { DevicePage } from "./pages/DevicePage";
+import { DevicesPage } from "./pages/DevicesPage";
 import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
+import { LinkPage } from "./pages/LinkPage";
 import { SessionPage } from "./pages/SessionPage";
 
 export function App() {
@@ -16,6 +19,10 @@ export function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/c" element={<JoinPage />} />
           <Route path="/c/:target" element={<SessionPage />} />
+          <Route path="/link" element={<LinkPage />} />
+          <Route path="/link/:code" element={<LinkPage />} />
+          <Route path="/devices" element={<DevicesPage />} />
+          <Route path="/d/:deviceId" element={<DevicePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

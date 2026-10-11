@@ -88,6 +88,10 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .brand:hover { color: var(--color-text); }
 .brand-suffix { color: var(--color-accent-text); }
 .header-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.header-link { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--color-text-2); text-decoration: none; font-size: 14px; padding: 6px 8px; border-radius: var(--radius-card); }
+.header-link:hover { color: var(--color-text); }
+.brand { white-space: nowrap; }
+@media (max-width: 520px) { .header { gap: 8px; padding: 12px 16px; } .header-link-text { display: none; } }
 .main { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 48px 20px; }
 .footer { padding: 18px 20px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-divider); color: var(--color-text-faint); font-size: 12px; text-align: center; }
 
@@ -106,6 +110,20 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .join-row .input { font-family: var(--font-mono); letter-spacing: 0.08em; text-align: center; }
 .error-text { margin: 0; color: var(--color-danger-text); font-size: 13px; }
 .notice { padding: 14px 16px; border-radius: var(--radius-card); background: var(--tint-accent-bg); border: 1px solid var(--tint-accent-border); color: var(--color-text-2); }
+
+/* ---------- my computers ---------- */
+.devices { display: flex; flex-direction: column; gap: 14px; }
+.devices-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.devices-subtitle { margin: 18px 0 0; font-size: 18px; font-weight: 600; }
+.device-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.device-card { display: flex; flex-direction: column; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border); overflow: hidden; }
+.device-thumb { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--color-divider); }
+.device-thumb-empty { background: repeating-linear-gradient(135deg, var(--color-divider) 0 10px, transparent 10px 20px); }
+.device-body { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+.device-name { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.device-body p { margin: 0; }
+.device-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.device-body .join-row .input { font-family: inherit; letter-spacing: normal; text-align: left; flex: 1; min-width: 0; }
 
 /* ---------- session ---------- */
 .input-name { text-align: left; }

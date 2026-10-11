@@ -315,3 +315,94 @@ func waitForMsg(t *testing.T, ch chan ctrlMsg, typ string) ctrlMsg {
 		}
 	}
 }
+
+func TestAWaitingBrowserGetsNothingUntilAdmitted(t *testing.T) {
+	stream, cancel := newStream(t)
+	defer cancel()
+	waiting := make(chan string, 10)
+	stream.OnWaiting(func(peer string, data []byte) { waiting <- peer + ":" + string(data) })
+	routed := make(chan string, 10)
+	stream.OnControl(func(peer, kind string, _ []byte) { routed <- kind })
+
+	b := newBrowser(t, "linked", stream)
+	packets := make(chan struct{}, 100)
+	b.pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		if track.Kind() != webrtc.RTPCodecTypeVideo {
+			return
+		}
+		for {
+			if _, _, err := track.ReadRTP(); err != nil {
+				return
+			}
+			select {
+			case packets <- struct{}{}:
+			default:
+			}
+		}
+	})
+	msgs := make(chan ctrlMsg, 50)
+	controls := make(chan *webrtc.DataChannel, 1)
+	b.pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if dc.Label() != "control" {
+			return
+		}
+		dc.OnOpen(func() { controls <- dc })
+		dc.OnMessage(func(m webrtc.DataChannelMessage) {
+			var got ctrlMsg
+			_ = json.Unmarshal(m.Data, &got)
+			msgs <- got
+		})
+	})
+	stream.SetSender(relay{b})
+	if err := stream.AddWaiting("linked", nil); err != nil {
+		t.Fatal(err)
+	}
+	dc := <-controls
+	if stream.ViewerCount() != 0 {
+		t.Fatal("a waiting browser counts as a viewer")
+	}
+	// What it sends goes to the waiting handler, not the session.
+	_ = dc.SendText(`{"type":"auth_challenge","nonce":"x"}`)
+	_ = dc.SendText(`{"type":"session_end"}`)
+	for range 2 {
+		select {
+		case got := <-waiting:
+			if got != `linked:{"type":"auth_challenge","nonce":"x"}` && got != `linked:{"type":"session_end"}` {
+				t.Fatalf("waiting got %q", got)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("message not handed to the waiting handler")
+		}
+	}
+	// A message from the host still reaches it (the link's proofs).
+	if !stream.SendControl("linked", []byte(`{"type":"auth_proof"}`)) {
+		t.Fatal("cannot write to a waiting browser")
+	}
+	if got := waitForMsg(t, msgs, "auth_proof"); got.Type != "auth_proof" {
+		t.Fatal(got)
+	}
+	// Nothing else: no picture, no welcome.
+	select {
+	case <-packets:
+		t.Fatal("a waiting browser got video")
+	case m := <-msgs:
+		if m.Type != "ping" {
+			t.Fatalf("a waiting browser got %q", m.Type)
+		}
+	case kind := <-routed:
+		t.Fatalf("routed %q", kind)
+	case <-time.After(time.Second):
+	}
+
+	if !stream.Admit("linked") || stream.ViewerCount() != 1 {
+		t.Fatal("not admitted")
+	}
+	if w := waitForMsg(t, msgs, "welcome"); w.Host.Name != "mac" {
+		t.Fatalf("welcome %+v", w)
+	}
+	select {
+	case <-packets:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no video after admission")
+	}
+}

@@ -29,6 +29,7 @@ const (
 	RejectTimeout     = "timeout"     // nobody answered in time
 	RejectBusy        = "busy"        // another session is on
 	RejectUnavailable = "unavailable" // nobody can answer: a host without a window
+	RejectOff         = "off"         // a linked browser, but unattended access is off
 )
 
 // Why a session ended ("session_end" reason).
@@ -37,6 +38,8 @@ const (
 	EndViewer  = "viewer"  // the viewer hung up or left
 	EndNetwork = "network" // the connection failed and could not recover
 	EndSignal  = "signal"  // the host lost signalhub (the room is gone)
+	EndIdle    = "idle"    // nothing from the viewer for the time set at the host
+	EndRevoked = "revoked" // the person at the host revoked the viewer's link
 )
 
 // Knock is what a viewer declares when it asks to come in: a name and its
@@ -105,6 +108,8 @@ type ActiveSession struct {
 	Browser     string      `json:"browser"`
 	Since       time.Time   `json:"since"`
 	Permissions Permissions `json:"permissions"`
+	// Unattended: a linked browser that came in without anyone accepting.
+	Unattended bool `json:"unattended,omitempty"`
 }
 
 // MaxChat bounds a chat message, in characters.

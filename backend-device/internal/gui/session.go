@@ -91,6 +91,9 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 		name = L("Someone")
 	}
 	p.who.SetText(Lf("%s is viewing your screen", name))
+	if a.Unattended {
+		p.who.SetText(Lf("%s is viewing your screen (unattended access)", name))
+	}
 	p.browser.SetText(a.Browser)
 	p.since.SetText(Lf("Since %s", a.Since.Local().Format("15:04")))
 	p.perms.SetText(L("Can:") + " " + L("See your screen"))

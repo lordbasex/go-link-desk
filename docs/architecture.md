@@ -129,9 +129,16 @@ desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts
 | Kind | Arrives with | Gets |
 |---|---|---|
 | **Viewer** | `join` with the session code or invite | After the host accepts: video, audio and the `control`, `pointer`, `input` and `files` channels, within the permissions granted. |
-| **Linked browser** | `claim` with a pairing code (first time), `reach` with the `device_id` (after) | Unattended access, off by default (phase 6). The host proves itself first with an HMAC, then the browser shows its token. |
+| **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password if there is one, and it becomes a full session with its link's permissions, nobody asked. |
 
-go-link's linked browsers only get `control` and `files`. In go-link Desk a linked browser that passes the token check has to become a full session (video and input) without a consent dialog, within the permission profile of its link. That upgrade is designed in phase 6.
+## Unattended access
+
+- **One door, three ways in.** The session service takes guests from the session room (`join`), from the pairing code (`claim`) and from `reach`; all of them knock with the same message, and only what follows the knock changes. A browser that came with the pairing code is asked about like any viewer, in a request window that says it is a link; one that came with `reach` is connected gated.
+- **Gated, not a second connection.** go-link opens a data-only connection to a linked browser. Desk connects a returning browser with the session's own connection, its tracks and channels, but kept in a waiting list of the stream: no encoder, no sound, no pointer, no displays, no `welcome`, and its control messages go only to the unattended service. Letting it in moves it to the viewers and asks a keyframe: no new negotiation, no second ICE, and nothing a gated browser sends can reach the session. A handover from a data link to a session connection was the alternative; it costs a second negotiation and a moment with two connections to the same browser.
+- **The link's profile is what the person ticked** when the browser was linked, and can be changed or revoked in Settings, one line per browser (its declared name, when linked, last used).
+- **Settings** holds what concerns unattended access (off by default, the linking code, the password, the linked browsers) away from the main window, which only shows the session code. Its changes go to `device.json` through the settings service, which the other services read.
+- **Around a session:** the display is kept awake while one is on (an IOKit assertion; a viewer's activity is not the local person's), a session with no input from the viewer for the time set in Settings ends with `idle`, the screen can lock when a session ends (Control-Command-Q, as the person would, with the Accessibility permission the input already needs), and the host can open at login (a LaunchAgent on macOS, an XDG autostart file on Linux, pointing at the binary; nothing is installed).
+- **My computers** on the website is this browser's list of linked computers and recent sessions, in `localStorage`: favorites first, a name the person picks, the last use, and a thumbnail of the screen. The browser takes the thumbnail from the picture it is showing, every few seconds during the session; the host sending one at the end was the plan, but the browser already has the picture, and a session that ends with the network still leaves it one.
 
 ## Identifiers
 
@@ -171,6 +178,7 @@ The host is one self-contained program: no installer, no administrator rights, n
 ## Decisions
 
 - **Phase 0 copies only go-link's generic pieces.** go-link's `internal/services` is one package; its stream, test room and recording services depend on the game room manager and on ROM symbols. They come in the phase that uses them, adapted (stream and session in phase 1, recordings in phase 8), instead of compiling dead code through stubs.
+- **The unattended password is hashed with argon2id** (`golang.org/x/crypto/argon2`, OWASP's minimum parameters: 19 MiB, 2 passes), never kept or logged in clear, and checked with the PIN gate's limits. `x/crypto` was already in the build through Pion; it is now a direct dependency (BSD-3-Clause).
 - **The linked-browser proof is domain-separated:** it signs `go-link-desk link proof\n<nonce>`, so a proof made for one app never passes in the other.
 - **The dev server uses port 5180,** like go-link's, because the shared signalhub already allows `http://localhost:5180`.
 - **The Fyne window is new.** go-link's window is built around the game library; Desk keeps only its mechanisms (the i18n catalogs, the tray icon, the stop-safe app loop).

@@ -30,13 +30,14 @@ The same path in both repositories unless noted.
 | `internal/repositories/config_file.go` | adapted | `<config dir>/go-link-desk/device.json`; no migration from go-link's former name. |
 | `internal/repositories/config_file_test.go` | adapted | Round trip with `language` instead of `roms_dir` and `video_quality`. |
 | `internal/telemetry/*` | verbatim | |
-| `internal/services/{dispatcher,ice_store,pairing_service,pin_gate,room_opener,routing_sender,sim_loss,playout_delay}.go` | verbatim | |
+| `internal/services/{dispatcher,ice_store,pin_gate,room_opener,routing_sender,sim_loss,playout_delay}.go` | verbatim | |
+| `internal/services/pairing_service.go` | adapted | Phase 6: the browsers that came with the pairing code or `reach` go to the session (they knock like any viewer) instead of a data-only connection; their signals reach the session through the dispatcher. |
 | `internal/services/{playout_delay,routing_sender,sim_loss,vp8_payloader}_test.go` | verbatim | |
 | `internal/services/vp8_payloader.go` | adapted | Track stream ID `go-link-desk`. |
-| `internal/services/link_service.go` | adapted | The proof signs `go-link-desk link proof\n<nonce>`. |
+| `internal/services/link_service.go` | adapted | The proof signs `go-link-desk link proof\n<nonce>`. Phase 6: 30 s to authenticate, `OnAuthenticated`, `ByCode`, `LinkOf`, `SetLink` (name and permissions per link) and `Revoke`. |
 | `internal/services/link_service_test.go` | adapted | `NewStatusService` without the ROM folder. |
 | `internal/services/link_proof_test.go` | adapted | Reads the shared vectors in `protocol/vectors/link-proof.json`. |
-| `internal/services/pin_gate_test.go` | adapted | Only the gate's own tests; the session password's (phase 6) come with it. |
+| `internal/services/pin_gate_test.go` | adapted | Only the gate's own tests. The unattended password (phase 6, `password.go`) is new code that reuses the gate's limits. |
 | `internal/services/services_test.go` | adapted | `NewStatusService` without the ROM folder. |
 | `internal/services/status_service.go` | adapted | No ROM folder, library, game rooms, saves or video quality; `SetSession`. |
 | `internal/services/metrics_service.go`, `_test.go` | adapted | `device_status` carries `session` (never its code) instead of the library and rooms. |
@@ -69,11 +70,13 @@ The same path in both repositories unless noted.
 | `packages/shared/src/{pairing-code,signal-client}.ts` | verbatim | |
 | `packages/shared/src/protocol.ts` | adapted | `APP = "go-link-desk"`; invitation links are `/c/<invite>`. |
 | `packages/shared/src/hmac.ts` | adapted | `linkProof` signs `go-link-desk link proof`; no `panelProof` (Desk has no local web panel). |
-| `packages/shared/src/{device-link,signal-url}.ts` | adapted | `go-link-desk.*` storage keys. |
+| `packages/shared/src/signal-url.ts` | adapted | `go-link-desk.*` storage keys. |
+| `packages/shared/src/device-link.ts` | rewritten | Phase 6: a list of linked computers (name, label, favorite, last use, thumbnail) and recent sessions instead of go-link's single link; `parseAuthOk` and the validation rules are go-link's. |
 | `packages/shared/src/tokens.css` | adapted | No player, test-card, arcade-frame or Willy Maker tokens. |
 | `packages/shared/src/index.ts`, `package.json`, `tsconfig.json` | adapted | Only the modules above; `@go-link-desk/shared`; JSON vectors included. |
 | `packages/shared/test/{signal-client,signal-url}.test.ts` | verbatim | |
-| `packages/shared/test/{code-input,device-link,hmac}.test.ts` | adapted | `/c/` links, `go-link-desk.*` keys, the shared proof vectors. |
+| `packages/shared/test/{code-input,hmac}.test.ts` | adapted | `/c/` links, `go-link-desk.*` keys, the shared proof vectors. |
+| `packages/shared/test/device-link.test.ts` | rewritten | Phase 6: the list of computers and the recent sessions. |
 | `apps/web/src/components/ui/Select.tsx`, `Select.test.tsx` | verbatim | |
 | `apps/web/src/i18n/index.ts` | adapted | `go-link-desk.lang`. |
 | `apps/web/src/theme.ts`, `public/theme.js` | adapted | `go-link-desk.theme`. |
@@ -106,9 +109,9 @@ Planned in phase 0, moved because nothing uses them yet:
 | go-link file | Phase |
 |---|---|
 | `internal/services/{stream_telemetry,encode_load}.go` | 8 (session telemetry, with the history) |
-| `internal/services/history_service.go` | 6 (session history, with the host's settings) |
+| `internal/services/history_service.go` | 8 (the session history, with the session telemetry); phase 6 brought the settings without it |
 | `internal/services/{upload_service,download_service}.go` | 5 (files) |
 | `internal/services/{recorder,recording_service}.go` | 8 (recording) |
-| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 4 (screenshots with the tools menu) and 6 (the host's QR) |
+| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 8 (screenshots with the tools menu); the host's QR code is not needed yet: the linking code is typed |
 | `internal/services/{video_tiers,quality_ladder}.go` | not taken: one viewer at a time and Google Congestion Control replace go-link's size tiers and loss ladder |
-| `frontend/apps/web/src/components/ui/{PageHero,Skeleton,useInfiniteList}` | 6 (my computers) |
+| `frontend/apps/web/src/components/ui/{PageHero,Skeleton,useInfiniteList}` | not taken: My computers is a short local list, read at once |

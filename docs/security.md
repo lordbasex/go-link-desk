@@ -27,7 +27,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - It cannot flood the person at the host with requests: one knock per join, one request on screen at a time (others get `busy`), and signalhub limits `join` to 5 a minute per IP.
 - Its declared name and browser are cut to 40 and 60 printable characters, without line breaks or control and format characters (no right-to-left overrides), so they cannot pass for the dialog's own text.
 - Guessing codes: 10⁹ codes, and signalhub limits `join` to 5 attempts per minute per IP. A code only exists while a host shows it.
-- A session password (optional) is checked by the host with go-link's PIN gate: 5 tries per viewer, and 20 failures in 10 minutes lock the password path for 10 minutes. Viewers already in are not locked out.
+- Sessions with a code have no password of their own: the code changes on demand (New code), and every viewer is accepted by a person. The password is for unattended access, below.
 - Its declared `name` and browser are shown as declared, never as verified, and the dialog says so.
 - Input it sends is limited by the permissions granted, and stops when they are revoked. Control is off unless the person at the computer ticks it in the request, and can be taken back at any moment from the session panel; every key and button held is let go at that moment.
 - Its input packets are parsed with fixed sizes and limits (text at most 1024 bytes, display indexes checked, unknown keycodes dropped); a malformed packet is ignored.
@@ -59,14 +59,24 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### A host without anyone in front of it
 
-- A host without a window (headless, or a build without the GUI) has nobody to ask, so it turns every knock down. Unattended access, in phase 6, is the only way in without a person accepting.
+- A host without a window (headless, or a build without the GUI) has nobody to ask, so it turns every knock down, including a browser that asks to be linked. Unattended access (below) is the only way in without a person accepting, and its links are made with a person accepting.
 - `--test-auto-accept` exists for the end-to-end tests. The host refuses it unless the source is the test card, and logs a warning when it is on. Only a measurement build (`-tags desk_test_screen`, never a release: its target refuses the tag) takes it with the real screen.
 
-### A stolen linked-browser token
+### Unattended access
 
-- The host keeps only SHA-256(token) in `device.json` (mode 0600).
-- The host lists linked browsers with their name and last use, and can revoke each one; a revoked token is refused.
-- An optional extra password for unattended access is checked by the host over the DataChannel (scrypt or argon2id hash, PIN gate limits), never through signalhub.
+- Off by default; turned on in Settings, away from the main window, which never shows the pairing code.
+- A browser is linked only with the pairing code **and** the person at the host accepting it, in a request window that says it is a link and that the browser will come back without asking, with the permissions ticked then. Turning unattended access off turns every linked browser down (`off`) without forgetting the links.
+- Anyone may `reach` a `device_id` (signalhub proves nothing). Such a browser is connected gated: it gets no picture, sound, pointer, display list or even the computer's name, and nothing it sends reaches the session, until it proves its link; it has 30 seconds. The host proves itself first (an HMAC of the browser's nonce keyed with SHA-256(token)), so a fake signaling server or a fake host never gets a token. The browser, in turn, ignores everything a linked computer says until it proved itself and took the token: a password request before that is not shown, and an acceptance before that lets nothing in, so a fake host never gets the password nor shows a screen of its own.
+- Tokens are 32 random bytes; the host keeps only SHA-256(token) in `device.json` (mode 0600), and compares in constant time.
+- The optional unattended password is asked after the token, over the encrypted DataChannel, never through signalhub. It is kept as an argon2id hash (never in clear, never logged), and the PIN gate's limits apply: 5 tries per browser (then it is hung up on), and 20 wrong passwords in 10 minutes lock every try for 10 minutes. A password sent before the token counts for nothing.
+- Settings lists the linked browsers with their declared name, when they were linked and their last use; each one's permissions can be changed and each can be revoked. A revoked link is refused at once, also mid-session (the session ends with `revoked`).
+- An unattended session is a session like any other: the red tray icon, the floating panel (which says it is unattended) and **Disconnect** are there for its whole length.
+- The browser keeps its links, recent sessions and a small thumbnail of each computer's screen in its own `localStorage`; nothing of it goes to a server. Whoever uses that browser profile can use its links, as with any saved login: Forget removes one there, and Revoke on the host removes it for good.
+
+### A session left open
+
+- Settings can end a session after 5 minutes to an hour without input from the viewer (`idle`), and lock the screen when any session ends.
+- The display is kept awake only while a session is on.
 
 ### The scammer on the phone
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it, vi } from "vitest";
-import { ServerError } from "@go-link-desk/shared";
-import { Session, type SessionView } from "./session";
+import { ServerError, linkProof } from "@go-link-desk/shared";
+import { Session, type Door, type SessionOptions, type SessionView } from "./session";
 import { FakeClient } from "./test-utils";
 
 /** A peer connection that never connects: enough to see the session's steps. */
@@ -30,7 +30,7 @@ function start(client: FakeClient) {
   const views: SessionView[] = [];
   const s = new Session({
     client: client.asClient(),
-    target: { code: "915355636" },
+    door: { kind: "join", target: { code: "915355636" } },
     name: "Ana",
     browser: "Chrome 141 on macOS",
     onChange: (v) => views.push(v),
@@ -108,7 +108,7 @@ describe("Session control messages", () => {
     const cursors: unknown[] = [];
     const s = new Session({
       client: client.asClient(),
-      target: { code: "915355636" },
+      door: { kind: "join", target: { code: "915355636" } },
       name: "Ana",
       browser: "x",
       onChange: () => undefined,
@@ -158,5 +158,162 @@ describe("Session control messages", () => {
       [true, "¿en qué te ayudo?"],
       [false, "no anda el wifi"],
     ]);
+  });
+});
+
+describe("Linked computers", () => {
+  const device = {
+    deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
+    linkId: "3f9c0a1b2c3d4e5f",
+    token: "q8VY3n1s0bPq0n8oJ1m3Zr2yX7eW5vT4uS6rQ9pO0nM", // gitleaks:allow (test value)
+    signalUrl: "wss://x/ws",
+    name: "mac",
+    label: "",
+    os: "darwin",
+    favorite: false,
+    savedAt: 0,
+    lastUsed: 0,
+    thumb: "",
+  };
+
+  function startDoor(client: FakeClient, door: Door, extra: Partial<SessionOptions> = {}) {
+    client.joinReply = { type: "paired", remote: "H", session_id: "S" };
+    const s = new Session({
+      client: client.asClient(),
+      door,
+      name: "Ana",
+      browser: "Firefox",
+      onChange: () => undefined,
+      RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection,
+      ...extra,
+    });
+    void s.start();
+    const inner = s as unknown as { onControl(m: unknown): void; stream: { sendControl(m: unknown): boolean; pendingControl: string[] } };
+    const sent: unknown[] = [];
+    return {
+      s,
+      sent,
+      control: (m: unknown) => inner.onControl(m),
+      queued: () => inner.stream.pendingControl.map((x) => JSON.parse(x) as Record<string, string>),
+      spy: () => {
+        inner.stream.sendControl = (m) => (sent.push(m), true);
+      },
+    };
+  }
+
+  it("come back with reach: the computer proves itself before the token, then the password", async () => {
+    const client = new FakeClient();
+    const { s, sent, control, queued, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    expect(client.sent[0]).toEqual({ type: "reach", app: "go-link-desk", device_id: device.deviceId });
+    expect(client.signals()[0]).toMatchObject({ kind: "knock", name: "Ana" });
+    const challenge = queued()[0]!;
+    expect(challenge).toMatchObject({ type: "auth_challenge", link_id: device.linkId });
+    expect(JSON.stringify(queued())).not.toContain(device.token); // never before the proof
+    spy();
+
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, challenge.nonce!) });
+    expect(sent).toEqual([{ type: "auth", link_id: device.linkId, token: device.token }]);
+    // The password is asked only once the computer took the token.
+    control({ type: "password_required" });
+    expect(s.current.status.kind).toBe("waiting");
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+
+    control({ type: "password_required" });
+    expect(s.current.status).toEqual({ kind: "password", error: null, left: 0, checking: false });
+    s.sendPassword("guess");
+    expect(sent.at(-1)).toEqual({ type: "password", password: "guess" });
+    control({ type: "password_result", ok: false, reason: "wrong", left: 4 });
+    expect(s.current.status).toEqual({ kind: "password", error: "wrong", left: 4, checking: false });
+    s.sendPassword("right one");
+    control({ type: "password_result", ok: true });
+    expect(s.current.status.kind).toBe("waiting");
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, control: true } } });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("connecting"));
+    expect(s.current.permissions?.control).toBe(true);
+  });
+
+  it("never give the password to, nor take a screen from, a computer that skipped its proof", async () => {
+    const client = new FakeClient();
+    const { s, sent, control, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    spy();
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+    control({ type: "password_required" });
+    expect(s.current.status.kind).toBe("waiting");
+    s.sendPassword("secret");
+    expect(sent).toEqual([]);
+    // An acceptance without the proof lets nothing in.
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, control: true } } });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(s.current.status.kind).toBe("waiting");
+    expect(s.current.permissions).toBeNull();
+  });
+
+  it("wait for auth_ok when the acceptance overtakes it", async () => {
+    const client = new FakeClient();
+    const { s, control, queued, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, files: true } } });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(s.current.status.kind).toBe("waiting");
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+    expect(s.current.status.kind).toBe("connecting");
+    expect(s.current.permissions?.files).toBe(true);
+  });
+
+  it("send nothing to a computer that cannot prove itself", async () => {
+    const client = new FakeClient();
+    const { s, sent, control, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    spy();
+    control({ type: "auth_proof", link_id: device.linkId, proof: "forged" });
+    expect(sent).toEqual([]);
+    expect(s.current.status.kind).toBe("untrusted");
+  });
+
+  it("forget a link the computer no longer has", async () => {
+    const client = new FakeClient();
+    const unlinked = vi.fn();
+    const { s, control } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    control({ type: "auth_failed", error: "gone" });
+    expect(s.current.status.kind).toBe("unlinked");
+    expect(unlinked).toHaveBeenCalledOnce();
+  });
+
+  it("say when the computer is off", async () => {
+    const client = new FakeClient();
+    client.joinReply = ServerError.DeviceOffline;
+    const s = new Session({ client: client.asClient(), door: { kind: "reach", device }, name: "Ana", browser: "x", onChange: () => undefined, RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection });
+    void s.start();
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("offline"));
+  });
+
+  it("link with the pairing code once the person there accepts", async () => {
+    const client = new FakeClient();
+    const linked = vi.fn();
+    const { s, sent, control, spy } = startDoor(client, { kind: "claim", code: "113134323" }, { onLinked: linked });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    expect(client.sent[0]).toEqual({ type: "claim", app: "go-link-desk", code: "113134323" });
+    spy();
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true } } });
+    await vi.waitFor(() => expect(sent).toEqual([{ type: "auth" }]));
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId, token: device.token });
+    expect(linked).toHaveBeenCalledWith({ deviceId: device.deviceId, linkId: device.linkId, token: device.token });
+  });
+
+  it("ignore link messages in a session with a code", async () => {
+    const client = new FakeClient();
+    const unlinked = vi.fn();
+    const { s, control } = startDoor(client, { kind: "join", target: { code: "915355636" } }, { onUnlinked: unlinked });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    control({ type: "unlinked" });
+    control({ type: "password_required" });
+    expect(s.current.status.kind).toBe("waiting");
+    expect(unlinked).not.toHaveBeenCalled();
   });
 });
