@@ -153,6 +153,15 @@ go-link Desk also connects to other computers, in the same window: Home has the 
 - **The pointer:** the app asks for the pointer's image and position (`cursor_mode` off) and draws it where the finger put it, without waiting for the picture. While zoomed in, the view follows the pointer.
 - **Keys by position from a hardware keyboard, text from the on-screen one** (the 0x31 text packet), so any layout and any language type right.
 
+## The Android app
+
+`mobile/android` is the iPhone and iPad app on Android phones and tablets: the same screens and look, the same texts (the translations are generated from the iOS app's), the same protocol.
+
+- **Built like go-link's Android player app:** Kotlin and Jetpack Compose, with libwebrtc (stream-webrtc-android). The iOS app's `DeskCore` is ported to plain Kotlin (`core`), tested on the JVM against the same vectors and the same cases.
+- **The picture** goes into a `TextureView` sized to the picture, so the zoom is the view's transform and the overlays (pointer, toolbar) draw above it.
+- **Codecs:** the knock lists what this device decodes (H.264 High, Baseline, VP8). A device that cannot encode H.264 turns down the video call's lines in the answer, since an answer with no common codec on a line fails.
+- **Linked computers** are sealed with an RSA key of the keystore: its public half seals (no prompt, as the iOS keychain write), its private half opens only right after the fingerprint, face or screen lock (`BiometricPrompt` with the key's cipher). Hence Android 11 or newer.
+
 ## Unattended access
 
 - **One door, three ways in.** The session service takes guests from the session room (`join`), from the pairing code (`claim`) and from `reach`; all of them knock with the same message, and only what follows the knock changes. A browser that came with the pairing code is asked about like any viewer, in a request window that says it is a link; one that came with `reach` is connected gated.

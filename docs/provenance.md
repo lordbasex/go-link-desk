@@ -110,6 +110,25 @@ From go-link's player app (`mobile/ios/`), taken at commit **`bf3ca43`** (later 
 | `project.yml`, `Makefile`, `Config/{Base,Local.xcconfig.example}.xcconfig` | adapted | Names and bundle id `org.go-link.desk.ios`; no UI tests or Universal Links yet; the device may be an iPad. |
 | `scripts/asc.py` | verbatim | The App Store Connect API client (bundle id in its help text). |
 
+
+## Android app (`mobile/android/`)
+
+From go-link's player app (`mobile/android/`), taken at commit **`bf3ca43`**, like the iOS app.
+
+| File | How | Changes |
+|---|---|---|
+| `gradlew`, `gradlew.bat`, `gradle/wrapper/*`, `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `.gitignore` | adapted | Project name `go-link-desk`. |
+| `gradle/libs.versions.toml`, `core/build.gradle.kts`, `app/build.gradle.kts`, `app/proguard-rules.pro` | adapted | No splash screen, CameraX or ML Kit; application id `org.golink.desk`; Android 11 or newer; signing from `DESK_SIGNING`. |
+| `core/src/main/kotlin/.../{Json,SignalClient,IceServers,CodeInput,SignalUrl}.kt` | adapted | Package `org.golink.desk.core`; comments only. |
+| `core/src/main/kotlin/.../{Protocol,RtcSignal}.kt` | adapted | `APP = "go-link-desk"`; join, claim and reach; Desk's signals (knock, accepted, rejected, offer, candidate). |
+| `core/src/test/kotlin/.../{CodeInputTest,SignalUrlTest,SignalTestTest}.kt` | adapted | No invitation links. |
+| `app/src/main/kotlin/.../net/OkHttpSockets.kt` | verbatim | Package and log tag. |
+| `app/src/main/kotlin/.../rtc/WebRtcEngine.kt` | adapted | No microphone; the decodable codecs; whether H.264 can be sent. |
+| `app/src/main/kotlin/.../rtc/DeskRtcPeer.kt` (`AndroidRtcPeer.kt`) | adapted | The pointer and files channels; no microphone line or voices; the call's lines turned down without an H.264 encoder; events on the main thread. |
+| `app/src/main/res/xml/{locales_config,network_security_config}.xml`, `app/src/debug/res/xml/network_security_config.xml` | verbatim | |
+
+The rest of `core` (session, files, input, keys, pointer, recents) is a port of the iOS app's `DeskCore` to Kotlin, and the app's screens are a port of the iOS app's SwiftUI views to Compose.
+
 ## Build, CI and tests
 
 | File | How | Changes |

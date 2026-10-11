@@ -4,6 +4,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **go-link Desk for Android phones and tablets** (`mobile/android`, Android 11 or newer): the iPhone and iPad app on Android, with the same screens, look and texts (English, Spanish and Portuguese, generated from the iOS app's). A session code, linking with the pairing code, and linked computers opened with the fingerprint, face or screen lock (the token sealed in the keystore) and their unattended password kept with the link; the fingers as a trackpad or by touch, a mouse, a hardware keyboard by position and the on-screen keyboard with its bar of keys; special keys, chat with "is typing" and the message sound, files (downloads in Downloads › go-link Desk), displays, picture, sound, details, the lock and the guide. The portable logic (`core`, Kotlin) is the iOS app's `DeskCore`, tested on the JVM against the same vectors; CI runs it and builds the app.
+- `gen-keycodes.mjs` also writes the Android app's keyboard table.
+
 ### Fixed
 
 - **The connection request could stay behind the other windows** (macOS) when it came while the main thread was busy, as right after a session ended: it was brought to the front only within 200 ms of being asked. Now it is looked for until it is on screen (up to 5 s), and put over the app in front even when that app keeps the focus.
