@@ -78,7 +78,7 @@ The browser's knock and the WebRTC signals are the ones of section 2, inside sig
 4. If the host has an unattended password: host → `password_required {}`; browser → `password {password}`; host → `password_result {ok, reason, left, retry_after}`, where `reason` is `wrong` (with `left` tries), `blocked` (this browser used its 5 tries: the host hangs up) or `locked` (20 wrong passwords in 10 minutes lock every try for 10 minutes: `retry_after` seconds). The browser has 2 minutes to type it. A `password` before `auth_ok` counts for nothing.
 5. The host lets it in: `accepted {permissions}` over signalhub with the link's permissions, and from then on it is a session like any other (`welcome`, the picture, `session_end`). If another session is on, `rejected` with `busy` instead.
 
-The host proves itself first, so a fake signaling server never learns a token. The vector both sides test against is `protocol/vectors/link-proof.json`.
+The host proves itself first, so a fake signaling server never learns a token. The browser ignores `password_required` and `accepted` until the proof checked out and `auth_ok` came; `accepted` travels over signalhub and may overtake `auth_ok`, so it waits for it. The vector both sides test against is `protocol/vectors/link-proof.json`.
 
 **Revoking.** The person at the host revokes a link in Settings: its record goes from `device.json`, a browser connected with it gets `unlinked` and its session ends with `revoked`, and later its proof fails (`auth_failed`). A browser that gets `auth_failed` or `unlinked` forgets the link. A linked browser may also send `unlink {}` to forget itself on the host.
 
