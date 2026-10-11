@@ -216,12 +216,14 @@ func TestPermissionsAreAskedForAndChangedLive(t *testing.T) {
 	var set []models.Permissions
 	u := newUI(a, Options{Status: st, Language: "en", SetPermissions: func(p models.Permissions) { set = append(set, p) }})
 	r := u.newRequest(services.ConsentRequest{PeerID: "P"}, time.Now().Add(time.Minute), func(error) {})
-	if r.perms.value() != models.ViewOnly {
-		t.Fatalf("the request allows %+v before anyone ticks a box", r.perms.value())
+	// Everything is ticked: whoever asks for support accepts at once, and
+	// unticks what they do not want.
+	if r.perms.value() != fullControl {
+		t.Fatalf("the request starts with %+v", r.perms.value())
 	}
 	test.Tap(r.perms.audio)
-	if p := r.perms.value(); !p.Audio || p.Control || p.Clipboard {
-		t.Fatalf("ticking the sound gives %+v", p)
+	if p := r.perms.value(); p.Audio || !p.Control || !p.Clipboard || !p.Files {
+		t.Fatalf("unticking the sound gives %+v", p)
 	}
 	st.SetSession(&models.SessionStatus{RoomID: "R"})
 	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Permissions: models.Permissions{View: true, Control: true}})

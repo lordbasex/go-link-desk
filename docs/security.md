@@ -34,14 +34,14 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### The clipboard, the sound and the chat
 
-- The clipboard is shared only with its permission, unticked by default, and only what is copied after it is given: a password copied before the session never leaves. Taking the permission back stops it at once.
+- The clipboard is shared only with its permission, and only what is copied after it is given: a password copied before the session never leaves. Taking the permission back stops it at once.
 - Clipboard and chat messages are bounded (16 KiB a piece, 1 MiB a text, 2000 characters a chat message), checked as UTF-8, and a text with a missing piece is dropped. A viewer's paste is pressed on the host only if it may also control.
-- The sound is sent only with its permission, unticked by default: it can carry a call or a meeting on the host. The host's own sounds are left out.
+- The sound is sent only with its permission: it can carry a call or a meeting on the host. The host's own sounds are left out.
 - The host's log never records clipboard text or chat words.
 
 ### Files
 
-- Files move only with their permission, unticked by default; taking it back stops the transfers.
+- Files move only with their permission; taking it back stops the transfers.
 - A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and never a hidden file or folder (`.ssh`, `.aws`…) or `~/Library` (keychains, cookies, mail): they are neither listed nor downloadable, also through a symbolic link with a plain name.
 - What a viewer sends lands only in Downloads/go-link Desk, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
 - Every file sent or received is logged with the viewer's id, its name and size.
@@ -92,7 +92,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 The person at the computer is being told what to do by someone they trust.
 
 - The first time the host shows a code, it shows a warning: nobody legitimate calls you asking for access to your computer.
-- The consent dialog says plainly what the viewer will be able to do.
+- The consent dialog says plainly what the viewer will be able to do. Its boxes (control, sound, clipboard, files) come ticked, so whoever asks for support accepts with one click; the person at the computer unticks what they do not want, there or in the session panel at any time. This weighs ease against the phone scam, where the scammer wants every box ticked; the scam warning, Reject and the always-visible session panel are what stand against it.
 - The red tray icon, the floating panel and **Disconnect** stay visible for the whole session.
 - Unattended access is off by default and lives in Settings, away from the main window.
 

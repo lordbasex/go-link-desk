@@ -13,6 +13,7 @@ func init() {
 		}
 	}
 	add("es", map[string]string{
+		"Can see your screen, and:": "Puede ver tu pantalla y además:",
 		"The port is a number from 1024 to 65535 (0 or empty: a random one).": "El puerto es un número de 1024 a 65535 (0 o vacío: uno al azar).",
 		"%s is not an IP address.": "%s no es una dirección IP.",
 		"This computer's address":  "Dirección de esta computadora",
@@ -181,6 +182,7 @@ func init() {
 		"Connecting to other computers": "Conexión a otras computadoras",
 	})
 	add("pt", map[string]string{
+		"Can see your screen, and:": "Pode ver sua tela e também:",
 		"The port is a number from 1024 to 65535 (0 or empty: a random one).": "A porta é um número de 1024 a 65535 (0 ou vazio: uma aleatória).",
 		"%s is not an IP address.": "%s não é um endereço IP.",
 		"This computer's address":  "Endereço deste computador",

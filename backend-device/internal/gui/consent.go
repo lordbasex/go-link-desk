@@ -108,6 +108,7 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	note.Importance = widget.LowImportance
 	perms := widget.NewLabel(L("If you accept, they will be able to:") + "\n  • " + L("See your screen"))
 	r.perms = newPermChecks(nil)
+	r.perms.set(fullControl) // untick what you do not want
 	r.countdown = widget.NewLabel("")
 	r.countdown.Importance = widget.LowImportance
 
