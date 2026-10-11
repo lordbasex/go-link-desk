@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import {
   APP,
+  ClipboardAssembler,
   HostStream,
   ServerError,
   SignalError,
+  clipboardPieces,
   parseDecision,
   endReason,
   type EndReason,
@@ -63,6 +65,18 @@ export interface CursorState {
 
 export type Preset = "speed" | "balanced" | "quality";
 
+/** One line of the session's chat. */
+export interface ChatLine {
+  fromHost: boolean;
+  text: string;
+  at: number; // ms since the epoch
+}
+
+/** The most characters of a chat message (the host's MaxChat). */
+export const MAX_CHAT = 2000;
+/** The chat lines a session keeps. */
+const MAX_CHAT_LINES = 200;
+
 /** Where a session is, from the knock to its end. */
 export type SessionStatus =
   | { kind: "joining" }
@@ -82,6 +96,11 @@ export interface SessionView {
   host: HostInfo | null;
   sent: HostSent | null;
   video: MediaStream | null;
+  /** The computer's sound (silent unless the viewer may hear it). */
+  audio: MediaStream | null;
+  /** What was copied on the host, newest first by id. */
+  hostClipboard: { id: number; text: string } | null;
+  chat: ChatLine[];
   displays: HostDisplay[];
   display: number;
   /** Something about the host's picture ("no_screen_permission", "capture_failed"). */
@@ -112,7 +131,11 @@ export function isOver(s: SessionStatus): boolean {
  * connection) is how a viewer leaves the room.
  */
 export class Session {
-  private view: SessionView = { status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, displays: [], display: 0, notice: null };
+  private view: SessionView = {
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], displays: [], display: 0, notice: null,
+  };
+  private clipboardIn = new ClipboardAssembler();
+  private clipboardSeq = 0;
   private cursor: CursorState = { x: 0, y: 0, visible: false, shape: null };
   private shapes = new Map<string, CursorShape>();
   private stream: HostStream | null = null;
@@ -169,6 +192,7 @@ export class Session {
         else this.set({ status: { kind: "connecting" }, permissions: d.permissions });
       },
       onTrack: (video) => this.set({ video }),
+      onAudio: (audio) => this.set({ audio }),
       onState: (s) => {
         if (isOver(this.view.status) || this.view.status.kind === "waiting") return;
         if (s === "connected") this.set({ status: { kind: "live" } });
@@ -225,6 +249,26 @@ export class Session {
     this.stream?.sendInput(packet);
   }
 
+  /** Puts text on the host's clipboard (with the clipboard permission); paste also pastes it there. False if it is too long. */
+  sendClipboard(text: string, paste: boolean): boolean {
+    const pieces = clipboardPieces(++this.clipboardSeq, text, paste);
+    if (!pieces) return false;
+    for (const p of pieces) this.stream?.sendControl(p);
+    return true;
+  }
+
+  /** Writes to the person at the host. */
+  sendChat(text: string): void {
+    const clean = text.trim().slice(0, MAX_CHAT);
+    if (!clean || isOver(this.view.status)) return;
+    this.stream?.sendControl({ type: "chat", text: clean });
+    this.addChat({ fromHost: false, text: clean, at: Date.now() });
+  }
+
+  private addChat(line: ChatLine): void {
+    this.set({ chat: [...this.view.chat, line].slice(-MAX_CHAT_LINES) });
+  }
+
   /** Flips the latency beacon: odd turns it white, even black. */
   flipBeacon(seq: number): void {
     this.stream?.sendControl({ type: "beacon", seq: seq & 0xffff });
@@ -275,6 +319,16 @@ export class Session {
         this.cursor = { ...this.cursor, x: n("x"), y: n("y"), visible: m.visible === true };
         this.opts.onCursor?.(this.cursor);
         break;
+      case "clipboard": {
+        const text = this.clipboardIn.add({ id: m.id, part: m.part, parts: m.parts, text: m.text });
+        if (text !== null && this.view.permissions?.clipboard) this.set({ hostClipboard: { id: (this.view.hostClipboard?.id ?? 0) + 1, text } });
+        break;
+      }
+      case "chat": {
+        const text = typeof m.text === "string" ? m.text.slice(0, MAX_CHAT) : "";
+        if (text) this.addChat({ fromHost: true, text, at: Date.now() });
+        break;
+      }
       case "session_end":
         this.finish({ kind: "ended", reason: endReason(m.reason) });
         break;
@@ -293,7 +347,7 @@ export class Session {
     this.offLeft = null;
     this.stream?.close();
     this.opts.client.close();
-    this.set({ status, video: null });
+    this.set({ status, video: null, audio: null });
   }
 }
 
