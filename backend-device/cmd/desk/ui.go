@@ -31,6 +31,12 @@ type uiOptions struct {
 	// the linked browsers, idle time and locking.
 	settings *services.SettingsService
 	links    *services.LinkService
+	// remotes are the computers this app connects to as a viewer, and
+	// signalURL the signaling server it reaches them through.
+	remotes   *services.RemotesService
+	signalURL string
+	// connect opens a session to this code at start.
+	connect string
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)

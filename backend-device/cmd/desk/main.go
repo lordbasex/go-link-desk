@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -72,6 +70,15 @@ type flags struct {
 	// sets its password: end-to-end tests only.
 	unattended bool
 	password   string
+	// connect opens a session to another computer at start (its 9-digit
+	// session code).
+	connect string
+	// testViewer runs only the viewer, without a window, through a door
+	// (join, claim or reach): end-to-end tests only.
+	testViewer         string
+	testViewerCode     string
+	testViewerPassword string
+	testViewerFrames   int
 }
 
 func parseFlags(args []string) (flags, error) {
@@ -89,8 +96,18 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; needs --test-unattended)")
+	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
+	fs.StringVar(&f.testViewer, "test-viewer", "", "run only the viewer, without a window, through join, claim or reach (automated tests only)")
+	fs.StringVar(&f.testViewerCode, "test-viewer-code", "", "the session or pairing code (automated tests only; needs --test-viewer join or claim)")
+	fs.StringVar(&f.testViewerPassword, "test-viewer-password", "", "the unattended password to give (automated tests only; needs --test-viewer reach)")
+	fs.IntVar(&f.testViewerFrames, "test-viewer-frames", 30, "frames to receive before leaving (automated tests only)")
 	if err := fs.Parse(args); err != nil {
 		return f, err
+	}
+	switch f.testViewer {
+	case "", "join", "claim", "reach":
+	default:
+		return f, fmt.Errorf("--test-viewer must be join, claim or reach, not %q", f.testViewer)
 	}
 	if f.source != "screen" && f.source != "testpattern" {
 		return f, fmt.Errorf("--source must be screen or testpattern, not %q", f.source)
@@ -141,6 +158,13 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if f.testViewer != "" {
+		target, err := resolveSignalURL(f.signal, cfg)
+		if err != nil {
+			return err
+		}
+		return runTestViewer(f, cfg, target, filepath.Dir(store.Path()), logger)
+	}
 	// One host per user: a locked file next to device.json.
 	lock, err := instancelock.Acquire(filepath.Join(filepath.Dir(store.Path()), "desk.lock"))
 	if err != nil {
@@ -152,7 +176,7 @@ func run(args []string) error {
 		return err
 	}
 	logger.Info("host starting", "version", version, "device_id", cfg.DeviceID, "config", store.Path(), "first_run", created, "signaling", target, "source", f.source)
-	if encrypted, _ := signalclient.CheckURL(target); !encrypted && !isLoopback(target) {
+	if encrypted, _ := signalclient.CheckURL(target); !encrypted && !signalclient.IsLoopback(target) {
 		logger.Warn("signaling URL is not encrypted (ws://); use wss:// outside local development", "url", target)
 	}
 	if !guiBuilt && !f.headless {
@@ -376,6 +400,13 @@ func run(args []string) error {
 	if f.webURL != "" {
 		web = f.webURL
 	}
+	// The computers this app connects to, next to device.json.
+	remotesFile := repositories.NewRemotesFile(filepath.Dir(store.Path()))
+	known, err := remotesFile.Load()
+	if err != nil {
+		logger.Warn("cannot read the remote computers", "err", err)
+	}
+	remotes := services.NewRemotesService(known, remotesFile.Save, logger)
 	var setConsent func(services.Consent)
 	if !f.autoAccept {
 		setConsent = session.SetConsent // the window's dialog asks
@@ -396,6 +427,9 @@ func run(args []string) error {
 		files:          files,
 		settings:       settings,
 		links:          links,
+		remotes:        remotes,
+		signalURL:      target,
+		connect:        f.connect,
 		webURL:         web,
 		language:       cfg.Language,
 		logger:         logger,
@@ -432,20 +466,6 @@ func resolveSignalURL(flagValue string, cfg models.Config) (string, error) {
 		return "", fmt.Errorf("invalid %s: %w", source, err)
 	}
 	return target, nil
-}
-
-// isLoopback reports whether the URL points at this machine.
-func isLoopback(raw string) bool {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 // hostName is the short machine name shown to viewers.
