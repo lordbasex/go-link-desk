@@ -57,6 +57,11 @@ type Config struct {
 	TrayIcon string `json:"tray_icon,omitempty"`
 	// Theme is the windows': "" (dark), "light" or "system".
 	Theme string `json:"theme,omitempty"`
+	// RequestTicks is what a connection request starts with ticked: ""
+	// (everything, to untick what is not wanted) or "view" (only seeing the
+	// screen: each box is ticked by hand). Set ahead, calmly, by whoever
+	// owns the computer, not in the middle of a call.
+	RequestTicks string `json:"request_ticks,omitempty"`
 }
 
 // Unattended is the unattended access setting.

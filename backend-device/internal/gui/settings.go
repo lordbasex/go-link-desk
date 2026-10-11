@@ -68,6 +68,7 @@ type settingsWindow struct {
 	startup    *widget.Check
 	idle       *widget.Select
 	lock       *widget.Check
+	ticks      *widget.Select // what a request starts with ticked
 	language   *widget.Select
 	viewerName *widget.Entry // nil without the Connect side
 	tabs       *widget.Check
@@ -160,6 +161,19 @@ func (u *ui) newSettings() *settingsWindow {
 			_ = set.Update(func(c *models.Config) { c.LockOnEnd = on })
 		}
 	})
+	ticks := []string{L("Full control"), L("Only the screen")}
+	s.ticks = widget.NewSelect(ticks, func(v string) {
+		if !s.setting {
+			_ = set.Update(func(c *models.Config) {
+				c.RequestTicks = ""
+				if v == ticks[1] {
+					c.RequestTicks = "view"
+				}
+			})
+		}
+	})
+	ticksNote := wrap(L("Only the screen: whoever asks has to be given each permission by hand."))
+	ticksNote.Importance = widget.LowImportance
 	langs := make([]string, len(languages))
 	for i, l := range languages {
 		langs[i] = l.label
@@ -184,6 +198,7 @@ func (u *ui) newSettings() *settingsWindow {
 		heading(L("Sessions")),
 		container.NewBorder(nil, nil, widget.NewLabel(L("Disconnect when idle")), nil, s.idle),
 		s.lock,
+		container.NewBorder(nil, nil, widget.NewLabel(L("A request starts with")), nil, s.ticks), ticksNote,
 		widget.NewSeparator(),
 	)
 	if u.opts.Remotes != nil && remoteview.Supported {
@@ -271,6 +286,10 @@ func (s *settingsWindow) render() {
 		s.idle.ClearSelected()
 	}
 	s.lock.SetChecked(cfg.LockOnEnd)
+	s.ticks.SetSelectedIndex(0)
+	if cfg.RequestTicks == "view" {
+		s.ticks.SetSelectedIndex(1)
+	}
 	if s.viewerName != nil {
 		// Not while it is being typed in: the change came from it.
 		if f, ok := s.win.Canvas().Focused().(*widget.Entry); !ok || f != s.viewerName {

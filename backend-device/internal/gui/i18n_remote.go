@@ -180,6 +180,10 @@ func init() {
 		"Shown to the computer you connect to. Empty: your user's name.": "Lo ve la computadora a la que te conectás. Vacío: el nombre de tu usuario.",
 		"Open sessions in tabs":         "Abrir las sesiones en pestañas",
 		"Connecting to other computers": "Conexión a otras computadoras",
+		"A request starts with":         "Un pedido empieza con",
+		"Full control":                  "Control total",
+		"Only the screen":               "Solo la pantalla",
+		"Only the screen: whoever asks has to be given each permission by hand.": "Solo la pantalla: a quien pide hay que darle cada permiso a mano.",
 	})
 	add("pt", map[string]string{
 		"Can see your screen, and:": "Pode ver sua tela e também:",
@@ -348,5 +352,9 @@ func init() {
 		"Shown to the computer you connect to. Empty: your user's name.": "O computador ao qual você se conecta vê esse nome. Vazio: o nome do seu usuário.",
 		"Open sessions in tabs":         "Abrir as sessões em abas",
 		"Connecting to other computers": "Conexão a outros computadores",
+		"A request starts with":         "Um pedido começa com",
+		"Full control":                  "Controle total",
+		"Only the screen":               "Só a tela",
+		"Only the screen: whoever asks has to be given each permission by hand.": "Só a tela: quem pede precisa receber cada permissão à mão.",
 	})
 }

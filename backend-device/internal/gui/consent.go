@@ -108,10 +108,11 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	note.Importance = widget.LowImportance
 	perms := widget.NewLabel(L("If you accept, they will be able to:") + "\n  • " + L("See your screen"))
 	r.perms = newPermChecks(nil)
-	if !req.Link {
+	if !req.Link && u.requestTicks() == "" {
 		// A session for support: everything, to untick what is not
-		// wanted. A link is for good (every later visit, nobody asked):
-		// its boxes are ticked one by one.
+		// wanted (unless Settings says only the screen). A link is for
+		// good (every later visit, nobody asked): its boxes are ticked one
+		// by one.
 		r.perms.set(fullControl)
 	}
 	r.countdown = widget.NewLabel("")
@@ -175,4 +176,12 @@ func (r *request) finish(err error) {
 // viewer left).
 func (r *request) close() {
 	r.once.Do(func() { r.win.Close() })
+}
+
+// requestTicks is Settings' RequestTicks ("" without settings).
+func (u *ui) requestTicks() string {
+	if u.opts.Settings == nil {
+		return ""
+	}
+	return u.opts.Settings.Get().RequestTicks
 }

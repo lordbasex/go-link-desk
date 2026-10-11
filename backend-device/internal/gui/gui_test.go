@@ -7,6 +7,7 @@ package gui
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -229,6 +230,13 @@ func TestPermissionsAreAskedForAndChangedLive(t *testing.T) {
 	if l := u.newRequest(services.ConsentRequest{PeerID: "L", Link: true}, time.Now().Add(time.Minute), func(error) {}); l.perms.value() != models.ViewOnly {
 		t.Fatalf("a link request starts with %+v", l.perms.value())
 	}
+	// Settings can make a request start with only the screen.
+	ticks := services.NewSettingsService(models.Config{RequestTicks: "view"}, func(models.Config) error { return nil }, slog.New(slog.DiscardHandler))
+	u.opts.Settings = ticks
+	if v := u.newRequest(services.ConsentRequest{PeerID: "V"}, time.Now().Add(time.Minute), func(error) {}); v.perms.value() != models.ViewOnly {
+		t.Fatalf("with only the screen, a request starts with %+v", v.perms.value())
+	}
+	u.opts.Settings = nil
 	st.SetSession(&models.SessionStatus{RoomID: "R"})
 	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Permissions: models.Permissions{View: true, Control: true}})
 	u.render(st.Snapshot())

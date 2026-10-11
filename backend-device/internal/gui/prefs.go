@@ -126,6 +126,8 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		{Title: L("When someone connects to this computer"), Rows: []remoteview.PrefRow{
 			{ID: "idle", Kind: "select", Label: L("Disconnect when idle"), Value: strconv.Itoa(cfg.IdleMinutes), Options: idle},
 			{ID: "lock", Kind: "toggle", Label: L("Lock the screen when a session ends"), On: cfg.LockOnEnd},
+			{ID: "request_ticks", Kind: "select", Label: L("A request starts with"), Detail: L("Only the screen: whoever asks has to be given each permission by hand."), Value: cfg.RequestTicks,
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Full control")}, {ID: "view", Title: L("Only the screen")}}},
 		}},
 		{Title: L("Connecting to other computers"), Rows: []remoteview.PrefRow{
 			{ID: "viewer_name", Kind: "text", Label: L("Your name"), Detail: L("Shown to the computer you connect to. Empty: your user's name."), Value: cfg.ViewerName, Placeholder: u.viewerName()},
@@ -321,6 +323,11 @@ func (u *ui) setting(arg string) {
 		}
 	case id == "lock":
 		update(func(c *models.Config) { c.LockOnEnd = on })
+	case id == "request_ticks":
+		if value != "view" {
+			value = ""
+		}
+		update(func(c *models.Config) { c.RequestTicks = value })
 	case id == "viewer_name":
 		name := strings.TrimSpace(value)
 		if r := []rune(name); len(r) > models.MaxKnockName {
