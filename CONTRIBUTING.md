@@ -38,6 +38,7 @@ Open `http://localhost:5180/c` and type the code shown in the host window: the h
 - **Every source file starts with the copyright line** used in the other files of its folder.
 - **Run the checks** that CI runs: `make check` (gofmt, `go vet`, `go test -race`, govulncheck, typecheck, Vitest, the web build and gitleaks). `make e2e` runs the end-to-end tests.
 - **Keys are listed once,** in `protocol/keycodes.json`. After changing it, regenerate both tables: `go generate ./pkg/keymap` in `backend-device` and `npm run gen:keycodes -w @go-link-desk/shared` in `frontend`. The tests fail when a table is behind.
+- **Publishing the website** (maintainers): `make web-deploy` builds it and runs `scripts/deploy-web.sh`, which needs the `go-link-desk` AWS profile (a user that may only write the site's bucket and invalidate its distribution).
 - **Keep the docs in sync:** the developer docs (`docs/`) and `CHANGELOG.md` under `[Unreleased]`.
 - **Code taken from go-link** is listed in [docs/provenance.md](docs/provenance.md) with its origin, so fixes can travel both ways. Add a line when you copy something new.
 - **signalhub is not changed from here.** If go-link Desk needs something new from it, write it as a generic proposal in [docs/signalhub-proposals.md](docs/signalhub-proposals.md).

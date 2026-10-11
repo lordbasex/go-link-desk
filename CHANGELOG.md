@@ -4,6 +4,18 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (sound, clipboard and chat, phase 4)
+
+- **The computer's sound** in the browser: ScreenCaptureKit captures it (without the host's own) and Opus carries it at 96 kbps stereo, only to a viewer allowed to hear it. The page asks for a click if the browser blocks autoplay, and has a mute button. The test card plays its 1 kHz tone.
+- **The clipboard, both ways, as text:** what is copied on the host lands on the viewer's clipboard (in Safari and Firefox at the next click or key, or with a Copy button), and the viewer's Cmd+V or Ctrl+V pastes what is copied on the viewer's computer into the host. Up to 1 MiB, in 16 KiB pieces.
+- **Chat** between the viewer and the person at the computer, in the session panel and in a panel on the website, with an unread count.
+- **Permissions** "Hear your computer's sound" and "Share the clipboard (copy and paste)" in the connection request and the session panel, unticked by default.
+- **Tablets and phones:** touchpad mode (drag to move the pointer, tap to click, two fingers to right-click and scroll) with the host's pointer drawn, and a Keyboard button for the touchscreen keyboard, whose typing reaches the host.
+- **Session details** float over the picture, as in go-link's player, also in full screen, with new rows (quality, jitter buffer, freezes, sound) and "Show on screen": the key figures in one line over the picture.
+- **desk.go-link.org** is published (S3 and CloudFront): `make web-deploy`.
+- **`--test-clipboard-file`** keeps the host's clipboard in a file for the end-to-end tests.
+- **End-to-end tests:** the tone is heard by a viewer allowed to, silence for one that is not; the clipboard both ways; the chat.
+
 ### Added (control, phase 3)
 
 - **Control of the host's mouse and keyboard** from the browser, when the person at the computer allows it: a "Use your mouse and keyboard" checkbox in the connection request, off by default, and a switch in the session panel that gives or takes it back during the session.

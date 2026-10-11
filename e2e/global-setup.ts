@@ -90,7 +90,7 @@ export default async function globalSetup() {
     hosts: {
       accept: startHost("accept", ["--test-auto-accept"]),
       reject: startHost("reject", []),
-      control: startHost("control", ["--test-auto-accept", "--test-input-log"]),
+      control: startHost("control", ["--test-auto-accept", "--test-input-log", "--test-clipboard-file", join(state, "control", "clipboard.txt")]),
     },
   };
   writeFileSync(STATE_FILE, JSON.stringify(s));

@@ -32,6 +32,13 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Input it sends is limited by the permissions granted, and stops when they are revoked. Control is off unless the person at the computer ticks it in the request, and can be taken back at any moment from the session panel; every key and button held is let go at that moment.
 - Its input packets are parsed with fixed sizes and limits (text at most 1024 bytes, display indexes checked, unknown keycodes dropped); a malformed packet is ignored.
 
+### The clipboard, the sound and the chat
+
+- The clipboard is shared only with its permission, unticked by default, and only what is copied after it is given: a password copied before the session never leaves. Taking the permission back stops it at once.
+- Clipboard and chat messages are bounded (16 KiB a piece, 1 MiB a text, 2000 characters a chat message), checked as UTF-8, and a text with a missing piece is dropped. A viewer's paste is pressed on the host only if it may also control.
+- The sound is sent only with its permission, unticked by default: it can carry a call or a meeting on the host. The host's own sounds are left out.
+- The host's log never records clipboard text or chat words.
+
 ### The screen
 
 - The screen is recorded only during a session: the capture starts with the first viewer and stops with the last, and macOS shows its recording indicator meanwhile.

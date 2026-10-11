@@ -93,6 +93,17 @@ browser: pointer, buttons, wheel, keys ──pointer (unordered) / input (reliab
 - **Control is a permission** of the session, asked for in the request (off by default) and changed live from the session panel (`permissions` message). Taking it back lets go of everything held.
 - **Without Accessibility** the host cannot inject: the viewer is told (`no_accessibility`) instead of clicking into nothing.
 
+## Sound, clipboard and chat
+
+- **Sound** comes from the same ScreenCaptureKit stream as the picture (macOS 13), 32-bit float, turned into 16-bit stereo and cut into 20 ms Opus frames. It is captured only while a viewer may hear it.
+- **The clipboard** is text, both ways, only with its permission. The host looks at `NSPasteboard.changeCount` three times a second and sends what is copied from the moment the viewer may share it, never what was already there. The viewer's Cmd+V or Ctrl+V is not sent as keys: the browser's `paste` event carries what is copied on the viewer's computer, without asking for permission in any browser, and the host puts it on its clipboard and presses its own Cmd+V. What the host copies is written with `navigator.clipboard.writeText`; Safari and Firefox allow that only during a click or a key press, so the text waits for the next one, or for a Copy button.
+- **Chat** travels on `control`. The host shows it in the session panel without ever taking the focus (the viewer may be typing into another app); its log records a message's length, never its words.
+- **Tablets and phones.** A finger drives the host's pointer like a touchpad (drag to move, tap to click, two fingers to right-click or scroll), because a finger is too coarse to click where it lands; the host's pointer is drawn. A touchscreen keyboard sends text rather than keys, so what it inserts goes as `text`, and its Backspace and Return as keys.
+
+## The website
+
+desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts/deploy-web.sh`, `make web-deploy`), with the same Content Security Policy as the build's, HSTS, and a Permissions-Policy that allows the camera, microphone and clipboard only to the site itself. Pages are revalidated on every visit and hashed assets are cached for a year, so a deploy shows at once. The deploy user may only write that bucket and invalidate that distribution.
+
 ## Two kinds of browsers
 
 | Kind | Arrives with | Gets |
@@ -150,4 +161,5 @@ The host is one self-contained program: no installer, no administrator rights, n
 - **The permissions the dialog shows are the ones that exist.** In phase 1 a viewer can only see the screen, so the dialog says that and has no checkboxes; each phase adds the checkbox of what it brings (control, audio, clipboard, files), already defined in the `accepted` message.
 - **Control has one checkbox,** "Use your mouse and keyboard": a viewer that may control the mouse but not the keyboard is not a useful permission, and one checkbox reads clearly in a request dialog.
 - **The host applies the modifiers a key comes with** rather than only the ones whose presses it saw: a viewer that held Shift before the page had the focus still types a capital.
+- **Sound, clipboard and control are separate boxes, all unticked:** each is a different risk (hearing a call, reading what was copied, using the computer), and the person at the computer picks each one.
 - **Audio comes with its phase.** The test card's 1 kHz tone is not sent yet: audio, its permission and the browser's autoplay unlock arrive together in phase 4.
