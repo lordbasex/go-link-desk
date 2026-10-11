@@ -168,9 +168,9 @@ func TestASessionStreamsToTheBrowser(t *testing.T) {
 				t.Error("the pointer channel must be unordered, without retransmits")
 			}
 			return
-		case "input":
+		case "input", "files":
 			if !dc.Ordered() || dc.MaxRetransmits() != nil {
-				t.Error("the input channel must be ordered and reliable")
+				t.Errorf("the %s channel must be ordered and reliable", dc.Label())
 			}
 			return
 		default:

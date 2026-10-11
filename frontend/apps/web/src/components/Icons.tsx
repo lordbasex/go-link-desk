@@ -62,3 +62,9 @@ export const CameraIcon = ({ size = 16 }: P) => (
     <path d="m16 10 5-3v10l-5-3z" />
   </svg>
 );
+
+export const FolderIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <path d="M3 6h6l2 2h10v11H3z" />
+  </svg>
+);

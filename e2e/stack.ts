@@ -64,3 +64,8 @@ export function hostLogCount(re: RegExp, host: HostName = "accept", s: Stack = s
 export function hostClipboardFile(s: Stack = stack()): string {
   return join(dirname(s.hosts.control.log), "clipboard.txt");
 }
+
+/** A host's home folder (the setup sandboxes HOME per host). */
+export function hostHome(host: HostName, s: Stack = stack()): string {
+  return join(dirname(s.hosts[host].log), "home");
+}

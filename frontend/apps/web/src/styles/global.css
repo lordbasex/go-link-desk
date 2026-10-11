@@ -190,3 +190,25 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .call-status { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; color: #e8edf5; font-size: 14px; }
 .call-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 10px; }
 .button.is-off { border-color: var(--color-danger-text); color: var(--color-danger-text); }
+
+/* ---------- files (session) ---------- */
+.files-panel { position: absolute; right: 16px; top: 16px; bottom: 16px; z-index: 60; width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border-strong); box-shadow: 0 18px 50px var(--shadow-strong); overflow: hidden; }
+.files-tabs { display: flex; border-bottom: 1px solid var(--color-border); }
+.files-tabs button { flex: 1; padding: 9px 8px; border: 0; background: transparent; color: var(--color-text-2); font: 13px var(--font-text); cursor: pointer; border-bottom: 2px solid transparent; }
+.files-tabs button.is-on { color: var(--color-text); border-bottom-color: var(--color-accent); }
+.files-drop { margin: 14px; padding: 22px 14px; border: 2px dashed var(--color-border-strong); border-radius: var(--radius-card); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: var(--color-text-2); font-size: 14px; }
+.files-drop p { margin: 0; }
+.files-browser { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.files-crumbs { padding: 8px 14px; font-size: 13px; border-bottom: 1px solid var(--color-border); overflow-x: auto; white-space: nowrap; }
+.files-crumbs button, .files-dir { border: 0; background: transparent; color: var(--color-accent-text); font: inherit; cursor: pointer; padding: 0; text-align: left; }
+.files-list { flex: 1; overflow-y: auto; margin: 0; padding: 6px 14px; list-style: none; }
+.files-list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--color-border); font-size: 14px; }
+.files-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-size { color: var(--color-text-muted); font-size: 12px; white-space: nowrap; }
+.files-error { margin: 8px 14px; color: var(--color-danger-text); font-size: 13px; }
+.files-jobs { margin: 0; padding: 8px 14px; list-style: none; border-top: 1px solid var(--color-border); max-height: 40%; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.files-job { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 13px; }
+.files-job progress { grid-column: 1 / -1; width: 100%; height: 6px; }
+.files-job.is-failed .files-size { color: var(--color-danger-text); }
+.files-job.is-done .files-size { color: var(--color-accent-text); }
+.drop-overlay { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(10, 14, 22, 0.7); color: #fff; font-size: 20px; border: 3px dashed var(--color-accent); pointer-events: none; }

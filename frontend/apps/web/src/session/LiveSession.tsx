@@ -1,12 +1,13 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
-import { CameraIcon, ChatIcon, ExpandIcon, HangUpIcon, SoundIcon } from "../components/Icons";
+import { CameraIcon, ChatIcon, ExpandIcon, FolderIcon, HangUpIcon, SoundIcon } from "../components/Icons";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
 import { Select } from "../components/ui/Select";
 import { useFullscreen } from "../components/useFullscreen";
 import { CallPanel } from "./CallPanel";
 import { ChatPanel } from "./ChatPanel";
+import { FilesPanel } from "./FilesPanel";
 import { HostClipboard } from "./hostClipboard";
 import { InputCapture } from "./input";
 import { measureLatency } from "./latency";
@@ -101,6 +102,10 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
   const [chatOpen, setChatOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const closeCall = useCallback(() => setCallOpen(false), []);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [dropped, setDropped] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const mayFiles = view.permissions?.files === true;
   const [readChat, setReadChat] = useState(0);
   const [clipboardWaiting, setClipboardWaiting] = useState(false);
   const hostClipboard = useRef<HostClipboard | null>(null);
@@ -417,6 +422,18 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
               <CameraIcon />
             </button>
           )}
+          {mayFiles && (
+            <button
+              type="button"
+              className={`icon-button${filesOpen ? " is-on" : ""}`}
+              aria-pressed={filesOpen}
+              aria-label={t.files.title}
+              title={t.files.title}
+              onClick={() => setFilesOpen(!filesOpen)}
+            >
+              <FolderIcon />
+            </button>
+          )}
           <button
             type="button"
             className={`icon-button chat-button${chatOpen ? " is-on" : ""}`}
@@ -468,6 +485,22 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
         // write the clipboard: what the host copied lands then.
         onPointerDownCapture={() => hostClipboard.current?.gesture()}
         onKeyDownCapture={() => hostClipboard.current?.gesture()}
+        // Files dropped on the screen go to the host.
+        onDragOver={(e) => {
+          if (!mayFiles || !e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget === e.target) setDragging(false);
+        }}
+        onDrop={(e) => {
+          setDragging(false);
+          if (!mayFiles || !e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setDropped([...e.dataTransfer.files]);
+          setFilesOpen(true);
+        }}
       >
         <video
           ref={videoRef}
@@ -504,6 +537,8 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
         {/* Where the keyboard goes while this viewer controls: it keeps nothing. */}
         <textarea ref={keysRef} className="key-sink" aria-label={t.keys.sink} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
         {typing && <TypeText onSend={(text) => { captureRef.current?.typeText(text); setTyping(false); keysRef.current?.focus({ preventScroll: true }); }} onClose={() => setTyping(false)} />}
+        {dragging && <div className="drop-overlay">{t.files.dropHere}</div>}
+        {filesOpen && session?.files && <FilesPanel files={session.files} dropped={dropped} onClose={() => setFilesOpen(false)} />}
         {callOpen && session && <CallPanel view={view} session={session} onClose={closeCall} />}
         {chatOpen && (
           <ChatPanel

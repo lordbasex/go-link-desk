@@ -72,14 +72,14 @@ The host proves itself first, so a fake signaling server never learns a token. A
 
 ## 4. DataChannels
 
-The host creates them, as in go-link. `control`, `pointer` and `input` are implemented; `files` comes in its phase.
+The host creates them, as in go-link.
 
 | Label | Settings | Content | Status |
 |---|---|---|---|
 | `control` | ordered, reliable, JSON | see below | implemented |
 | `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only | implemented |
 | `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` | implemented |
-| `files` | ordered, reliable | go-link's file protocol (section 6) | proposed, phase 5 |
+| `files` | ordered, reliable | uploads, browsing and downloads (section 6) | implemented |
 
 ### `control` messages
 
@@ -167,8 +167,11 @@ input channel (ordered, reliable):
 - **Nothing stays stuck.** The viewer sends `release_all` when the page loses the focus, is hidden, leaves full screen or loses pointer lock. On macOS browsers a key pressed with Cmd held never reports its release, so the viewer lets go of those keys when Cmd goes up. The host lets go of every key and button it pressed when the viewer asks, loses the control permission, hangs up, or its connection stops answering.
 - The host acts only on packets from a viewer that may control (`permissions.control`), and only with the Accessibility permission.
 
-## 6. Files (from go-link, phase 5)
+## 6. Files (implemented)
 
-- **Downloads:** `download` → `download_ready`, then `read {offset, length}` answered by binary chunks (8-byte big-endian offset, then up to 60 KB of data). The transfer ends with `done`, `cancel` or `download_error`, and the SHA-256 is checked at the end.
-- **Uploads:** `begin {id, name, size}`, then 16 KB binary chunks, then `end`. The result comes back on `control` as `upload_result`. The host writes to a temporary file and renames it, and never overwrites an existing file. The browser waits on `bufferedAmount` (backpressure).
-- Both depend on the `files` permission.
+On the `files` channel (ordered, reliable): text messages are JSON, binary messages are file data. Only with `permissions.files`; one upload and one download at a time per viewer.
+
+- **Uploads (viewer → host):** `begin {id, name, size}`, binary chunks of 16 KiB, then `end {id}` (or `abort {id}`); the host answers `upload_result {id, ok, name, error?}`, where `name` is what it saved the file as. The host writes to a temporary file in Downloads/go-link Desk and renames it when complete, never over an existing file (`name (2).ext`); a name loses any folder, control and format characters, and its leading dots. At most 20 GB. The browser keeps at most 1 MiB queued in the channel (`bufferedAmount`), so the session's other messages and the picture keep moving.
+- **Browsing (the host's home folder):** `list {id, path}` → `listing {id, path, entries: [{name, dir, size, mtime}]}`, folders first, at most 5000. `path` is relative to the home folder; anything that leaves it (`..`, an absolute path, a symbolic link pointing out), or goes through a hidden file or folder or `~/Library` (also after following symbolic links), is refused with `files_error`, and those are never listed.
+- **Downloads (host → viewer):** `download {id, path}` → `download_ready {id, name, size}`; then `read {id, offset, length}`, answered by binary messages (8-byte big-endian offset, then up to 60 KiB); `done` or `cancel` ends it, `download_error` reports a failure. The browser keeps 16 reads in flight. Chromium writes straight to a file the person picks (File System Access API); other browsers keep it in memory and save it at the end.
+- No checksum: DTLS already authenticates every byte, and SCTP delivers them in order.

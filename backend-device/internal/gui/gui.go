@@ -40,6 +40,8 @@ type Options struct {
 	SetPermissions func(models.Permissions)
 	// Chat is the session's chat, shown in the session panel (nil: none).
 	Chat *services.ChatService
+	// Files are the session's file transfers, shown in the session panel.
+	Files *services.FilesService
 	// Call is the session's video call: its window (nil: none).
 	Call *services.CallService
 	// AskCalls hands the window's "wants a video call" question to the

@@ -142,6 +142,8 @@ export interface HostStreamOptions {
   onAudio?: (stream: MediaStream) => void;
   /** The host's camera and microphone in a video call (silent until a call is on). */
   onCallTrack?: (kind: "video" | "audio", stream: MediaStream) => void;
+  /** The files channel, when the host opens it. */
+  onFilesChannel?: (channel: RTCDataChannel) => void;
   onState?: (state: StreamState) => void;
   /** Control messages other than ping. */
   onControl?: (message: unknown) => void;
@@ -393,6 +395,11 @@ export class HostStream {
     };
     pc.ondatachannel = (ev) => {
       const ch = ev.channel;
+      if (ch.label === "files") {
+        ch.binaryType = "arraybuffer";
+        this.opts.onFilesChannel?.(ch);
+        return;
+      }
       if (ch.label === "pointer" || ch.label === "input") {
         ch.binaryType = "arraybuffer";
         if (ch.label === "pointer") this.pointer = ch;
