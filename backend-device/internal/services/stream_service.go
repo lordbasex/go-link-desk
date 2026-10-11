@@ -148,6 +148,7 @@ type viewer struct {
 	video   *webrtc.TrackLocalStaticSample
 	audio   *webrtc.TrackLocalStaticSample
 	call    *callTracks // the video call's media
+	files   *webrtc.DataChannel
 	// hears: the viewer may hear the computer's sound (Permissions.Audio).
 	hears atomic.Bool
 	codec string        // CodecH264High, CodecH264 or CodecVP8
@@ -213,6 +214,7 @@ type StreamService struct {
 	onInput     func(peerID, channel string, data []byte)
 	onStall     func(peerID string)
 	onCallTrack func(peerID string, track *webrtc.TrackRemote)
+	onFiles     func(peerID string, isString bool, data []byte)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -888,7 +890,49 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 			s.input(v.id, "input", msg.Data)
 		}
 	})
+	// Files: uploads and downloads (files_service.go), apart from control
+	// so a big transfer never holds a control message back.
+	filesDC, err := pc.CreateDataChannel("files", &webrtc.DataChannelInit{Ordered: &ordered})
+	if err != nil {
+		return fail(err)
+	}
+	v.files = filesDC
+	filesDC.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if len(msg.Data) > maxControlMessage {
+			return
+		}
+		s.mu.Lock()
+		fn := s.onFiles
+		s.mu.Unlock()
+		if fn != nil {
+			fn(v.id, msg.IsString, msg.Data)
+		}
+	})
 	return s.offer(v)
+}
+
+// OnFiles receives a viewer's messages on the files channel.
+func (s *StreamService) OnFiles(fn func(peerID string, isString bool, data []byte)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onFiles = fn
+}
+
+// SendFiles writes on a viewer's files channel; false if it is not open.
+func (s *StreamService) SendFiles(peerID string, isString bool, data []byte) bool {
+	s.mu.Lock()
+	v := s.viewers[peerID]
+	s.mu.Unlock()
+	if v == nil || v.files == nil || v.files.ReadyState() != webrtc.DataChannelStateOpen {
+		return false
+	}
+	var err error
+	if isString {
+		err = v.files.SendText(string(data))
+	} else {
+		err = v.files.Send(data)
+	}
+	return err == nil
 }
 
 func (s *StreamService) offer(v *viewer) error {

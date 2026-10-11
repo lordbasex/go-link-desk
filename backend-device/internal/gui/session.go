@@ -24,8 +24,9 @@ type sessionPanel struct {
 	since      *widget.Label
 	perms      *widget.Label
 	checks     *permChecks
-	chat       *chatBox // nil without a chat
-	peer       string   // the viewer shown, to start its chat empty
+	transfer   *widget.Label // the file moving now
+	chat       *chatBox      // nil without a chat
+	peer       string        // the viewer shown, to start its chat empty
 	disconnect *widget.Button
 	shown      bool
 }
@@ -50,7 +51,14 @@ func (u *ui) newSessionPanel() *sessionPanel {
 		}
 	})
 	p.disconnect.Importance = widget.DangerImportance
+	p.transfer = widget.NewLabel("")
+	p.transfer.Wrapping = fyne.TextWrapWord
+	p.transfer.Hide()
+	if u.opts.Files != nil {
+		u.opts.Files.OnChange(func(t services.Transfer) { fyne.Do(func() { p.showTransfer(t) }) })
+	}
 	items := append([]fyne.CanvasObject{p.who, p.browser, p.since, p.perms}, p.checks.objects()...)
+	items = append(items, p.transfer)
 	top := container.NewVBox(items...)
 	if u.opts.Chat != nil {
 		p.chat = newChatBox(u.opts.Chat)
@@ -98,4 +106,25 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	p.win.Show()
 	floatWindow(p.win.Title(), false)
 	p.shown = true
+}
+
+// showTransfer shows the file moving now, and how it ended.
+func (p *sessionPanel) showTransfer(t services.Transfer) {
+	pct := 0
+	if t.Size > 0 {
+		pct = int(t.Done * 100 / t.Size)
+	}
+	switch {
+	case t.Over && t.Err != nil:
+		p.transfer.SetText(Lf("%s: stopped", t.Name))
+	case t.Over && t.Upload:
+		p.transfer.SetText(Lf("Received %s, in Downloads › go-link Desk", t.Name))
+	case t.Over:
+		p.transfer.SetText(Lf("Sent %s", t.Name))
+	case t.Upload:
+		p.transfer.SetText(Lf("Receiving %s… %d%%", t.Name, pct))
+	default:
+		p.transfer.SetText(Lf("Sending %s… %d%%", t.Name, pct))
+	}
+	p.transfer.Show()
 }

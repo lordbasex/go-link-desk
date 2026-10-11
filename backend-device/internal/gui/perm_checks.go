@@ -19,6 +19,7 @@ type permChecks struct {
 	control   *widget.Check
 	audio     *widget.Check
 	clipboard *widget.Check
+	files     *widget.Check
 	setting   bool // set is updating the boxes, not the person
 }
 
@@ -34,16 +35,17 @@ func newPermChecks(changed func(models.Permissions)) *permChecks {
 	c.control = widget.NewCheck(L("Use your mouse and keyboard"), on)
 	c.audio = widget.NewCheck(L("Hear your computer's sound"), on)
 	c.clipboard = widget.NewCheck(L("Share the clipboard (copy and paste)"), on)
+	c.files = widget.NewCheck(L("Send and receive files"), on)
 	return c
 }
 
 func (c *permChecks) objects() []fyne.CanvasObject {
-	return []fyne.CanvasObject{c.control, c.audio, c.clipboard}
+	return []fyne.CanvasObject{c.control, c.audio, c.clipboard, c.files}
 }
 
 // value is what the boxes allow, seeing the screen always included.
 func (c *permChecks) value() models.Permissions {
-	return models.Permissions{View: true, Control: c.control.Checked, Audio: c.audio.Checked, Clipboard: c.clipboard.Checked}
+	return models.Permissions{View: true, Control: c.control.Checked, Audio: c.audio.Checked, Clipboard: c.clipboard.Checked, Files: c.files.Checked}
 }
 
 // set shows p without telling anyone.
@@ -53,4 +55,5 @@ func (c *permChecks) set(p models.Permissions) {
 	c.control.SetChecked(p.Control)
 	c.audio.SetChecked(p.Audio)
 	c.clipboard.SetChecked(p.Clipboard)
+	c.files.SetChecked(p.Files)
 }

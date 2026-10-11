@@ -25,6 +25,8 @@ type uiOptions struct {
 	chat *services.ChatService
 	// call is the session's video call.
 	call *services.CallService
+	// files moves files with the viewer.
+	files *services.FilesService
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)

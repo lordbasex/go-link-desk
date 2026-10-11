@@ -215,6 +215,12 @@ func run(args []string) error {
 	}
 	clip := services.NewClipboardService(board, stream.SendControl, input.Paste, logger)
 	chat := services.NewChatService(stream.SendControl, logger)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	files := services.NewFilesService(home, filepath.Join(home, "Downloads", services.ReceivedFolder), stream.SendFiles, logger)
+	stream.OnFiles(files.Handle)
 	// The video call: the computer's camera and microphone with the real
 	// screen, a test card and a tone with the test card.
 	var callMedia services.CallMedia = services.SystemCallMedia{}
@@ -229,6 +235,7 @@ func run(args []string) error {
 		input.Allow(peer, p.Control)
 		stream.SetAudio(peer, p.Audio)
 		clip.Allow(peer, p.Clipboard && shareClipboard)
+		files.Allow(peer, p.Files)
 		if p.View {
 			chat.SetPeer(peer)
 			name := ""
@@ -299,6 +306,7 @@ func run(args []string) error {
 		setPermissions: session.SetPermissions,
 		chat:           chat,
 		call:           call,
+		files:          files,
 		webURL:         web,
 		language:       cfg.Language,
 		logger:         logger,
