@@ -8,6 +8,9 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 - **go-link Desk for Android phones and tablets** (`mobile/android`, Android 11 or newer): the iPhone and iPad app on Android, with the same screens, look and texts (English, Spanish and Portuguese, generated from the iOS app's). A session code, linking with the pairing code, and linked computers opened with the fingerprint, face or screen lock (the token sealed in the keystore) and their unattended password kept with the link; the fingers as a trackpad or by touch, a mouse, a hardware keyboard by position and the on-screen keyboard with its bar of keys; special keys, chat with "is typing" and the message sound, files (downloads in Downloads › go-link Desk), displays, picture, sound, details, the lock and the guide. The portable logic (`core`, Kotlin) is the iOS app's `DeskCore`, tested on the JVM against the same vectors; CI runs it and builds the app.
 - `gen-keycodes.mjs` also writes the Android app's keyboard table.
+- **Google Play, ready to publish** (`mobile/android/play`): the store texts in English, Spanish and Portuguese, the icon and feature graphics, the data safety and content rating answers, and `scripts/screenshots.py`, which takes the phone and 7" and 10" tablet screenshots on emulators. Checked on tablets in both orientations.
+- `desk --test-picture FILE` (with `--source testpattern`): a test host shows a still picture instead of the test card, silently, for screenshots of a desktop.
+- The website says Android is coming to Google Play, and the privacy page covers the Android app.
 
 ### Fixed
 

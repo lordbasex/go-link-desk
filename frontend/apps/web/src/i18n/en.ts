@@ -18,6 +18,7 @@ export const en = {
     devices: "My computers",
     downloadMac: "Download go-link Desk for macOS",
     iosSoon: "iPhone and iPad: on the App Store soon",
+    androidSoon: "Android phones and tablets: on Google Play soon",
     steps: [
       { title: "1. Open go-link Desk", text: "On the computer to control. It needs no installer." },
       { title: "2. Read the code", text: "Nine digits, shown in its window." },
@@ -224,7 +225,7 @@ export const en = {
   },
   privacy: {
     title: "Privacy",
-    updated: "go-link Desk: the computer app, this website and the iPhone and iPad app. October 2026.",
+    updated: "go-link Desk: the computer app, this website and the iPhone, iPad and Android apps. October 2026.",
     sections: [
       {
         title: "Nothing is collected",
@@ -247,7 +248,7 @@ export const en = {
       {
         title: "What stays on your devices",
         text: [
-          "The computer app keeps its settings, its logs and the computers and browsers you link, on that computer. This website keeps your theme, language, name and linked computers in your browser. The iPhone and iPad app keeps your name, its settings and your recent computers on the device. You can delete them at any time.",
+          "The computer app keeps its settings, its logs and the computers and browsers you link, on that computer. This website keeps your theme, language, name and linked computers in your browser. The iPhone, iPad and Android apps keep your name, their settings and your recent and linked computers on the device; a linked computer's key stays in the device's keychain or keystore, behind Face ID, the fingerprint or the screen lock. You can delete them at any time.",
         ],
       },
       {

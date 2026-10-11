@@ -11,6 +11,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log/slog"
 	"os"
@@ -36,6 +39,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/testpattern"
 )
 
 // version is replaced at build time with -ldflags "-X main.version=...".
@@ -71,6 +75,7 @@ type flags struct {
 	unattended bool
 	password   string
 	name       string
+	picture    string
 	// connect opens a session to another computer at start (its 9-digit
 	// session code).
 	connect string
@@ -96,6 +101,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
+	fs.StringVar(&f.picture, "test-picture", "", "a PNG or JPEG the session shows instead of the test card, still and silent (screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
@@ -127,6 +133,9 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.unattended && !f.autoAccept {
 		return f, errors.New("--test-unattended needs --test-auto-accept")
+	}
+	if f.picture != "" && f.source != "testpattern" {
+		return f, errors.New("--test-picture needs --source testpattern")
 	}
 	if f.name != "" && f.source != "testpattern" {
 		return f, errors.New("--test-name needs --source testpattern")
@@ -247,6 +256,13 @@ func run(args []string) error {
 	}, ice)
 	if err != nil {
 		return err
+	}
+	if f.picture != "" {
+		card, err := testPicture(f.picture)
+		if err != nil {
+			return err
+		}
+		stream.SetSource(card)
 	}
 	if source == "screen" {
 		stream.SetSource(&services.ScreenSource{Fallback: &services.TestCardSource{Width: 960, Height: 720, FPS: 30}, Log: logger})
@@ -525,4 +541,28 @@ func logOutput() (io.Writer, func()) {
 // wantsHeadless reports whether there is no desktop to show a window on.
 func wantsHeadless() bool {
 	return runtime.GOOS == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == ""
+}
+
+// testPicture is the --test-picture source: the picture at up to 1920
+// pixels wide, keeping its shape, with even sizes.
+func testPicture(path string) (*services.TestCardSource, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, fmt.Errorf("--test-picture: %w", err)
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	if w > 1920 {
+		h = h * 1920 / w
+		w = 1920
+	}
+	w, h = w&^1, h&^1
+	if w < 16 || h < 16 {
+		return nil, errors.New("--test-picture: the picture is too small")
+	}
+	return &services.TestCardSource{Width: w, Height: h, FPS: 30, Picture: testpattern.Picture(img, w, h)}, nil
 }
