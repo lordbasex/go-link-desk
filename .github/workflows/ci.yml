@@ -142,6 +142,20 @@ jobs:
           ../scripts/check-deps.sh darwin ../dist/encoder.test
           ../dist/encoder.test -test.run 'VP8|Opus|VT'
 
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: DeskCore's tests
+        working-directory: mobile/ios/DeskCore
+        run: swift test
+      - name: Every text of the app translated
+        run: python3 mobile/ios/scripts/check-strings.py
+      - name: The keyboard table is generated from protocol/keycodes.json
+        run: |
+          node frontend/packages/shared/scripts/gen-keycodes.mjs
+          git diff --exit-code -- mobile/ios/DeskCore/Sources/DeskCore/KeyCodes.gen.swift frontend/packages/shared/src/keycodes.gen.ts
+
   secrets:
     runs-on: ubuntu-latest
     steps:

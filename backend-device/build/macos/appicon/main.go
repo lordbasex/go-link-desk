@@ -2,6 +2,8 @@
 
 // Command appicon writes the macOS app icon set (go-link-desk.iconset) from the
 // app icon drawn by pkg/trayicon (RenderApp); iconutil turns it into go-link-desk.icns.
+// With -ios it writes the iOS app's icon (RenderAppSquare) and Home's logo
+// into its asset catalog.
 //
 //	go run ./build/macos/appicon DIR/go-link-desk.iconset
 package main
@@ -15,8 +17,24 @@ import (
 )
 
 func main() {
+	// The iOS app's icon (1024 pixels, to the edges) and the logo Home shows.
+	if len(os.Args) == 3 && os.Args[1] == "-ios" {
+		dir := os.Args[2]
+		files := map[string][]byte{
+			"AppIcon.appiconset/AppIcon-1024.png": trayicon.RenderAppSquare(1024),
+			"Logo.imageset/Logo@2x.png":           trayicon.RenderApp(88, false),
+			"Logo.imageset/Logo@3x.png":           trayicon.RenderApp(132, false),
+		}
+		for name, b := range files {
+			if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		}
+		return
+	}
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: appicon DIR/go-link-desk.iconset")
+		fmt.Fprintln(os.Stderr, "usage: appicon DIR/go-link-desk.iconset | appicon -ios DIR/Assets.xcassets")
 		os.Exit(2)
 	}
 	dir := os.Args[1]

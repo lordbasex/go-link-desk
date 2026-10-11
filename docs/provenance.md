@@ -92,6 +92,24 @@ The same path in both repositories unless noted.
 | `apps/web/src/session/{session,useSession}.ts` | rewritten | The join, backlog and host-left handling of go-link's `apps/web/src/signal/useJoinRoom.ts`, plus the knock; one signaling connection per visit. |
 | `apps/web/src/session/test-utils.ts` | rewritten | A fake `SignalClient`, in the spirit of go-link's `test-utils.tsx` `FakeSocket`. |
 
+## iOS app (`mobile/ios/`)
+
+From go-link's player app (`mobile/ios/`), taken at commit **`bf3ca43`** (later than the rest: the player app came after `664502f`).
+
+| File | How | Changes |
+|---|---|---|
+| `DeskCore/Sources/DeskCore/{Json,IceServers,CodeInput,SignalClient}.swift` | adapted | Comments only (no Android app, no rooms); `SignalClient` uses `DeskProtocol`. |
+| `DeskCore/Sources/DeskCore/{Protocol,SignalUrl}.swift` | adapted | `app = "go-link-desk"`; `Envelopes.join(code:)` only (no invitations). |
+| `DeskCore/Sources/DeskCore/RtcSignal.swift` | rewritten | Desk's signals: knock, accepted (with the permissions), rejected, offer, candidate. No PIN, tokens or voice. |
+| `DeskCore/Tests/DeskCoreTests/{CodeInputTests,SignalUrlTests,SignalTestTests,Support}.swift` | adapted | `@testable import DeskCore`; the fake peer has the pointer channel; no invitation parser. |
+| `DeskViewer/Net/WebSockets.swift` | verbatim | `import DeskCore`. |
+| `DeskViewer/Rtc/DeskAudioDevice.swift` (`GoLinkAudioDevice.swift`) | adapted | Renamed; this app never turns the microphone on. |
+| `DeskViewer/Rtc/DeskRtcPeer.swift` (`IOSRtcPeer.swift`) | adapted | The pointer channel; no microphone line or voices; a video call's tracks are left alone; the control channel is listened to before the main queue gets to it. |
+| `DeskViewer/Rtc/WebRtcEngine.swift`, `StatsReader.swift` (`LiveStatsReader.swift`) | adapted | No microphone track; only the inbound video and the candidate pair. |
+| `DeskViewer/PrivacyInfo.xcprivacy`, `Config/{Debug,Release}.xcconfig`, `.gitignore` | adapted / verbatim | Texts. |
+| `project.yml`, `Makefile`, `Config/{Base,Local.xcconfig.example}.xcconfig` | adapted | Names and bundle id `org.go-link.desk.ios`; no UI tests or Universal Links yet; the device may be an iPad. |
+| `scripts/asc.py` | verbatim | The App Store Connect API client (bundle id in its help text). |
+
 ## Build, CI and tests
 
 | File | How | Changes |

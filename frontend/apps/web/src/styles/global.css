@@ -103,6 +103,13 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .step { padding: 18px; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border); }
 .step-title { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
 
+/* ---------- privacy ---------- */
+.prose { max-width: 680px; }
+.prose h1 { margin: 0 0 6px; font-family: var(--font-title); font-size: 30px; }
+.prose h2 { margin: 28px 0 6px; font-size: 16px; font-weight: 600; }
+.prose p { margin: 0 0 10px; color: var(--color-text-2); line-height: 1.55; }
+.footer a { color: inherit; }
+
 /* ---------- join form ---------- */
 .join { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
 .join-title { margin: 0; font-family: var(--font-title); font-size: 28px; }

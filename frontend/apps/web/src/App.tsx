@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { Header } from "./components/Header";
 import { APP_VERSION, REPO_URL } from "./config";
 import { t } from "./i18n";
@@ -8,6 +8,7 @@ import { DevicesPage } from "./pages/DevicesPage";
 import { JoinPage } from "./pages/JoinPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkPage } from "./pages/LinkPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import { SessionPage } from "./pages/SessionPage";
 
 export function App() {
@@ -23,6 +24,7 @@ export function App() {
           <Route path="/link/:code" element={<LinkPage />} />
           <Route path="/devices" element={<DevicesPage />} />
           <Route path="/d/:deviceId" element={<DevicePage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -30,7 +32,7 @@ export function App() {
         <a href={REPO_URL} rel="noreferrer">
           {t.footer.source}
         </a>{" "}
-        · {APP_VERSION}
+        · <Link to="/privacy">{t.footer.privacy}</Link> · {APP_VERSION}
       </footer>
     </div>
   );

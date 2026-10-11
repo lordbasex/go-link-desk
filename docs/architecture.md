@@ -144,6 +144,15 @@ go-link Desk also connects to other computers, in the same window: Home has the 
 - **Not yet:** the video call from the app (it ignores the call's lines), and VP8 (a host that cannot send H.264 shows a message pointing to the website).
 - **What it keeps** (`remotes.json`, 0600): the links (with their tokens, as the browser's `localStorage` does), labels and favorites, the recent sessions, and a small thumbnail of each, taken from the window's own pixels while the session's tab is shown.
 
+## The iPhone and iPad app
+
+`mobile/ios` is a third viewer, with the same protocol: join with the session code, knock, answer the offer, and the control, pointer and input channels. It only connects; it never shows its own screen.
+
+- **Built like go-link's player app, not on the host's Go code.** Swift, with Google's libwebrtc (stasel/WebRTC). libwebrtc brings the jitter buffer, the loss recovery (NACK, PLI), the congestion feedback and the hardware H.264 decoder that Safari and Chrome use, on the networks phones roam between. The protocol is ported to Swift (`DeskCore`) and checked against the same vectors as the host and the website (`protocol/vectors/input.json`, `protocol/keycodes.json`).
+- **The picture is shown the way the Mac app shows it:** each decoded frame goes to an `AVSampleBufferDisplayLayer` at once. libwebrtc's Metal view drew nothing in the Simulator, and this path is the shortest.
+- **The pointer:** the app asks for the pointer's image and position (`cursor_mode` off) and draws it where the finger put it, without waiting for the picture. While zoomed in, the view follows the pointer.
+- **Keys by position from a hardware keyboard, text from the on-screen one** (the 0x31 text packet), so any layout and any language type right.
+
 ## Unattended access
 
 - **One door, three ways in.** The session service takes guests from the session room (`join`), from the pairing code (`claim`) and from `reach`; all of them knock with the same message, and only what follows the knock changes. A browser that came with the pairing code is asked about like any viewer, in a request window that says it is a link; one that came with `reach` is connected gated.

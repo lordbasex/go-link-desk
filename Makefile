@@ -9,7 +9,7 @@
 #   make help         everything else
 
 .PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless \
-	device-darwin-universal e2e clean FORCE
+	device-darwin-universal device-dmg device-notarized e2e clean FORCE
 
 # The darwin and linux device targets are pattern rules (device-darwin-%,
 # device-linux-%): make does not apply pattern rules to .PHONY targets, so
@@ -63,6 +63,8 @@ help:
 	@echo "  make device                 the host for this computer"
 	@echo "  make device-headless        the host without a window (servers, CI)"
 	@echo "  make device-darwin-universal  go-link-desk.app for Intel and Apple silicon"
+	@echo "  make device-dmg             that app in a drag-to-Applications .dmg"
+	@echo "  make device-notarized       signed with a Developer ID and notarized (source ~/.go-link-signing/env.sh first)"
 	@echo "  make device-linux-amd64     the Linux host, built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
@@ -168,6 +170,24 @@ device-darwin-universal: $(DEVICE_OUT)/darwin-amd64/go-link-desk $(DEVICE_OUT)/d
 	lipo -create -output $(DEVICE_OUT)/darwin-universal/go-link-desk $(DEVICE_OUT)/darwin-amd64/go-link-desk $(DEVICE_OUT)/darwin-arm64/go-link-desk
 	@$(DEVICE_DIR)/build/macos/make-app.sh $(DEVICE_OUT)/darwin-universal/go-link-desk \
 		$(DEVICE_OUT)/darwin-universal/go-link-desk.app $(VERSION) $(SHORT_VERSION) "$(CODESIGN_IDENTITY)"
+
+# The release app in a drag-to-Applications disk image:
+# dist/desk/go-link-desk-<version>-macos-universal.dmg.
+DMG = $(DEVICE_OUT)/go-link-desk-$(VERSION)-macos-universal.dmg
+device-dmg: device-darwin-universal
+	CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" $(DEVICE_DIR)/build/macos/make-dmg.sh $(DEVICE_OUT)/darwin-universal/go-link-desk.app $(DMG)
+
+# Signed with a Developer ID and notarized by Apple, so it opens on any Mac
+# without a warning: the app first (its ticket stapled into it), then the
+# disk image made with it. CODESIGN_IDENTITY and NOTARY_PROFILE come from
+# the environment (source ~/.go-link-signing/env.sh), never from the
+# repository.
+device-notarized:
+	@test "$(CODESIGN_IDENTITY)" != "-" -a -n "$(NOTARY_PROFILE)" || { echo "$(RED)✗ set CODESIGN_IDENTITY (a Developer ID) and NOTARY_PROFILE first$(NC)"; exit 1; }
+	@$(MAKE) device-darwin-universal
+	NOTARY_PROFILE="$(NOTARY_PROFILE)" $(DEVICE_DIR)/build/macos/notarize.sh $(DEVICE_OUT)/darwin-universal/go-link-desk.app
+	CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" $(DEVICE_DIR)/build/macos/make-dmg.sh $(DEVICE_OUT)/darwin-universal/go-link-desk.app $(DMG)
+	NOTARY_PROFILE="$(NOTARY_PROFILE)" $(DEVICE_DIR)/build/macos/notarize.sh $(DMG)
 
 FORCE:
 

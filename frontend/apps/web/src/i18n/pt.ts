@@ -215,5 +215,45 @@ export const pt: Messages = {
     unnamed: "Computador",
     thumbOf: "A tela de {name} da última vez",
   },
-  footer: { source: "Código-fonte" },
+  privacy: {
+    title: "Privacidade",
+    updated: "go-link Desk: o app de computador, este site e o app para iPhone e iPad. Outubro de 2026.",
+    sections: [
+      {
+        title: "Nada é coletado",
+        text: [
+          "O go-link Desk não tem contas, nem análises, nem publicidade, nem rastreamento. Ninguém vende, compartilha ou guarda os seus dados, porque eles nunca são reunidos.",
+        ],
+      },
+      {
+        title: "A imagem, o som e o controle",
+        text: [
+          "Vão direto entre os seus aparelhos por WebRTC, criptografados de ponta a ponta (DTLS e SRTP). Quando não há caminho direto, passam por um relay (TURN) que só vê tráfego criptografado e não guarda nada.",
+        ],
+      },
+      {
+        title: "O servidor de sinalização",
+        text: [
+          "Para colocar dois aparelhos em contato, o servidor de sinalização (signalhub) repassa a preparação da conexão e os códigos de 9 dígitos enquanto uma sessão começa. Ele vê os endereços IP dos aparelhos, como qualquer servidor, e não guarda registro de sessões, imagens nem do que é digitado.",
+        ],
+      },
+      {
+        title: "O que fica nos seus aparelhos",
+        text: [
+          "O app de computador guarda os seus ajustes, os seus logs e os computadores e navegadores que você vincula, naquele computador. Este site guarda o seu tema, idioma, nome e computadores vinculados no seu navegador. O app para iPhone e iPad guarda o seu nome, os ajustes e os computadores recentes no aparelho. Você pode apagá-los quando quiser.",
+        ],
+      },
+      {
+        title: "Permissões",
+        text: [
+          "A pessoa no computador decide, em cada sessão, se você só pode ver a tela ou também usar o mouse e o teclado, ouvir o som, compartilhar a área de transferência ou enviar arquivos, e pode mudar isso durante a sessão.",
+        ],
+      },
+      {
+        title: "Contato",
+        text: ["Dúvidas: lord.basex@gmail.com. O go-link Desk é software livre e de código aberto (licença MIT)."],
+      },
+    ],
+  },
+  footer: { source: "Código-fonte", privacy: "Privacidade" },
 };

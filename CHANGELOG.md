@@ -4,6 +4,15 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (the iPhone and iPad app, phase 6c)
+
+- **go-link Desk for iPhone and iPad** (`mobile/ios`): connect to another computer with its 9-digit code, and see and use it once the person there accepts. Home has the code and the recent computers; Settings has your name, the fingers and your own signaling server. English, Spanish and Portuguese.
+- **Fingers as a trackpad** (slide, tap, long press to drag, two fingers to scroll, right click and zoom) or by touch; an iPad's trackpad, mouse and keyboard; the on-screen keyboard with a bar of special keys; the computer's shortcuts (Ctrl+Alt+Del, Spotlight, switch apps…); the displays, the picture preset, the sound and the details.
+- **The same protocol as the website and the Mac app**, with libwebrtc (hardware H.264) and the picture shown as soon as it is decoded. `DeskCore`, the app's portable logic, is tested on the Mac (`make test-core`) and in CI, against the same input vectors as the host and the website.
+- **Signed and in TestFlight:** `make testflight` archives, signs with the App Store Connect API key and uploads.
+- **The Mac app signed and notarized:** `make device-notarized` signs with the Developer ID, notarizes the app and the disk image, and staples their tickets (`make device-dmg` for the disk image alone).
+- **A privacy page** on the website (desk.go-link.org/privacy), linked from the footer.
+
 ### Added
 
 - **About go-link Desk:** the version, what the app is, its license and website. On macOS it is the system's About panel, first in the app menu, which is now go-link Desk's own (About, Settings… with ⌘,, Hide, Quit) in the app's language; elsewhere, a small window. Also in the menu bar icon's menu.
