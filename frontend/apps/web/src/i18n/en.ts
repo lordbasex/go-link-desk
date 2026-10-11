@@ -16,6 +16,8 @@ export const en = {
     text: "The other computer runs go-link Desk and shows a code. Type it here to see and control its screen. Nothing to install on this side.",
     connect: "Connect",
     devices: "My computers",
+    downloadMac: "Download go-link Desk for macOS",
+    iosSoon: "iPhone and iPad: on the App Store soon",
     steps: [
       { title: "1. Open go-link Desk", text: "On the computer to control. It needs no installer." },
       { title: "2. Read the code", text: "Nine digits, shown in its window." },

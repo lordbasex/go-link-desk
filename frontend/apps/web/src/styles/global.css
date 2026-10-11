@@ -99,6 +99,8 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .hero { display: flex; flex-direction: column; gap: 18px; max-width: 640px; }
 .hero-title { margin: 0; font-family: var(--font-title); font-size: clamp(30px, 6vw, 48px); line-height: 1.1; }
 .hero-text { margin: 0; font-size: 17px; color: var(--color-text-2); }
+.get-apps { font-size: 14px; }
+.get-apps a { color: var(--color-accent-text); }
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 40px 0 0; padding: 0; list-style: none; }
 .step { padding: 18px; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border); }
 .step-title { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
