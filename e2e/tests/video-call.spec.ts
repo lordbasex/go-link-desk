@@ -18,8 +18,12 @@ test("a video call both ways: the host sees and hears the viewer, the viewer see
 
   // The host (auto-accepting in tests) takes the call and starts its camera and microphone.
   await expect.poll(() => hostLogCount(/msg="call started"/, "control")).toBeGreaterThan(started);
-  // The browser's fake camera reaches the host's decoder, and its microphone the speaker.
-  await expect.poll(() => hostLogged(/msg="call: the viewer's camera shows"/, "control"), { timeout: 15_000 }).toBe(true);
+  // The browser's fake camera reaches the host's decoder (VideoToolbox: macOS
+  // hosts; Windows and Linux decoders come in phase 7), and its microphone
+  // the speaker.
+  if (process.platform === "darwin") {
+    await expect.poll(() => hostLogged(/msg="call: the viewer's camera shows"/, "control"), { timeout: 15_000 }).toBe(true);
+  }
   await expect.poll(() => hostLogged(/msg="call: the viewer's voice plays"/, "control"), { timeout: 15_000 }).toBe(true);
 
   // The host's camera (the test card) shows here, and its microphone (a tone) sounds.
