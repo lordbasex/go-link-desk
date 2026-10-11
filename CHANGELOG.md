@@ -4,6 +4,16 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (files, phase 5)
+
+- **Send files to the computer** by dropping them anywhere on the remote screen or choosing them: they land in Downloads › go-link Desk, never over a file already there, with progress on both sides and a Stop button.
+- **Browse the computer's home folder and download** its files: Chromium writes straight to a file the person picks; other browsers save it when complete.
+- **The permission** "Send and receive files", unticked by default, in the request and the session panel; the panel shows the file moving.
+- **An audit trail:** every file sent or received is in the host's log.
+- **Measured:** 1 GB sent in 63 s (16 MB/s) while the picture kept flowing (`E2E_BIG_FILE_MB=1024`).
+- **End-to-end tests:** a big file's content checked by SHA-256 while the picture's frames are timed, a second file with the same name saved beside it, a download from the host's Documents with hidden files left out, and no files without the permission.
+- `make check` also type-checks the end-to-end tests.
+
 ### Added (video call, phase 4b)
 
 - **A video call between the viewer and the person at the host,** both ways: the viewer asks from the session's toolbar, the person at the host takes it (choosing camera and microphone) or not, and each side can mute, turn the camera off or hang up.

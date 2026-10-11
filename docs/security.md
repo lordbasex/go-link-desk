@@ -39,6 +39,13 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - The sound is sent only with its permission, unticked by default: it can carry a call or a meeting on the host. The host's own sounds are left out.
 - The host's log never records clipboard text or chat words.
 
+### Files
+
+- Files move only with their permission, unticked by default; taking it back stops the transfers.
+- A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and hidden files are not listed.
+- What a viewer sends lands only in Downloads/go-link Desk, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
+- Every file sent or received is logged with the viewer's id, its name and size.
+
 ### The video call
 
 - A viewer cannot turn on the host's camera or microphone: they open only when the person at the host takes a call, and close when it ends, the session ends, or they untick them.

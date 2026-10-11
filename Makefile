@@ -92,7 +92,7 @@ check-web:
 	$(NODE) npm test
 	$(NODE) npm run build
 	@# The end-to-end tests' TypeScript, as CI checks it.
-	cd e2e && { [ -s "$$HOME/.nvm/nvm.sh" ] && . "$$HOME/.nvm/nvm.sh" >/dev/null && nvm use >/dev/null || true; } && npm ci --no-audit --no-fund >/dev/null && npx tsc -p .
+	cd e2e && { [ -s "$$HOME/.nvm/nvm.sh" ] && . "$$HOME/.nvm/nvm.sh" >/dev/null && nvm use "$$(cat ../$(WEB_DIR)/.nvmrc)" >/dev/null || true; } && npm ci --no-audit --no-fund >/dev/null && npx tsc -p .
 
 check-secrets:
 	@echo "$(YELLOW)▶ Secrets$(NC)"

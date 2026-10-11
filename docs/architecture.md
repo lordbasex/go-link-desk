@@ -113,6 +113,13 @@ host microphone ──► AVAudioEngine (echo cancellation) ──► Opus ─�
 - **The camera is light:** 640×480 at 24 fps and 600 kbps each way, next to the screen.
 - **Hosts without a camera** (and the end-to-end tests) send the test card and a 440 Hz tone instead.
 
+## Files
+
+- **A channel of their own** (`files`), so a big transfer never holds a control or input message back; uploads are paced by the browser's channel buffer (1 MiB), downloads by the browser's reads.
+- **Uploads land in Downloads/go-link Desk,** a known place the person at the computer finds, through a temporary file renamed at the end: a file is never half there, and never over another.
+- **Downloads come from the home folder,** browsed but never left; every file that moves is in the host's log (who, which, how big, which way), the audit trail.
+- **Measured:** 1 GB from Chromium to the host on this Intel Mac (loopback) in 63 s, 16 MB/s, while the picture kept its frames (the longest gap 150 ms).
+
 ## The website
 
 desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts/deploy-web.sh`, `make web-deploy`), with the same Content Security Policy as the build's, HSTS, and a Permissions-Policy that allows the camera, microphone and clipboard only to the site itself. Pages are revalidated on every visit and hashed assets are cached for a year, so a deploy shows at once. The deploy user may only write that bucket and invalidate that distribution.
