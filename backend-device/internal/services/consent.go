@@ -13,6 +13,9 @@ import (
 type ConsentRequest struct {
 	PeerID string
 	Knock  models.Knock
+	// Link: the viewer came with the pairing code and asks to be linked
+	// for unattended access; the permissions accepted become its link's.
+	Link bool
 }
 
 // Consent asks the person at the host whether a viewer may come in. Ask

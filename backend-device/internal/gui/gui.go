@@ -50,6 +50,12 @@ type Options struct {
 	// SetConsent hands the window's connection requests to the session
 	// (nil: the session keeps its own, the tests' auto-accept).
 	SetConsent func(services.Consent)
+	// Settings and Links are what the Settings window changes (nil: no
+	// Settings).
+	Settings *services.SettingsService
+	Links    *services.LinkService
+	// Autostart replaces the system's login item (tests).
+	Autostart *Autostart
 	// Permissions replaces the system's checks (tests).
 	Permissions *PermissionChecks
 	WebURL      string // where viewers type the code
@@ -79,6 +85,7 @@ type ui struct {
 	perms    *permissionsBox // nil where the system asks for nothing
 	copied   *time.Timer     // puts "Copy" back on the button
 	call     *callWindow     // nil without a call
+	settings *settingsWindow // nil without Settings
 }
 
 // Run shows the window and the tray icon and blocks until the host stops.
@@ -152,6 +159,9 @@ func newUI(a fyne.App, opts Options) *ui {
 	if opts.WebURL == "" {
 		opts.WebURL = models.DefaultWebURL
 	}
+	if opts.Autostart == nil {
+		opts.Autostart = systemAutostart()
+	}
 	setLanguage(opts.Language)
 	u := &ui{opts: opts, app: a}
 	u.win = a.NewWindow("go-link Desk")
@@ -174,11 +184,15 @@ func newUI(a fyne.App, opts Options) *ui {
 	hint.Wrapping = fyne.TextWrapWord
 	version := widget.NewLabelWithStyle("v"+strings.TrimPrefix(opts.Version, "v"), fyne.TextAlignTrailing, fyne.TextStyle{})
 
+	buttons := container.NewHBox(u.copyBtn, u.newBtn)
+	if opts.Settings != nil {
+		buttons.Add(widget.NewButtonWithIcon(L("Settings"), theme.SettingsIcon(), u.showSettings))
+	}
 	items := []fyne.CanvasObject{
 		title,
 		u.code,
 		u.link,
-		container.NewCenter(container.NewHBox(u.copyBtn, u.newBtn)),
+		container.NewCenter(buttons),
 		widget.NewSeparator(),
 		hint,
 		u.state,
@@ -195,7 +209,17 @@ func newUI(a fyne.App, opts Options) *ui {
 	u.win.SetContent(container.NewPadded(container.NewVBox(items...)))
 	u.win.Resize(fyne.NewSize(460, 360))
 	u.panel = u.newSessionPanel()
+	if opts.Settings != nil {
+		u.settings = u.newSettings()
+	}
 	return u
+}
+
+// showSettings opens Settings.
+func (u *ui) showSettings() {
+	if u.settings != nil {
+		u.settings.show()
+	}
 }
 
 // render shows the session code and the link with signalhub.
@@ -226,6 +250,9 @@ func (u *ui) render(st models.Status) {
 		active = st.Session.Active
 	}
 	u.panel.render(active)
+	if u.settings != nil {
+		u.settings.renderCode(st)
+	}
 	switch {
 	case active != nil:
 		name := active.Name
@@ -306,6 +333,9 @@ func (u *ui) setupTray() {
 	})
 	u.trayEnd.Disabled = true
 	u.trayMenu = fyne.NewMenu("go-link Desk", u.trayCode, u.trayEnd, fyne.NewMenuItemSeparator(), show)
+	if u.settings != nil {
+		u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("Settings…"), u.showSettings))
+	}
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", trayicon.PNG()))
 	u.win.SetCloseIntercept(u.win.Hide)

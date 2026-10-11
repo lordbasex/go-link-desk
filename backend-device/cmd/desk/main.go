@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/repositories"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/awake"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/beacon"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/camera"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
@@ -66,6 +68,10 @@ type flags struct {
 	// clipboardFile keeps the host's clipboard in a file: end-to-end
 	// tests only.
 	clipboardFile string
+	// unattended turns unattended access on for this run, and password
+	// sets its password: end-to-end tests only.
+	unattended bool
+	password   string
 }
 
 func parseFlags(args []string) (flags, error) {
@@ -81,6 +87,8 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.autoAccept, "test-auto-accept", false, "accept every viewer without asking (automated tests only; needs --source testpattern)")
 	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
+	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
+	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; needs --test-unattended)")
 	if err := fs.Parse(args); err != nil {
 		return f, err
 	}
@@ -97,6 +105,12 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.clipboardFile != "" && !f.inputLog {
 		return f, errors.New("--test-clipboard-file needs --test-input-log")
+	}
+	if f.unattended && !f.autoAccept {
+		return f, errors.New("--test-unattended needs --test-auto-accept")
+	}
+	if f.password != "" && !f.unattended {
+		return f, errors.New("--test-unattended-password needs --test-unattended")
 	}
 	return f, nil
 }
@@ -152,8 +166,23 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	if f.unattended {
+		cfg.Unattended.Enabled = true
+		if f.password != "" {
+			if cfg.Unattended.PasswordHash, err = services.HashPassword(f.password); err != nil {
+				return err
+			}
+		}
+	}
+	settings := services.NewSettingsService(cfg, store.Save, logger)
 	status := services.NewStatusService(cfg.DeviceID, version, target)
 	status.SetSavedLinks(len(cfg.Links))
+	links := services.NewLinkService(services.LinkConfig{
+		DeviceID: cfg.DeviceID, Links: cfg.Links, Logger: logger,
+		Save: func(l []models.Link) error {
+			return settings.Update(func(c *models.Config) { c.Links = l })
+		},
+	}, status)
 	ice := services.NewICEStore()
 	pairing := services.NewPairingService(services.PairingConfig{DeviceID: cfg.DeviceID, DeviceSecret: cfg.DeviceSecret, Logger: logger}, status, ice)
 	opener := services.NewRoomOpener()
@@ -199,7 +228,13 @@ func run(args []string) error {
 		injector = services.LogInjector{Log: logger}
 	}
 	input := services.NewInputService(injector, stream.Displays, logger)
+	// A session nobody uses ends after the time set in Settings.
+	idle := services.NewIdleWatch(session.End, nil)
+	idle.SetMinutes(cfg.IdleMinutes)
+	settings.OnChange(func(c models.Config) { idle.SetMinutes(c.IdleMinutes) })
+	go idle.Run(ctx)
 	stream.OnInput(func(peer, channel string, data []byte) {
+		idle.Touch(peer)
 		if channel == "pointer" {
 			input.HandlePointer(peer, data)
 		} else {
@@ -231,7 +266,46 @@ func run(args []string) error {
 	if f.autoAccept {
 		call.SetConsent(services.AutoAcceptCall)
 	}
+	// Unattended access: browsers linked with the pairing code come back
+	// without anyone accepting, with their link's permissions.
+	session.SetUnattended(settings)
+	unattended := services.NewUnattendedService(services.UnattendedConfig{
+		Links: links, Session: session, Settings: settings, Send: stream.SendControl, Logger: logger,
+	})
+	links.SetTransport(stream.SendControl, func(peer string) { session.Drop(peer, models.EndRevoked) })
+	pairing.SetLinks(session)
+	pairing.SetAuth(unattended)
+	stream.OnWaiting(unattended.HandleWaiting)
+	var inSession struct {
+		sync.Mutex
+		peer string
+	}
 	session.OnPermissions(func(peer string, p models.Permissions) {
+		// While a session is on the display stays awake; when it ends the
+		// screen locks, if the person asked for it.
+		inSession.Lock()
+		started := p.View && inSession.peer != peer
+		ended := !p.View && inSession.peer == peer
+		if started {
+			inSession.peer = peer
+		} else if ended {
+			inSession.peer = ""
+		}
+		inSession.Unlock()
+		if started {
+			idle.Session(peer)
+			awake.Hold()
+		} else if ended {
+			idle.Session("")
+			awake.Release()
+			if settings.Get().LockOnEnd {
+				if !services.LockScreen(injector) {
+					logger.Warn("cannot lock the screen on this system")
+				} else if !input.Trusted() {
+					logger.Warn("cannot lock the screen: allow this app in System Settings › Privacy & Security › Accessibility")
+				}
+			}
+		}
 		input.Allow(peer, p.Control)
 		stream.SetAudio(peer, p.Audio)
 		clip.Allow(peer, p.Clipboard && shareClipboard)
@@ -255,7 +329,13 @@ func run(args []string) error {
 	control := controllers.NewControl(logger)
 	controllers.SessionRoutes(control, session)
 	control.Handle("clipboard", clip.Handle)
-	control.Handle("chat", chat.Handle)
+	control.Handle("chat", func(peer string, data []byte) {
+		idle.Touch(peer)
+		chat.Handle(peer, data)
+	})
+	for _, kind := range []string{"auth", "auth_challenge", "unlink"} {
+		control.Handle(kind, unattended.HandleControl)
+	}
 	for _, kind := range []string{"call_request", "call_media", "call_end"} {
 		control.Handle(kind, func(peer string, data []byte) { call.HandleControl(peer, kind, data) })
 	}
@@ -307,6 +387,8 @@ func run(args []string) error {
 		chat:           chat,
 		call:           call,
 		files:          files,
+		settings:       settings,
+		links:          links,
 		webURL:         web,
 		language:       cfg.Language,
 		logger:         logger,

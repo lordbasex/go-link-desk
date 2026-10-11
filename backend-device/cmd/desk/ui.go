@@ -27,6 +27,10 @@ type uiOptions struct {
 	call *services.CallService
 	// files moves files with the viewer.
 	files *services.FilesService
+	// settings and links are the Settings window's: unattended access,
+	// the linked browsers, idle time and locking.
+	settings *services.SettingsService
+	links    *services.LinkService
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)

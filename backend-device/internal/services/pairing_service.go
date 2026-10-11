@@ -3,7 +3,6 @@
 package services
 
 import (
-	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -28,14 +27,11 @@ type PairingConfig struct {
 	Logger       *slog.Logger
 }
 
-// PairingService keeps a valid pairing code on screen at all times and
-// tracks the browsers linked to this device. It implements
-// signalclient.Handler.
-// Links opens data connections to linked browsers.
+// Links lets the browsers that came with the pairing code (claim) or with
+// a link (reach) knock: the session decides what they get. Their signals
+// and their leaving reach the session through the dispatcher.
 type Links interface {
-	AddLink(peerID string) error
-	HandleSignal(from string, payload json.RawMessage) error
-	RemoveViewer(peerID string)
+	AddLink(peerID string, byCode bool)
 }
 
 // LinkAuth decides which linked browsers the device trusts.
@@ -45,6 +41,9 @@ type LinkAuth interface {
 	Forget(peerID string)
 }
 
+// PairingService keeps a valid pairing code at all times and hands the
+// browsers that use it, or come back with reach, to the session. It
+// implements signalclient.Handler.
 type PairingService struct {
 	cfg    PairingConfig
 	status *StatusService
@@ -83,7 +82,7 @@ func (p *PairingService) SetSender(s Sender) {
 	p.sender = s
 }
 
-// SetLinks enables WebRTC data connections to linked browsers.
+// SetLinks wires who receives the linked browsers.
 func (p *PairingService) SetLinks(l Links) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -96,12 +95,6 @@ func (p *PairingService) SetAuth(a LinkAuth) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.auth = a
-}
-
-func (p *PairingService) linksFor(peerID string) (Links, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.links, p.linked[peerID]
 }
 
 // OnConnect stores the ICE servers and asks for a code as soon as the
@@ -127,7 +120,7 @@ func (p *PairingService) OnMessage(env signalclient.Envelope) {
 		if a := p.authFor(); a != nil {
 			a.PairedByCode(env.Remote)
 		}
-		p.openLink(env.Remote)
+		p.openLink(env.Remote, true)
 		// The code was single-use: get a fresh one for the next browser.
 		p.register()
 	case signalclient.TypeReached:
@@ -137,27 +130,18 @@ func (p *PairingService) OnMessage(env signalclient.Envelope) {
 		if a := p.authFor(); a != nil {
 			a.Reached(env.Remote)
 		}
-		p.openLink(env.Remote)
-	case signalclient.TypeSignal:
-		if links, ok := p.linksFor(env.From); ok && links != nil {
-			if err := links.HandleSignal(env.From, env.Payload); err != nil {
-				p.cfg.Logger.Warn("bad link signal", "peer_id", env.From, "err", err)
-			}
-		}
+		p.openLink(env.Remote, false)
 	case signalclient.TypePeerLeft:
-		links, ok := p.linksFor(env.From)
-		if !ok {
-			return
-		}
 		p.mu.Lock()
+		_, ok := p.linked[env.From]
 		delete(p.linked, env.From)
 		auth := p.auth
 		p.mu.Unlock()
+		if !ok {
+			return
+		}
 		if auth != nil {
 			auth.Forget(env.From)
-		}
-		if links != nil {
-			links.RemoveViewer(env.From)
 		}
 		p.status.RemovePeer(env.From)
 		p.cfg.Logger.Info("browser disconnected", "peer_id", env.From)
@@ -173,12 +157,13 @@ func (p *PairingService) OnMessage(env signalclient.Envelope) {
 func (p *PairingService) OnDisconnect(err error) {
 	p.stopTimer()
 	p.mu.Lock()
-	links, linked := p.links, p.linked
+	linked, auth := p.linked, p.auth
 	p.linked = make(map[string]bool)
 	p.mu.Unlock()
-	if links != nil {
+	// Their connections go with the session's (it closes them all).
+	if auth != nil {
 		for id := range linked {
-			links.RemoveViewer(id)
+			auth.Forget(id)
 		}
 	}
 	p.ice.Set(nil)
@@ -232,15 +217,14 @@ func (p *PairingService) authFor() LinkAuth {
 	return p.auth
 }
 
-// openLink starts the data-only WebRTC connection to a linked browser.
-func (p *PairingService) openLink(peerID string) {
+// openLink hands a browser that came with the code or with reach to the
+// session, where it knocks.
+func (p *PairingService) openLink(peerID string, byCode bool) {
 	p.mu.Lock()
 	p.linked[peerID] = true
 	links := p.links
 	p.mu.Unlock()
 	if links != nil {
-		if err := links.AddLink(peerID); err != nil {
-			p.cfg.Logger.Warn("cannot open data link", "peer_id", peerID, "err", err)
-		}
+		links.AddLink(peerID, byCode)
 	}
 }

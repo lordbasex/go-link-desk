@@ -128,8 +128,24 @@ type viewerCalls struct {
 	signals  []string
 	hungUp   []string
 	removed  []string
+	waiting  []string
+	admitted []string
 	closed   int
 	last     []byte
+}
+
+func (f *fakeViewers) AddWaiting(peerID string, _ []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.waiting = append(f.waiting, peerID)
+	return nil
+}
+
+func (f *fakeViewers) Admit(peerID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.admitted = append(f.admitted, peerID)
+	return true
 }
 
 func (f *fakeViewers) AddViewer(peerID string, _ []string) error {
@@ -175,7 +191,7 @@ func (f *fakeViewers) CloseAll() {
 func (f *fakeViewers) snapshot() viewerCalls {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return viewerCalls{controls: slices.Clone(f.controls), added: slices.Clone(f.added), signals: slices.Clone(f.signals), hungUp: slices.Clone(f.hungUp), removed: slices.Clone(f.removed), closed: f.closed, last: f.last}
+	return viewerCalls{controls: slices.Clone(f.controls), added: slices.Clone(f.added), signals: slices.Clone(f.signals), hungUp: slices.Clone(f.hungUp), removed: slices.Clone(f.removed), waiting: slices.Clone(f.waiting), admitted: slices.Clone(f.admitted), closed: f.closed, last: f.last}
 }
 
 // openRoom brings a session to an open room "R" with a code.
