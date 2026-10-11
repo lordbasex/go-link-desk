@@ -38,6 +38,12 @@ func TestUnattendedAccessIsOffUntilTurnedOn(t *testing.T) {
 	if s.unattended.Checked || s.details.Visible() {
 		t.Fatal("unattended access shows on by default")
 	}
+	// Not without a password: unattended access always has one.
+	test.Tap(s.unattended)
+	if set.UnattendedOn() || s.details.Visible() || !s.passErr.Visible() {
+		t.Fatal("turned on without a password")
+	}
+	s.setPassword("a long enough one", "a long enough one")
 	test.Tap(s.unattended)
 	if !set.UnattendedOn() || !s.details.Visible() {
 		t.Fatal("not turned on")
@@ -54,20 +60,26 @@ func TestThePasswordIsKeptAsAHash(t *testing.T) {
 	u, set, _, _ := newSettingsUI(t, models.Config{Unattended: models.Unattended{Enabled: true}})
 	s := u.settings
 	s.newPass.SetText("short")
-	s.setPassword(s.newPass.Text)
+	s.setPassword(s.newPass.Text, s.newPass.Text)
 	if set.Get().Unattended.PasswordHash != "" || !s.passErr.Visible() {
 		t.Fatal("a short password was taken")
 	}
-	s.setPassword("a long enough one")
+	// Typed twice: two different ones are not taken.
+	s.setPassword("a long enough one", "a long enough two")
+	if set.Get().Unattended.PasswordHash != "" || !s.passErr.Visible() {
+		t.Fatal("two different passwords were taken")
+	}
+	s.setPassword("a long enough one", "a long enough one")
 	hash := set.Get().Unattended.PasswordHash
-	if hash == "" || !services.CheckPassword(hash, "a long enough one") || s.passErr.Visible() {
+	if hash == "" || !services.CheckPassword(hash, "a long enough one") || s.passErr.Visible() || !s.passOK.Visible() {
 		t.Fatalf("hash %q", hash)
 	}
+	// Removing it turns unattended access off.
 	if !s.clearPass.Disabled() {
 		test.Tap(s.clearPass)
 	}
-	if set.Get().Unattended.PasswordHash != "" {
-		t.Fatal("not removed")
+	if c := set.Get().Unattended; c.PasswordHash != "" || c.Enabled {
+		t.Fatalf("not removed, or still on: %+v", c)
 	}
 }
 

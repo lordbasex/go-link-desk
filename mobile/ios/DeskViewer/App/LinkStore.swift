@@ -79,8 +79,26 @@ final class LinkStore {
         }
     }
 
+    /** What the keychain keeps for a link: its token, and the computer's unattended password once typed. */
+    private struct Secret: Codable {
+        var token: String
+        var password: String?
+    }
+
     /** Keeps a new link: its token in the keychain behind the owner's face or passcode. */
     func save(_ link: DeviceLink, name: String, os: String) throws {
+        try store(link, password: nil)
+        computers.removeAll { $0.deviceId == link.deviceId }
+        computers.insert(LinkedComputer(deviceId: link.deviceId, linkId: link.linkId, name: name, os: os, linkedAt: Date(), lastUsed: Date()), at: 0)
+        persist()
+    }
+
+    /** Keeps (or forgets, with nil) the computer's unattended password with its link, behind Face ID too. */
+    func setPassword(_ link: DeviceLink, _ password: String?) {
+        try? store(link, password: password)
+    }
+
+    private func store(_ link: DeviceLink, password: String?) throws {
         guard LinkStore.canProtect else { throw LinkError.noPasscode }
         var error: Unmanaged<CFError>?
         guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .userPresence, &error) else {
@@ -93,20 +111,17 @@ final class LinkStore {
         ]
         SecItemDelete(base as CFDictionary)
         var add = base
-        add[kSecValueData as String] = Data(link.token.utf8)
+        add[kSecValueData as String] = try JSONEncoder().encode(Secret(token: link.token, password: password))
         add[kSecAttrAccessControl as String] = access
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw LinkError.keychain(status) }
-        computers.removeAll { $0.deviceId == link.deviceId }
-        computers.insert(LinkedComputer(deviceId: link.deviceId, linkId: link.linkId, name: name, os: os, linkedAt: Date(), lastUsed: Date()), at: 0)
-        persist()
     }
 
     /**
      * The link of a computer, after Face ID (or the passcode). Runs the
      * keychain read off the main thread: the system shows its own prompt.
      */
-    func unlock(_ c: LinkedComputer) async throws -> DeviceLink {
+    func unlock(_ c: LinkedComputer) async throws -> (DeviceLink, String?) {
         let context = LAContext()
         context.localizedReason = String(format: String(localized: "Connect to %@"), c.name.isEmpty ? String(localized: "the computer") : c.name)
         let query: [String: Any] = [
@@ -123,8 +138,11 @@ final class LinkStore {
         }.value
         switch result.0 {
         case errSecSuccess:
-            guard let data = result.1, let token = String(data: data, encoding: .utf8) else { throw LinkError.keychain(errSecDecode) }
-            return DeviceLink(deviceId: c.deviceId, linkId: c.linkId, token: token)
+            guard let data = result.1 else { throw LinkError.keychain(errSecDecode) }
+            // A link kept by the first builds holds the token alone.
+            let secret = (try? JSONDecoder().decode(Secret.self, from: data)) ?? String(data: data, encoding: .utf8).map { Secret(token: $0) }
+            guard let secret, !secret.token.isEmpty else { throw LinkError.keychain(errSecDecode) }
+            return (DeviceLink(deviceId: c.deviceId, linkId: c.linkId, token: secret.token), secret.password)
         case errSecUserCanceled, errSecAuthFailed:
             throw LinkError.cancelled
         default:

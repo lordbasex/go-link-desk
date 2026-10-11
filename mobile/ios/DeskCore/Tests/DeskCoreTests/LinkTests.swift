@@ -86,6 +86,31 @@ final class LinkTests: XCTestCase {
         XCTAssertFalse(peer.control.contains { $0.contains("secret-token") })
     }
 
+    func testTheSavedPasswordGoesByItself() {
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "t")
+        let s = session(.reach(link))
+        s.savedPassword = "kept one"
+        var accepted: String?, rejected = false
+        s.events.passwordAccepted = { accepted = $0 }
+        s.events.passwordRejected = { rejected = true }
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        let nonce = JSONText.parseObject(peer.control.last!)!["nonce"].str()
+        peer.events.onControlMessage(#"{"type":"auth_proof","link_id":"L","proof":"\#(DeskSession.linkProof(token: "t", nonce: nonce))"}"#)
+        peer.events.onControlMessage(#"{"type":"auth_ok","link_id":"L"}"#)
+        peer.events.onControlMessage(#"{"type":"password_required"}"#)
+        XCTAssertEqual(peer.control.last, #"{"type":"password","password":"kept one"}"#)
+        // Changed on the computer: forgotten here, and asked.
+        peer.events.onControlMessage(#"{"type":"password_result","ok":false,"reason":"wrong","left":4}"#)
+        XCTAssertTrue(rejected)
+        XCTAssertEqual(s.status, .password(PasswordPrompt(wrong: true, left: 4, checking: false)))
+        s.sendPassword("new one")
+        peer.events.onControlMessage(#"{"type":"password_result","ok":true}"#)
+        XCTAssertEqual(accepted, "new one")
+    }
+
     func testPasswordAndUnlinked() {
         let link = DeviceLink(deviceId: "D", linkId: "L", token: "t")
         let s = session(.reach(link))

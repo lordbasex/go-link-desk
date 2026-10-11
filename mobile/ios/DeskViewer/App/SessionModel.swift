@@ -77,7 +77,8 @@ final class SessionModel: ObservableObject, MediaListener {
         self.label = label
     }
 
-    func start() {
+    /** password: the computer's unattended password kept with its link, sent by itself when asked. */
+    func start(password: String? = nil) {
         peers.media = self
         let signal = SignalClient(url: app.signalURL, factory: URLSessionSockets(), scheduler: MainScheduler.shared)
         let s = DeskSession(door: door, name: app.knockName, ua: app.agent, signal: signal, peers: peers, scheduler: MainScheduler.shared)
@@ -115,6 +116,15 @@ final class SessionModel: ObservableObject, MediaListener {
             guard let self else { return }
             self.pendingLink = link
             self.app.link(link, name: self.hostName, os: self.hostOS)
+        }
+        s.savedPassword = password
+        ev.passwordAccepted = { [weak self] pw in
+            guard let self, case let .reach(link) = self.door else { return }
+            self.app.links.setPassword(link, pw)
+        }
+        ev.passwordRejected = { [weak self] in
+            guard let self, case let .reach(link) = self.door else { return }
+            self.app.links.setPassword(link, nil)
         }
         ev.unlinked = { [weak self] in
             guard let self, case let .reach(link) = self.door else { return }

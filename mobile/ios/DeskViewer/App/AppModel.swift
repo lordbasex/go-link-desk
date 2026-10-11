@@ -82,8 +82,8 @@ final class AppModel: ObservableObject {
         guard session == nil else { return }
         Task {
             do {
-                let link = try await links.unlock(c)
-                open(.reach(link), label: c.name)
+                let (link, password) = try await links.unlock(c)
+                open(.reach(link), label: c.name, password: password)
             } catch let e as LinkStore.LinkError {
                 if case .cancelled = e { return }
                 linkError = e.errorDescription
@@ -93,11 +93,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func open(_ door: Door, label: String) {
+    private func open(_ door: Door, label: String, password: String? = nil) {
         guard session == nil else { return }
         let s = SessionModel(app: self, door: door, label: label)
         session = s
-        s.start()
+        s.start(password: password)
     }
 
     /** Keeps a link made with the pairing code (again when the computer says its name). */

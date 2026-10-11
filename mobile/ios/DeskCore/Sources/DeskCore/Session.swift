@@ -156,6 +156,10 @@ public final class SessionEvents {
     public var linked: ((DeviceLink) -> Void)?
     /** The computer no longer has this link: forget it. */
     public var unlinked: (() -> Void)?
+    /** The computer took this unattended password: keep it with the link. */
+    public var passwordAccepted: ((String) -> Void)?
+    /** The password kept with the link was wrong (it changed there): forget it. */
+    public var passwordRejected: (() -> Void)?
 
     public init() {}
 }
@@ -204,6 +208,11 @@ public final class DeskSession: RtcPeerEvents {
     private var proven = false
     private var authed = false
     private var early: Permissions?
+    private var lastPassword = ""
+    private var autoTried = false
+
+    /** The unattended password kept with the link: sent by itself when the computer asks for it. */
+    public var savedPassword: String?
 
     /**
      * code: the 9 digits. name and ua: what the person at the computer
@@ -470,11 +479,20 @@ public final class DeskSession: RtcPeerEvents {
         case "password_required":
             guard case .reach = door, authed, !status.isOver else { return }
             set(.password(PasswordPrompt()))
+            if let p = savedPassword, !p.isEmpty, !autoTried {
+                autoTried = true
+                sendPassword(p)
+            }
         case "password_result":
             guard case let .password(prompt) = status else { return }
             if o["ok"].isTrue {
+                events.passwordAccepted?(lastPassword)
                 set(.waiting)
                 return
+            }
+            if autoTried && lastPassword == savedPassword {
+                savedPassword = nil
+                events.passwordRejected?()
             }
             let reason = o["reason"].str(20)
             if reason == "blocked" || reason == "locked" {
@@ -496,7 +514,8 @@ public final class DeskSession: RtcPeerEvents {
         guard case var .password(prompt) = status, !password.isEmpty else { return }
         prompt.checking = true
         set(.password(prompt))
-        control(.obj(("type", "password"), ("password", .string(String(password.prefix(512))))))
+        lastPassword = String(password.prefix(512))
+        control(.obj(("type", "password"), ("password", .string(lastPassword))))
     }
 
     /** The proof a linked computer gives: base64url of HMAC-SHA256 keyed with SHA-256(token) (protocol/vectors/link-proof.json). */

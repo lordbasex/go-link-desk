@@ -131,7 +131,7 @@ desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts
 | Kind | Arrives with | Gets |
 |---|---|---|
 | **Viewer** | `join` with the session code or invite | After the host accepts: video, audio and the `control`, `pointer`, `input` and `files` channels, within the permissions granted. |
-| **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password if there is one, and it becomes a full session with its link's permissions, nobody asked. |
+| **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password (unattended access always has one), and it becomes a full session with its link's permissions, nobody asked. |
 
 ## The app as a viewer
 

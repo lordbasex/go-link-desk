@@ -66,7 +66,10 @@ func (s *SettingsService) OnChange(fn func(models.Config)) {
 	s.listeners = append(s.listeners, fn)
 }
 
-// UnattendedOn reports whether linked browsers may come in.
+// UnattendedOn reports whether linked devices may come in: turned on, and
+// with a password (unattended access always has one; a configuration from
+// before that rule, without it, keeps everyone out).
 func (s *SettingsService) UnattendedOn() bool {
-	return s.Get().Unattended.Enabled
+	u := s.Get().Unattended
+	return u.Enabled && u.PasswordHash != ""
 }

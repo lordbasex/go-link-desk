@@ -95,7 +95,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
-	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; needs --test-unattended)")
+	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
 	fs.StringVar(&f.testViewer, "test-viewer", "", "run only the viewer, without a window, through join, claim or reach (automated tests only)")
 	fs.StringVar(&f.testViewerCode, "test-viewer-code", "", "the session or pairing code (automated tests only; needs --test-viewer join or claim)")
@@ -125,6 +125,9 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.unattended && !f.autoAccept {
 		return f, errors.New("--test-unattended needs --test-auto-accept")
+	}
+	if f.unattended && f.password == "" {
+		return f, errors.New("--test-unattended needs --test-unattended-password: unattended access always has a password")
 	}
 	if f.password != "" && !f.unattended {
 		return f, errors.New("--test-unattended-password needs --test-unattended")
