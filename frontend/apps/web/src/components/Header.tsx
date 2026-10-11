@@ -16,6 +16,9 @@ export function Header() {
         {t.brand.name} <span className="brand-suffix">{t.brand.suffix}</span>
       </Link>
       <div className="header-tools">
+        <Link to="/devices" className="header-link">
+          {t.header.devices}
+        </Link>
         <Select<Lang>
           value={getLang()}
           options={LANGS.map((l) => ({ value: l.id, label: l.name }))}

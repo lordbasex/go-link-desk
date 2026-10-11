@@ -9,9 +9,12 @@ export function LandingPage() {
       <section className="hero">
         <h1 className="hero-title">{t.landing.title}</h1>
         <p className="hero-text">{t.landing.text}</p>
-        <div>
+        <div className="join-row">
           <Link to="/c" className="button button-primary button-large">
             {t.landing.connect}
+          </Link>
+          <Link to="/devices" className="button button-secondary button-large">
+            {t.landing.devices}
           </Link>
         </div>
       </section>

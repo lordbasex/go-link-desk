@@ -7,15 +7,38 @@ import {
   ServerError,
   SignalError,
   clipboardPieces,
+  linkProof,
+  parseAuthOk,
   parseDecision,
+  randomNonce,
+  sameString,
   endReason,
   type EndReason,
   type Envelope,
   type InviteTarget,
   type Permissions,
   type RejectReason,
+  type SavedDevice,
   type SignalClient,
 } from "@go-link-desk/shared";
+
+/**
+ * How a session reaches its computer: with the session code or link the
+ * person there shares (join), with the pairing code that links this
+ * browser for unattended access (claim, which the person there accepts),
+ * or with a link made before (reach, which nobody accepts).
+ */
+export type Door = { kind: "join"; target: InviteTarget } | { kind: "claim"; code: string } | { kind: "reach"; device: SavedDevice };
+
+/** A new link, to keep: the token is the browser's secret. */
+export interface NewLink {
+  deviceId: string;
+  linkId: string;
+  token: string;
+}
+
+/** Why the unattended password was not taken. */
+export type PasswordError = "wrong" | "blocked" | "locked";
 
 /** The host as its welcome message describes it. */
 export interface HostInfo {
@@ -90,6 +113,8 @@ const MAX_CHAT_LINES = 200;
 export type SessionStatus =
   | { kind: "joining" }
   | { kind: "waiting" }
+  /** A linked computer asks for its unattended password. */
+  | { kind: "password"; error: PasswordError | null; left: number; checking: boolean }
   | { kind: "connecting" }
   | { kind: "live" }
   | { kind: "reconnecting" }
@@ -97,7 +122,15 @@ export type SessionStatus =
   | { kind: "ended"; reason: EndReason }
   | { kind: "notFound" }
   | { kind: "rateLimited" }
-  | { kind: "unreachable" };
+  | { kind: "unreachable" }
+  /** The computer no longer has this browser's link (revoked, or this browser unlinked). */
+  | { kind: "unlinked" }
+  /** The linked computer is not on (or go-link Desk is closed there). */
+  | { kind: "offline" }
+  /** Too many wrong passwords: turned away for now. */
+  | { kind: "passwordRefused"; locked: boolean; retryAfter: number }
+  /** Whoever answered for the linked computer could not prove it is that computer. */
+  | { kind: "untrusted" };
 
 export interface SessionView {
   status: SessionStatus;
@@ -122,19 +155,23 @@ export interface SessionView {
 
 export interface SessionOptions {
   client: SignalClient;
-  target: InviteTarget;
+  door: Door;
   name: string;
   browser: string;
   onChange: (view: SessionView) => void;
   /** The host's pointer, 60 times a second while it moves: kept out of onChange so the page does not re-render for it. */
   onCursor?: (c: CursorState) => void;
+  /** A claim got its link: keep it to come back without a code. */
+  onLinked?: (link: NewLink) => void;
+  /** The computer no longer has this browser's link: forget it here. */
+  onUnlinked?: () => void;
   /** Injectable for tests. */
   RTCPeerConnectionImpl?: typeof RTCPeerConnection;
 }
 
 /** The session states that can still change. */
 export function isOver(s: SessionStatus): boolean {
-  return !["joining", "waiting", "connecting", "live", "reconnecting"].includes(s.kind);
+  return !["joining", "waiting", "password", "connecting", "live", "reconnecting"].includes(s.kind);
 }
 
 /**
@@ -155,6 +192,10 @@ export class Session {
   private stream: HostStream | null = null;
   private offLeft: (() => void) | null = null;
   private stopped = false;
+  /** The peer connection is up (a linked browser connects before it is let in). */
+  private connected = false;
+  /** The nonce the host must prove it knows the link with (reach). */
+  private nonce = "";
 
   constructor(private readonly opts: SessionOptions) {}
 
@@ -168,7 +209,7 @@ export class Session {
   }
 
   async start(): Promise<void> {
-    const { client, target } = this.opts;
+    const { client, door } = this.opts;
     client.connect();
     // The host offers right after accepting, maybe before anything else
     // listens: keep its signals from the moment of the join.
@@ -179,12 +220,16 @@ export class Session {
     let joined: Envelope;
     try {
       await client.whenOpen();
-      joined = await client.request({ type: "join", app: APP, ...target }, ["joined"]);
+      if (door.kind === "join") joined = await client.request({ type: "join", app: APP, ...door.target }, ["joined"]);
+      else if (door.kind === "claim") joined = await client.request({ type: "claim", app: APP, code: door.code }, ["paired"]);
+      else joined = await client.request({ type: "reach", app: APP, device_id: door.device.deviceId }, ["paired"]);
     } catch (err) {
       offBacklog();
       if (this.stopped) return;
       if (err instanceof SignalError && err.fromServer) {
-        this.finish({ kind: err.message === ServerError.RateLimited ? "rateLimited" : "notFound" });
+        if (err.message === ServerError.RateLimited) this.finish({ kind: "rateLimited" });
+        else if (err.message === ServerError.DeviceOffline) this.finish({ kind: "offline" });
+        else this.finish({ kind: "notFound" });
       } else {
         this.finish({ kind: "unreachable" });
       }
@@ -202,8 +247,14 @@ export class Session {
       hostPeerId: host,
       RTCPeerConnectionImpl: this.opts.RTCPeerConnectionImpl,
       onDecision: (d) => {
-        if (d.kind === "rejected") this.finish({ kind: "rejected", reason: d.reason });
-        else this.set({ status: { kind: "connecting" }, permissions: d.permissions });
+        if (d.kind === "rejected") {
+          this.finish({ kind: "rejected", reason: d.reason });
+          return;
+        }
+        // A linked browser is let in on a connection already up.
+        this.set({ status: { kind: this.connected ? "live" : "connecting" }, permissions: d.permissions });
+        // Accepted with the pairing code: now ask for the link's token.
+        if (door.kind === "claim") this.stream?.sendControl({ type: "auth" });
       },
       onTrack: (video) => this.set({ video }),
       onAudio: (audio) => this.set({ audio }),
@@ -213,7 +264,13 @@ export class Session {
       },
       onCallTrack: (kind, stream) => this.set(kind === "video" ? { callVideo: stream } : { callAudio: stream }),
       onState: (s) => {
-        if (isOver(this.view.status) || this.view.status.kind === "waiting") return;
+        this.connected = s === "connected";
+        if (isOver(this.view.status)) return;
+        const kind = this.view.status.kind;
+        if (kind === "waiting" || kind === "password") {
+          if (s === "failed") this.finish({ kind: "ended", reason: "network" });
+          return;
+        }
         if (s === "connected") this.set({ status: { kind: "live" } });
         else if (s === "reconnecting") this.set({ status: { kind: "reconnecting" } });
         else if (s === "failed") this.finish({ kind: "ended", reason: "network" });
@@ -223,6 +280,19 @@ export class Session {
     this.stream.start(backlog);
     this.set({ status: { kind: "waiting" } });
     this.stream.knock(this.opts.name, this.opts.browser);
+    // A linked browser asks the computer to prove itself first: the token
+    // goes only to the computer it was linked to (sent on open).
+    if (door.kind === "reach") {
+      this.nonce = randomNonce();
+      this.stream.sendControl({ type: "auth_challenge", link_id: door.device.linkId, nonce: this.nonce });
+    }
+  }
+
+  /** Sends the unattended password the computer asked for. */
+  sendPassword(password: string): void {
+    if (this.view.status.kind !== "password" || !password) return;
+    this.set({ status: { ...this.view.status, checking: true } });
+    this.stream?.sendControl({ type: "password", password: password.slice(0, 512) });
   }
 
   /** The viewer leaves (Disconnect, or the page closes). */
@@ -382,6 +452,52 @@ export class Session {
       case "session_end":
         this.finish({ kind: "ended", reason: endReason(m.reason) });
         break;
+      default:
+        this.onLinkMessage(m);
+    }
+  }
+
+  /** The link's messages: the computer's proof, the token, the password. */
+  private onLinkMessage(m: Record<string, unknown>): void {
+    const door = this.opts.door;
+    switch (m.type) {
+      case "auth_proof":
+        if (door.kind !== "reach" || !this.nonce) return;
+        if (m.link_id !== door.device.linkId || typeof m.proof !== "string" || !sameString(m.proof, linkProof(door.device.token, this.nonce))) {
+          this.finish({ kind: "untrusted" });
+          return;
+        }
+        this.nonce = "";
+        this.stream?.sendControl({ type: "auth", link_id: door.device.linkId, token: door.device.token });
+        break;
+      case "auth_ok": {
+        const ok = parseAuthOk(m);
+        if (door.kind === "claim" && ok?.token) this.opts.onLinked?.({ deviceId: ok.device_id, linkId: ok.link_id, token: ok.token });
+        break;
+      }
+      case "auth_failed":
+      case "unlinked":
+        if (door.kind === "join") return;
+        this.opts.onUnlinked?.();
+        this.finish({ kind: "unlinked" });
+        break;
+      case "password_required":
+        if (door.kind === "reach") this.set({ status: { kind: "password", error: null, left: 0, checking: false } });
+        break;
+      case "password_result": {
+        if (this.view.status.kind !== "password") return;
+        if (m.ok === true) {
+          this.set({ status: { kind: "waiting" } });
+          return;
+        }
+        const reason = m.reason === "blocked" || m.reason === "locked" ? m.reason : "wrong";
+        if (reason === "wrong") {
+          this.set({ status: { kind: "password", error: "wrong", left: typeof m.left === "number" ? m.left : 0, checking: false } });
+        } else {
+          this.finish({ kind: "passwordRefused", locked: reason === "locked", retryAfter: typeof m.retry_after === "number" ? m.retry_after : 0 });
+        }
+        break;
+      }
     }
   }
 

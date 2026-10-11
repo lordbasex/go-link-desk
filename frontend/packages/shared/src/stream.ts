@@ -24,16 +24,16 @@ export interface Permissions {
 }
 
 /** Why the host turned a knock down. */
-export type RejectReason = "declined" | "timeout" | "busy" | "unavailable";
+export type RejectReason = "declined" | "timeout" | "busy" | "unavailable" | "off";
 
 /** Why a session ended (session_end, or the connection itself). */
-export type EndReason = "host" | "viewer" | "network" | "signal";
+export type EndReason = "host" | "viewer" | "network" | "signal" | "idle" | "revoked";
 
 /** The host's answer to a knock. */
 export type Decision = { kind: "accepted"; permissions: Permissions } | { kind: "rejected"; reason: RejectReason };
 
-const REJECT_REASONS: readonly string[] = ["declined", "timeout", "busy", "unavailable"];
-const END_REASONS: readonly string[] = ["host", "viewer", "network", "signal"];
+const REJECT_REASONS: readonly string[] = ["declined", "timeout", "busy", "unavailable", "off"];
+const END_REASONS: readonly string[] = ["host", "viewer", "network", "signal", "idle", "revoked"];
 
 /** Reads a host's accepted / rejected payload; null for anything else. */
 export function parseDecision(payload: unknown): Decision | null {

@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MAX_THUMB } from "@go-link-desk/shared";
 import { t } from "../i18n";
 import { CameraIcon, ChatIcon, ExpandIcon, FolderIcon, HangUpIcon, SoundIcon } from "../components/Icons";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
@@ -65,10 +66,54 @@ export function contentRect(boxW: number, boxH: number, videoW: number, videoH: 
   return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h };
 }
 
-export function LiveSession({ view, session, registerCursor }: { view: SessionView; session: Session | null; registerCursor: (fn: ((c: CursorState) => void) | null) => void }) {
+/** A small JPEG of what the video shows (for the list of computers), or null. */
+export function snapshot(video: HTMLVideoElement, width = 240): string | null {
+  if (!video.videoWidth || !video.videoHeight) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = Math.round((video.videoHeight / video.videoWidth) * width);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const url = canvas.toDataURL("image/jpeg", 0.6);
+    return url.startsWith("data:image/jpeg;base64,") && url.length <= MAX_THUMB ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function LiveSession({
+  view,
+  session,
+  registerCursor,
+  onSnapshot,
+}: {
+  view: SessionView;
+  session: Session | null;
+  registerCursor: (fn: ((c: CursorState) => void) | null) => void;
+  /** Told a thumbnail of the screen now and then while the session is live. */
+  onSnapshot?: (url: string) => void;
+}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const snapRef = useRef(onSnapshot);
+  snapRef.current = onSnapshot;
+  const showing = view.status.kind === "live";
+  useEffect(() => {
+    if (!showing) return;
+    const take = () => {
+      const url = videoRef.current && snapshot(videoRef.current);
+      if (url) snapRef.current?.(url);
+    };
+    const first = setTimeout(take, 2000);
+    const every = setInterval(take, 15000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(every);
+    };
+  }, [showing]);
   const cursorRef = useRef<HTMLImageElement>(null);
   const lastCursor = useRef<CursorState | null>(null);
   const fullscreen = useFullscreen(stageRef);
