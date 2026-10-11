@@ -108,7 +108,12 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	note.Importance = widget.LowImportance
 	perms := widget.NewLabel(L("If you accept, they will be able to:") + "\n  • " + L("See your screen"))
 	r.perms = newPermChecks(nil)
-	r.perms.set(fullControl) // untick what you do not want
+	if !req.Link {
+		// A session for support: everything, to untick what is not
+		// wanted. A link is for good (every later visit, nobody asked):
+		// its boxes are ticked one by one.
+		r.perms.set(fullControl)
+	}
 	r.countdown = widget.NewLabel("")
 	r.countdown.Importance = widget.LowImportance
 

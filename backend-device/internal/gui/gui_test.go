@@ -225,6 +225,10 @@ func TestPermissionsAreAskedForAndChangedLive(t *testing.T) {
 	if p := r.perms.value(); p.Audio || !p.Control || !p.Clipboard || !p.Files {
 		t.Fatalf("unticking the sound gives %+v", p)
 	}
+	// A link is for good: nothing is ticked for it.
+	if l := u.newRequest(services.ConsentRequest{PeerID: "L", Link: true}, time.Now().Add(time.Minute), func(error) {}); l.perms.value() != models.ViewOnly {
+		t.Fatalf("a link request starts with %+v", l.perms.value())
+	}
 	st.SetSession(&models.SessionStatus{RoomID: "R"})
 	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Permissions: models.Permissions{View: true, Control: true}})
 	u.render(st.Snapshot())
