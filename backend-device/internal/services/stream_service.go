@@ -146,8 +146,11 @@ type viewer struct {
 	pc      *webrtc.PeerConnection
 	control *webrtc.DataChannel
 	video   *webrtc.TrackLocalStaticSample
-	codec   string        // CodecH264High, CodecH264 or CodecVP8
-	out     *sampleWriter // its track, with the frames and bytes sent
+	audio   *webrtc.TrackLocalStaticSample
+	// hears: the viewer may hear the computer's sound (Permissions.Audio).
+	hears atomic.Bool
+	codec string        // CodecH264High, CodecH264 or CodecVP8
+	out   *sampleWriter // its track, with the frames and bytes sent
 	// keyframe asks this viewer's encoder for a keyframe: a new viewer, a
 	// Picture Loss Indication from its browser, or a connection back.
 	keyframe atomic.Bool
@@ -184,6 +187,7 @@ type StreamService struct {
 	encs     map[string]videoEncoder
 	encKbps  map[string]int
 	encRetry map[string]time.Time // an encoder that failed is tried again then
+	sound    audioPipe
 
 	mu        sync.Mutex
 	sender    Sender
@@ -191,7 +195,8 @@ type StreamService struct {
 	source    MediaSource
 	pings     map[uint64]time.Time
 	pingSeq   uint64
-	rtt       map[string]int // the last round trip per viewer, ms
+	rtt       map[string]int  // the last round trip per viewer, ms
+	hearing   map[string]bool // the viewers that may hear the sound
 	stats     map[string]streamStats
 	sizes     map[string][2]int // each viewer's picture size
 	want      VideoWant         // the latest viewer's wishes
@@ -243,6 +248,7 @@ func NewStreamService(cfg StreamConfig, ice *ICEStore) (*StreamService, error) {
 		viewers:  make(map[string]*viewer),
 		pings:    make(map[uint64]time.Time),
 		rtt:      make(map[string]int),
+		hearing:  make(map[string]bool),
 		stats:    make(map[string]streamStats),
 		sizes:    make(map[string][2]int),
 		want:     VideoWant{Preset: PresetBalanced},
@@ -337,6 +343,12 @@ type MediaSink interface {
 	// Notice tells the viewers something about the source (no permission
 	// to record the screen, back to the test card).
 	Notice(code string)
+	// AudioSamples sends the computer's sound to the viewers allowed to
+	// hear it: interleaved 16-bit stereo at 48 kHz, any length. It may be
+	// called from its own goroutine.
+	AudioSamples(samples []int16)
+	// Hearing reports whether any viewer may hear the sound.
+	Hearing() bool
 }
 
 // CaptureRequest is the screen capture the viewers need.
@@ -345,6 +357,7 @@ type CaptureRequest struct {
 	Width, Height int
 	FPS           int
 	ShowCursor    bool
+	Audio         bool // a viewer may hear the sound: capture it
 }
 
 // MediaSource produces the picture: the test card, or the screen.
@@ -474,7 +487,46 @@ func (s *StreamService) Capture() CaptureRequest {
 			w = r.maxWidth
 		}
 	}
-	return CaptureRequest{Display: d, Width: w, Height: h, FPS: fps, ShowCursor: want.CursorInVideo}
+	return CaptureRequest{Display: d, Width: w, Height: h, FPS: fps, ShowCursor: want.CursorInVideo, Audio: s.Hearing()}
+}
+
+// AudioSamples encodes the sound once and sends it to every viewer that
+// may hear it.
+func (s *StreamService) AudioSamples(samples []int16) {
+	s.sound.write(samples, s.listeners)
+}
+
+// Hearing reports whether any viewer may hear the sound.
+func (s *StreamService) Hearing() bool { return len(s.listeners()) > 0 }
+
+// listeners are the audio tracks of the viewers that may hear the sound.
+func (s *StreamService) listeners() []*webrtc.TrackLocalStaticSample {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []*webrtc.TrackLocalStaticSample
+	for _, v := range s.viewers {
+		if v.hears.Load() && v.audio != nil {
+			out = append(out, v.audio)
+		}
+	}
+	return out
+}
+
+// SetAudio lets a viewer hear the computer's sound, or stops it. It may
+// come before the viewer's stream starts (the session's first grant).
+func (s *StreamService) SetAudio(peerID string, on bool) {
+	s.mu.Lock()
+	if on {
+		s.hearing[peerID] = true
+	} else {
+		delete(s.hearing, peerID)
+	}
+	v := s.viewers[peerID]
+	s.mu.Unlock()
+	if v == nil || v.hears.Swap(on) == on {
+		return
+	}
+	s.signalChanged() // the capture starts or stops the sound
 }
 
 // pickDisplay finds a display by id, else the main one.
@@ -755,6 +807,25 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 	if err != nil {
 		return fail(err)
 	}
+	// The sound: always in the offer, so allowing it later needs no new
+	// negotiation; nothing is sent on it until the viewer may hear.
+	audio, err := newAudioTrack()
+	if err != nil {
+		return fail(err)
+	}
+	v.audio = audio
+	audioSender, err := pc.AddTrack(audio)
+	if err != nil {
+		return fail(err)
+	}
+	go func() { // read its RTCP so the interceptors get it
+		buf := make([]byte, 1500)
+		for {
+			if _, _, err := audioSender.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
 	// Read RTCP: a Picture Loss Indication means this viewer cannot decode
 	// and needs a keyframe (only this viewer's encoder makes one).
 	go func() {
@@ -880,7 +951,11 @@ func (s *StreamService) offer(v *viewer) error {
 	s.mu.Lock()
 	old := s.viewers[peerID]
 	s.viewers[peerID] = v
+	v.hears.Store(s.hearing[peerID])
 	s.mu.Unlock()
+	if v.hears.Load() {
+		s.signalChanged()
+	}
 	if old != nil {
 		old.close()
 	}
@@ -1304,6 +1379,7 @@ func (s *StreamService) RemoveViewer(peerID string) {
 	delete(s.stats, peerID)
 	delete(s.rtt, peerID)
 	delete(s.sizes, peerID)
+	delete(s.hearing, peerID)
 	empty := len(s.viewers) == 0
 	fn := s.onStats
 	s.mu.Unlock()

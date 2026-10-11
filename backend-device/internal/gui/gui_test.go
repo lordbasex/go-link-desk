@@ -210,23 +210,29 @@ func TestThePermissionsShowAndAsk(t *testing.T) {
 	}
 }
 
-func TestControlIsAskedForAndChangedLive(t *testing.T) {
+func TestPermissionsAreAskedForAndChangedLive(t *testing.T) {
 	a := test.NewTempApp(t)
 	st := services.NewStatusService("d", "1.0.0", "ws://x")
 	var set []models.Permissions
 	u := newUI(a, Options{Status: st, Language: "en", SetPermissions: func(p models.Permissions) { set = append(set, p) }})
 	r := u.newRequest(services.ConsentRequest{PeerID: "P"}, time.Now().Add(time.Minute), func(error) {})
-	if r.control.Checked {
-		t.Fatal("control is on before anyone ticks it")
+	if r.perms.value() != models.ViewOnly {
+		t.Fatalf("the request allows %+v before anyone ticks a box", r.perms.value())
+	}
+	test.Tap(r.perms.audio)
+	if p := r.perms.value(); !p.Audio || p.Control || p.Clipboard {
+		t.Fatalf("ticking the sound gives %+v", p)
 	}
 	st.SetSession(&models.SessionStatus{RoomID: "R"})
 	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Permissions: models.Permissions{View: true, Control: true}})
 	u.render(st.Snapshot())
-	if !u.panel.control.Checked || len(set) != 0 {
-		t.Fatalf("panel control %v, set %v", u.panel.control.Checked, set)
+	c := u.panel.checks
+	if !c.control.Checked || c.audio.Checked || len(set) != 0 {
+		t.Fatalf("panel %+v, set %v", c.value(), set)
 	}
-	test.Tap(u.panel.control)
-	if len(set) != 1 || set[0].Control || !set[0].View {
+	test.Tap(c.control)
+	test.Tap(c.clipboard)
+	if len(set) != 2 || set[0].Control || !set[0].View || !set[1].Clipboard || set[1].Control {
 		t.Fatalf("set %v", set)
 	}
 }

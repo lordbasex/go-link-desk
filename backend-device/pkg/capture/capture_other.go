@@ -15,9 +15,10 @@ type Stream struct{}
 // Start is not supported here yet.
 func Start(Config, func(Frame), func(error)) (*Stream, error) { return nil, ErrUnsupported }
 
-func (s *Stream) Update(Config) error { return ErrUnsupported }
-func (s *Stream) Config() Config      { return Config{} }
-func (s *Stream) Stop()               {}
+func (s *Stream) Update(Config) error   { return ErrUnsupported }
+func (s *Stream) Config() Config        { return Config{} }
+func (s *Stream) Stop()                 {}
+func (s *Stream) OnAudio(func([]int16)) {}
 
 func Retain(unsafe.Pointer)                         {}
 func Release(unsafe.Pointer)                        {}

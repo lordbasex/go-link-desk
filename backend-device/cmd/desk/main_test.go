@@ -30,6 +30,15 @@ func TestInputLogOnlyWithAutoAccept(t *testing.T) {
 	}
 }
 
+func TestClipboardFileOnlyWithInputLog(t *testing.T) {
+	if _, err := parseFlags([]string{"--test-clipboard-file", "x", "--test-auto-accept", "--source", "testpattern"}); err == nil {
+		t.Fatal("a clipboard file without the input log was allowed")
+	}
+	if f, err := parseFlags([]string{"--test-clipboard-file", "x", "--test-input-log", "--test-auto-accept", "--source", "testpattern"}); err != nil || f.clipboardFile != "x" {
+		t.Fatalf("%+v %v", f, err)
+	}
+}
+
 func TestAutoAcceptOnlyWithTheTestCard(t *testing.T) {
 	if allowAutoAcceptScreen {
 		t.Skip("a measurement build (desk_test_screen)")

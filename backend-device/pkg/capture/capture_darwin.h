@@ -12,8 +12,8 @@ typedef struct {
 } cap_display;
 
 int cap_displays(cap_display *out, int max, char **err);
-void *cap_start(uint32_t display, int w, int h, int fps, int cursor, uintptr_t handle, char **err);
-int cap_update(void *ref, uint32_t display, int w, int h, int fps, int cursor, char **err);
+void *cap_start(uint32_t display, int w, int h, int fps, int cursor, int audio, uintptr_t handle, char **err);
+int cap_update(void *ref, uint32_t display, int w, int h, int fps, int cursor, int audio, char **err);
 void cap_stop(void *ref);
 void cap_retain(void *pb);
 void cap_release(void *pb);

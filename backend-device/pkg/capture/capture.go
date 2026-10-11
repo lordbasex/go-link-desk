@@ -40,7 +40,16 @@ type Config struct {
 	Width, Height int
 	FPS           int  // the most frames per second; still screens send none
 	ShowCursor    bool // draw the pointer into the picture
+	// Audio captures the computer's sound too (not the host's own); see
+	// Stream.OnAudio.
+	Audio bool
 }
+
+// The sound's format: what Opus and WebRTC use.
+const (
+	AudioRate     = 48000
+	AudioChannels = 2
+)
 
 // Frame is one captured picture: a CVPixelBufferRef (NV12) that is valid
 // only during the callback. To keep it, Retain it (and Release it later).
