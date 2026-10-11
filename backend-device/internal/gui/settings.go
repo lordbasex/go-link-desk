@@ -107,7 +107,7 @@ func (u *ui) newSettings() *settingsWindow {
 	warn.Importance = widget.WarningImportance
 	s.code = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
 	how := wrap(Lf("To link a browser, open %s in it and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link"))
-	s.password = widget.NewLabel("")
+	s.password = wrap("")
 	s.newPass = widget.NewPasswordEntry()
 	s.newPass.SetPlaceHolder(Lf("New password (%d characters or more)", services.MinPassword))
 	s.passErr = widget.NewLabel("")
@@ -121,7 +121,7 @@ func (u *ui) newSettings() *settingsWindow {
 	s.details = container.NewVBox(
 		widget.NewLabel(L("Linking code")), s.code, how,
 		widget.NewSeparator(),
-		s.password, container.NewBorder(nil, nil, nil, container.NewHBox(setPass, s.clearPass), s.newPass), s.passErr,
+		s.password, s.newPass, container.NewHBox(setPass, s.clearPass), s.passErr,
 		widget.NewSeparator(),
 		heading(L("Linked browsers")), s.links,
 	)

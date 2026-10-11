@@ -68,3 +68,11 @@ export const FolderIcon = ({ size = 16 }: P) => (
     <path d="M3 6h6l2 2h10v11H3z" />
   </svg>
 );
+
+export const DevicesIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <rect x="2" y="4" width="15" height="10" rx="1.5" />
+    <path d="M6 18h7M9.5 14v4" />
+    <rect x="17" y="9" width="5" height="11" rx="1" />
+  </svg>
+);

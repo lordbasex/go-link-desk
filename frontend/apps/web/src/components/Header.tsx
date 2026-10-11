@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { LANGS, getLang, setLang, t, type Lang } from "../i18n";
 import { setTheme, useTheme } from "../theme";
-import { MoonIcon, ScreenIcon, SunIcon } from "./Icons";
+import { DevicesIcon, MoonIcon, ScreenIcon, SunIcon } from "./Icons";
 import { Select } from "./ui/Select";
 
 /** The site's header: the brand, the language and the theme. */
@@ -16,8 +16,9 @@ export function Header() {
         {t.brand.name} <span className="brand-suffix">{t.brand.suffix}</span>
       </Link>
       <div className="header-tools">
-        <Link to="/devices" className="header-link">
-          {t.header.devices}
+        <Link to="/devices" className="header-link" aria-label={t.header.devices}>
+          <DevicesIcon />
+          <span className="header-link-text">{t.header.devices}</span>
         </Link>
         <Select<Lang>
           value={getLang()}
