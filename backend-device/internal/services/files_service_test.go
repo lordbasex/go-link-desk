@@ -138,7 +138,7 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	if len(names) != 3 || names[0] != "Documents" || names[1] != "escape" || names[2] != "keys" {
 		t.Fatalf("listing %v (hidden files must not show)", names)
 	}
-	for _, p := range []string{"../", "escape/passwd", "escape", "/etc/passwd", ".ssh/id_ed25519", ".ssh", "Documents/../.ssh/id_ed25519", "Library", "Library/Keychains/login.keychain-db", "keys/id_ed25519", "keys"} {
+	for _, p := range []string{"../", "escape/passwd", "escape", "/etc/passwd", ".ssh/id_ed25519", ".ssh", "Documents/../.ssh/id_ed25519", "Library", "Library/Keychains/login.keychain-db", "library/Keychains/login.keychain-db", "LIBRARY", "./Library/Keychains", "Documents/../Library/Keychains", "keys/id_ed25519", "keys"} {
 		f.Handle("P", true, msg(map[string]any{"type": "download", "id": "x", "path": p}))
 		if got := w.last(); got["type"] != "download_error" {
 			t.Fatalf("%q: %v", p, got)

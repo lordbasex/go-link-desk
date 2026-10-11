@@ -352,7 +352,10 @@ func (f *FilesService) abortUpload(peerID string, reason error) {
 
 // privateFolders are folders of the home a viewer never sees, besides the
 // hidden ones: macOS keeps keychains, cookies, mail and app data there.
-var privateFolders = map[string]bool{"Library": true}
+// Lower case: macOS's disks ignore case, so "library" is the same folder.
+var privateFolders = map[string]bool{"library": true}
+
+func isPrivateFolder(name string) bool { return privateFolders[strings.ToLower(name)] }
 
 // private reports whether a path relative to home goes through a hidden
 // file or folder, or a private folder.
@@ -363,7 +366,13 @@ func private(rel string) bool {
 			return true
 		}
 	}
-	return len(segs) > 0 && privateFolders[segs[0]]
+	// The first segment that names something ("./Library" is Library).
+	for _, seg := range segs {
+		if seg != "" && seg != "." {
+			return isPrivateFolder(seg)
+		}
+	}
+	return false
 }
 
 // resolve maps a path relative to home to the file it names, refusing
@@ -416,7 +425,7 @@ func (f *FilesService) list(peerID string, m filesMsg) {
 	}
 	entries := make([]fileEntry, 0, len(des))
 	for _, d := range des {
-		if strings.HasPrefix(d.Name(), ".") || (dir == f.homeReal() && privateFolders[d.Name()]) {
+		if strings.HasPrefix(d.Name(), ".") || (dir == f.homeReal() && isPrivateFolder(d.Name())) {
 			continue // hidden and private ones stay hidden
 		}
 		info, err := d.Info()
