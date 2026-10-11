@@ -159,3 +159,7 @@
 "Wrong password. %d tries left." = "Senha errada. Restam %d tentativas.";
 "the computer" = "o computador";
 "the passcode" = "o código";
+"%@ is typing…" = "%@ está digitando…";
+"The computer" = "O computador";
+"Message sound" = "Som das mensagens";
+"A short sound when the person at the computer writes to you in the chat." = "Um som curto quando a pessoa no computador escreve para você no chat.";

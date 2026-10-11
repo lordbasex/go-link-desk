@@ -130,6 +130,9 @@ export const en = {
     write: "Write a message",
     send: "Send",
     you: "You",
+    typing: "{name} is typing",
+    soundOn: "Turn the message sound on",
+    soundOff: "Turn the message sound off",
   },
   keys: {
     menu: "Keys",

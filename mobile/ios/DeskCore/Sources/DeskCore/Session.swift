@@ -152,6 +152,8 @@ public final class SessionEvents {
     public var cursorPos: ((_ x: Double, _ y: Double, _ visible: Bool) -> Void)?
     public var clipboard: ((String) -> Void)?
     public var chat: ((String) -> Void)?
+    /** The person at the computer is writing a chat message (on), or stopped. */
+    public var typing: ((Bool) -> Void)?
     /** Linked with the pairing code: keep it to come back without a code. */
     public var linked: ((DeviceLink) -> Void)?
     /** The computer no longer has this link: forget it. */
@@ -436,6 +438,8 @@ public final class DeskSession: RtcPeerEvents {
         case "chat":
             let t = String(o["text"].str(DeskSession.maxChat))
             if !t.isEmpty { events.chat?(t) }
+        case "typing":
+            events.typing?(o["on"].isTrue)
         case "session_end":
             let r = o["reason"].str(20)
             finish(.ended(["host", "viewer", "network", "signal", "idle", "revoked"].contains(r) ? r : "host"))
@@ -577,6 +581,12 @@ public final class DeskSession: RtcPeerEvents {
         control(.obj(("type", "client_report"), ("metrics", .obj(
             ("freeze_ms", 0), ("video_loss_pct", .number(lossPct)), ("jitter_ms", 0), ("hidden", .bool(hidden))
         ))))
+    }
+
+    /** Tells the computer this side is writing a chat message (on), or stopped. */
+    public func sendTyping(_ on: Bool) {
+        guard !status.isOver else { return }
+        control(.obj(("type", "typing"), ("on", .bool(on))))
     }
 
     public func sendChat(_ text: String) -> Bool {

@@ -174,7 +174,9 @@ type Events struct {
 	// Clipboard: something new was copied on the computer.
 	Clipboard func(text string)
 	Chat      func(ChatLine)
-	Linked    func(NewLink)
+	// Typing: the person at the computer is writing a message (on), or stopped.
+	Typing func(on bool)
+	Linked func(NewLink)
 	// Unlinked: the computer no longer has this link: forget it.
 	Unlinked func()
 	// Files: the files channel is open (with the files permission).

@@ -128,6 +128,9 @@ export const pt: Messages = {
     write: "Escreva uma mensagem",
     send: "Enviar",
     you: "Você",
+    typing: "{name} está digitando",
+    soundOn: "Ativar o som das mensagens",
+    soundOff: "Silenciar o som das mensagens",
   },
   keys: {
     menu: "Teclas",

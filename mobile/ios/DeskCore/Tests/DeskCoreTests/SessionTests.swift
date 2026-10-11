@@ -68,6 +68,13 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(s.hostOS, "darwin")
         peer.events.onControlMessage(#"{"type":"displays","displays":[{"id":7,"name":"A","width":100,"height":50},{"id":9,"name":"B","width":10,"height":5}],"current":9}"#)
         XCTAssertEqual(displays.map(\.id), [7, 9])
+        var typing: [Bool] = []
+        s.events.typing = { typing.append($0) }
+        peer.events.onControlMessage(#"{"type":"typing","on":true}"#)
+        peer.events.onControlMessage(#"{"type":"typing","on":false}"#)
+        XCTAssertEqual(typing, [true, false])
+        s.sendTyping(true)
+        XCTAssertEqual(peer.control.last, #"{"type":"typing","on":true}"#)
         peer.events.onControlMessage(#"{"type":"ping","id":4}"#)
         XCTAssertEqual(peer.control.last, #"{"type":"pong","id":4}"#)
 

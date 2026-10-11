@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+import AudioToolbox
 import DeskCore
 import OSLog
 import SwiftUI
@@ -52,6 +53,12 @@ final class SessionModel: ObservableObject, MediaListener {
     }
     @Published var toast: String?
     private var toastTimer: Timer?
+    /** The person at the computer is writing a message. */
+    @Published private(set) var hostTyping = false
+    private var hostTypingTimer: Timer?
+    /** This side writing: "typing" again every few seconds, "stopped" after a pause. */
+    private var typingSentAt: Date?
+    private var typingPause: Timer?
     /** The link made with the pairing code, saved again when the computer says its name. */
     private var pendingLink: DeviceLink?
     /** Linked in this session, to say so. */
@@ -112,6 +119,7 @@ final class SessionModel: ObservableObject, MediaListener {
         }
         ev.clipboard = { text in UIPasteboard.general.string = text }
         ev.chat = { [weak self] text in self?.received(text) }
+        ev.typing = { [weak self] on in self?.setHostTyping(on) }
         ev.linked = { [weak self] link in
             guard let self else { return }
             self.pendingLink = link
@@ -184,8 +192,47 @@ final class SessionModel: ObservableObject, MediaListener {
         }
     }
 
+    private func setHostTyping(_ on: Bool) {
+        hostTypingTimer?.invalidate()
+        hostTypingTimer = nil
+        hostTyping = on
+        guard on else { return }
+        // Without news for a while, it stopped.
+        hostTypingTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hostTyping = false }
+        }
+    }
+
+    /** The chat's line changed: tell the computer this side is writing, or stopped. */
+    func wrote(_ text: String) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            quiet()
+            return
+        }
+        if typingSentAt.map({ Date().timeIntervalSince($0) >= 3 }) ?? true {
+            typingSentAt = Date()
+            session.sendTyping(true)
+        }
+        typingPause?.invalidate()
+        typingPause = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.quiet() }
+        }
+    }
+
+    func quiet() {
+        typingPause?.invalidate()
+        typingPause = nil
+        if typingSentAt != nil {
+            typingSentAt = nil
+            session.sendTyping(false)
+        }
+    }
+
     private func received(_ text: String) {
+        setHostTyping(false) // the message it was writing came
         chat.append(ChatLine(fromHost: true, text: text, at: Date()))
+        // The message sound (Settings › Message sound): the system's "received" chime.
+        if app.chatSound { AudioServicesPlaySystemSound(1003) }
         if chat.count > 500 { chat.removeFirst(chat.count - 500) }
         guard !showChat else { return }
         unread += 1
@@ -201,6 +248,7 @@ final class SessionModel: ObservableObject, MediaListener {
     @discardableResult
     func say(_ text: String) -> Bool {
         guard session.sendChat(text) else { return false }
+        quiet()
         chat.append(ChatLine(fromHost: false, text: text.trimmingCharacters(in: .whitespacesAndNewlines), at: Date()))
         return true
     }

@@ -157,9 +157,16 @@ func (r *remote) events() viewer.Events {
 		CursorPos:   func(x, y float64, visible bool) { r.view.CursorPos(x, y, visible) },
 		Clipboard:   func(text string) { r.board.SetText(text) },
 		Chat:        r.onChat,
-		Linked:      r.onLinked,
-		Unlinked:    r.onUnlinked,
-		Files:       r.onFiles,
+		Typing: func(on bool) {
+			fyne.Do(func() {
+				if r.chat != nil {
+					r.chat.showTyping(on)
+				}
+			})
+		},
+		Linked:   r.onLinked,
+		Unlinked: r.onUnlinked,
+		Files:    r.onFiles,
 	}
 }
 

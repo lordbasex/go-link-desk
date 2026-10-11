@@ -367,6 +367,7 @@ func run(args []string) error {
 		idle.Touch(peer)
 		chat.Handle(peer, data)
 	})
+	control.Handle("typing", chat.HandleTyping)
 	for _, kind := range []string{"auth", "auth_challenge", "unlink"} {
 		control.Handle(kind, unattended.HandleControl)
 	}

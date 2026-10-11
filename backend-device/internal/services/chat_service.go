@@ -29,6 +29,7 @@ type ChatService struct {
 	peer      string // the viewer in session, "" for none
 	lines     []ChatMessage
 	onMessage func(ChatMessage)
+	onTyping  func(bool)
 }
 
 // maxChatLog bounds the messages a session keeps.
@@ -51,6 +52,48 @@ func (c *ChatService) OnMessage(fn func(ChatMessage)) {
 
 // SetPeer starts a session's chat with a viewer, or ends it ("" ). A new
 // session starts with an empty chat.
+// OnTyping registers fn, told when the viewer starts or stops typing a
+// message (the window shows "… is typing").
+func (c *ChatService) OnTyping(fn func(bool)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onTyping = fn
+}
+
+// HandleTyping takes the viewer's typing {on}: it is writing a message
+// (sent again every few seconds while it does), or it stopped.
+func (c *ChatService) HandleTyping(peerID string, data []byte) {
+	var m struct {
+		On bool `json:"on"`
+	}
+	if json.Unmarshal(data, &m) != nil {
+		return
+	}
+	c.mu.Lock()
+	ok := peerID == c.peer && peerID != ""
+	fn := c.onTyping
+	c.mu.Unlock()
+	if ok && fn != nil {
+		fn(m.On)
+	}
+}
+
+// Typing tells the viewer the person at the computer is writing a
+// message (on), or stopped.
+func (c *ChatService) Typing(on bool) {
+	c.mu.Lock()
+	peer := c.peer
+	c.mu.Unlock()
+	if peer == "" {
+		return
+	}
+	b, _ := json.Marshal(struct {
+		Type string `json:"type"`
+		On   bool   `json:"on"`
+	}{"typing", on})
+	c.send(peer, b)
+}
+
 func (c *ChatService) SetPeer(peerID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

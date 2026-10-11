@@ -12,7 +12,7 @@ keys = {}
 for f in glob.glob(f"{here}/DeskViewer/**/*.swift", recursive=True):
     s = open(f, encoding="utf-8").read()
     for pat in (r'String\(localized:\s*"((?:[^"\\]|\\.)*)"',
-                r'\b(?:Text|Button|Section|Label|Picker|TextField|LabeledContent|navigationTitle|ContentUnavailableView|SecureField)\(\s*"((?:[^"\\]|\\.)*)"'):
+                r'\b(?:Text|Button|Section|Label|Picker|TextField|LabeledContent|navigationTitle|ContentUnavailableView|SecureField|Toggle)\(\s*"((?:[^"\\]|\\.)*)"'):
         for m in re.finditer(pat, s):
             if m.group(1):
                 keys.setdefault(m.group(1), f)

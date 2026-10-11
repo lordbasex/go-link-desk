@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     /** Trackpad (the default) or touch: how a finger moves the pointer. */
     @Published var touchMode: Bool { didSet { defaults.set(touchMode, forKey: "touch_mode") } }
     @Published var preset: Preset { didSet { defaults.set(preset.rawValue, forKey: "preset") } }
+    /** A sound when a chat message comes (on by default). */
+    @Published var chatSound: Bool { didSet { defaults.set(chatSound, forKey: "chat_sound") } }
     @Published var session: SessionModel?
     let links = LinkStore()
     /** Why the last link or unlock failed, for Home. */
@@ -30,6 +32,7 @@ final class AppModel: ObservableObject {
         customSignal = defaults.string(forKey: "signal") ?? ""
         touchMode = defaults.bool(forKey: "touch_mode")
         preset = Preset(rawValue: defaults.string(forKey: "preset") ?? "") ?? .balanced
+        chatSound = defaults.object(forKey: "chat_sound") as? Bool ?? true
         if let data = defaults.data(forKey: "recents"), let list = try? JSONDecoder().decode([Recent].self, from: data) {
             recents = list
         } else {

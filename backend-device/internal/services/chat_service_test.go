@@ -36,3 +36,25 @@ func TestChatBothWaysWithTheViewerInSession(t *testing.T) {
 		t.Fatal("the last session's chat stayed")
 	}
 }
+
+func TestTypingBothWays(t *testing.T) {
+	var out []string
+	c := NewChatService(func(peer string, b []byte) bool {
+		out = append(out, peer+":"+string(b))
+		return true
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	var typing []bool
+	c.OnTyping(func(on bool) { typing = append(typing, on) })
+	c.Typing(true) // nobody in session
+	c.SetPeer("P")
+	c.HandleTyping("Q", []byte(`{"type":"typing","on":true}`)) // not the viewer in session
+	c.HandleTyping("P", []byte(`{"type":"typing","on":true}`))
+	c.HandleTyping("P", []byte(`{"type":"typing","on":false}`))
+	c.Typing(true)
+	if len(typing) != 2 || !typing[0] || typing[1] {
+		t.Fatalf("typing %v", typing)
+	}
+	if len(out) != 1 || out[0] != `P:{"type":"typing","on":true}` {
+		t.Fatalf("sent %v", out)
+	}
+}

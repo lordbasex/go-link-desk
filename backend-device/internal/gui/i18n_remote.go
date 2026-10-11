@@ -211,6 +211,8 @@ func init() {
 		"To link a device: open %s in its browser, or in the iPhone and iPad app go to My computers › Link, and type this code. You will be asked to accept it.": "Para vincular un equipo: abrí %s en su navegador, o en la app de iPhone y iPad andá a Mis computadoras › Vincular, y escribí este código. Te va a pedir que lo aceptes.",
 		"Unattended access needs one.":                             "El acceso desatendido la necesita.",
 		"Unattended access turns off: it always needs a password.": "El acceso desatendido se apaga: siempre necesita una contraseña.",
+		"%s is typing…":                                            "%s está escribiendo…",
+		"The viewer":                                               "Quien ve",
 	})
 	add("pt", map[string]string{
 		"Can see your screen, and:": "Pode ver sua tela e também:",
@@ -410,5 +412,7 @@ func init() {
 		"To link a device: open %s in its browser, or in the iPhone and iPad app go to My computers › Link, and type this code. You will be asked to accept it.": "Para vincular um aparelho: abra %s no navegador dele, ou no app de iPhone e iPad vá em Meus computadores › Vincular, e digite este código. Vão pedir que você aceite.",
 		"Unattended access needs one.":                             "O acesso não supervisionado precisa de uma.",
 		"Unattended access turns off: it always needs a password.": "O acesso não supervisionado desliga: ele sempre precisa de uma senha.",
+		"%s is typing…":                                            "%s está digitando…",
+		"The viewer":                                               "Quem vê",
 	})
 }

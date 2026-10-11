@@ -36,6 +36,11 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Section {
+                    Toggle("Message sound", isOn: $app.chatSound)
+                } footer: {
+                    Text("A short sound when the person at the computer writes to you in the chat.")
+                }
+                Section {
                     TextField(DeskProtocol.officialSignalURL, text: $server)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
