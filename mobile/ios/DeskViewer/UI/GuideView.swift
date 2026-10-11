@@ -40,6 +40,7 @@ struct GuideView: View {
                 }
                 Section("The toolbar") {
                     Gesture("command", "Special keys", "Shortcuts of the computer (switch apps, Ctrl+Alt+Del, Spotlight…) and Paste this device's clipboard there.")
+                    Gesture("bubble.left.and.bubble.right", "Chat", "Write to the person at the computer; a number shows messages you have not read.")
                     Gesture("folder", "Files", "Browse the computer's files: tap one to download it to this device, or send one of yours.")
                     Gesture("display", "Screen", "The computer's displays, the picture's quality, trackpad or touch, the sound and the details.")
                     Gesture("lock", "Lock", "To watch without touching anything: the screen stops sending. Hold the lock for a second to unlock.")

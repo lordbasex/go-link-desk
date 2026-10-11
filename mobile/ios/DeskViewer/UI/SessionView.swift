@@ -7,6 +7,9 @@ import SwiftUI
 struct SessionView: View {
     @ObservedObject var model: SessionModel
     @State private var barHidden = false
+    /** On a phone held upright the toolbar has no room for everything: the name goes, lock and help move to the screen menu. */
+    @Environment(\.horizontalSizeClass) private var width
+    private var narrow: Bool { width == .compact }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -27,6 +30,24 @@ struct SessionView: View {
             }
         }
         .sheet(isPresented: $model.showGuide) { GuideView(touchMode: model.touchMode) }
+        .sheet(isPresented: $model.showChat) { ChatView(model: model) }
+        .overlay(alignment: .top) {
+            if let t = model.toast, !model.showChat {
+                Button { model.showChat = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bubble.left.fill").foregroundStyle(Theme.accent)
+                        Text(verbatim: t).lineLimit(2).foregroundStyle(.white)
+                    }
+                    .font(.footnote)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.75), in: Capsule())
+                }
+                .padding(.top, 56)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut, value: model.toast)
         .sheet(isPresented: $model.showFiles) {
             if let f = model.files { FilesView(model: f) }
         }
@@ -74,25 +95,44 @@ struct SessionView: View {
             } else {
                 Button(role: .destructive) { model.hangUp() } label: { Image(systemName: "xmark") }
                     .accessibilityLabel(Text("Disconnect"))
-                Text(title)
-                    .font(.footnote.weight(.medium))
-                    .lineLimit(1)
-                    .padding(.horizontal, 6)
-                Divider().frame(height: 20)
+                if !narrow {
+                    Text(title)
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                    Divider().frame(height: 20)
+                }
                 if model.permissions.control {
                     Button { model.keyboard.toggle() } label: { Image(systemName: model.keyboard ? "keyboard.chevron.compact.down" : "keyboard") }
                         .accessibilityLabel(Text("Keyboard"))
                     keysMenu
                 }
+                Button { model.showChat = true } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .overlay(alignment: .topTrailing) {
+                            if model.unread > 0 {
+                                Text(verbatim: "\(min(model.unread, 99))")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .frame(minWidth: 16, minHeight: 16)
+                                    .background(.red, in: Capsule())
+                                    .offset(x: 9, y: -8)
+                            }
+                        }
+                }
+                .accessibilityLabel(Text("Chat"))
                 if model.permissions.files && model.files != nil {
                     Button { model.showFiles = true } label: { Image(systemName: "folder") }
                         .accessibilityLabel(Text("Files"))
                 }
                 screenMenu
-                Button { withAnimation { model.locked = true } } label: { Image(systemName: "lock") }
-                    .accessibilityLabel(Text("Lock"))
-                Button { model.showGuide = true } label: { Image(systemName: "questionmark.circle") }
-                    .accessibilityLabel(Text("How to use it"))
+                if !narrow {
+                    Button { withAnimation { model.locked = true } } label: { Image(systemName: "lock") }
+                        .accessibilityLabel(Text("Lock"))
+                    Button { model.showGuide = true } label: { Image(systemName: "questionmark.circle") }
+                        .accessibilityLabel(Text("How to use it"))
+                }
                 Button { withAnimation { barHidden = true } } label: { Image(systemName: "chevron.up") }
                     .accessibilityLabel(Text("Hide the toolbar"))
             }
@@ -176,6 +216,10 @@ struct SessionView: View {
                     Button { model.setMuted(!model.muted) } label: {
                         Label(model.muted ? String(localized: "Turn the sound on") : String(localized: "Mute the sound"), systemImage: model.muted ? "speaker.wave.2" : "speaker.slash")
                     }
+                }
+                if narrow {
+                    Button { withAnimation { model.locked = true } } label: { Label("Lock", systemImage: "lock") }
+                    Button { model.showGuide = true } label: { Label("How to use it", systemImage: "questionmark.circle") }
                 }
                 Button { model.showStats.toggle() } label: {
                     Label(model.showStats ? String(localized: "Hide the details") : String(localized: "Show the details"), systemImage: "chart.bar")

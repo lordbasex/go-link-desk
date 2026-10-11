@@ -129,3 +129,7 @@
 "You are in touch mode: the pointer goes where you touch." = "Estás en modo táctil: el puntero va adonde tocás.";
 "You are in trackpad mode: the screen works like a laptop's trackpad." = "Estás en modo trackpad: la pantalla funciona como el trackpad de una notebook.";
 "Zoom in and out. Zoomed in, slide two fingers to move around." = "Acercar y alejar. Con zoom, deslizá dos dedos para moverte.";
+"Chat" = "Chat";
+"Message" = "Mensaje";
+"Write to the person at the computer. They see it in a window on their screen." = "Escribile a la persona en la computadora. Lo ve en una ventana en su pantalla.";
+"Write to the person at the computer; a number shows messages you have not read." = "Escribile a la persona en la computadora; un número muestra los mensajes que no leíste.";

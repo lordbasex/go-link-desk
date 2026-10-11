@@ -37,6 +37,14 @@ final class SessionModel: ObservableObject, MediaListener {
     @Published private(set) var files: FilesModel?
     @Published var showFiles = false
     @Published var showGuide = false
+    /** The chat: its lines, how many came while it was closed, and the last one as a toast. */
+    @Published private(set) var chat: [ChatLine] = []
+    @Published private(set) var unread = 0
+    @Published var showChat = false {
+        didSet { if showChat { unread = 0; toast = nil } }
+    }
+    @Published var toast: String?
+    private var toastTimer: Timer?
     /** Locked to watch: the screen sends nothing until it is unlocked. */
     @Published var locked = false {
         didSet { if locked { keyboard = false } }
@@ -82,6 +90,7 @@ final class SessionModel: ObservableObject, MediaListener {
             self?.onHostPointer?(x, y, visible)
         }
         ev.clipboard = { text in UIPasteboard.general.string = text }
+        ev.chat = { [weak self] text in self?.received(text) }
         // The picture is sent smaller while the app is in the background.
         let nc = NotificationCenter.default
         lifecycle = [
@@ -134,6 +143,27 @@ final class SessionModel: ObservableObject, MediaListener {
             SessionModel.log.info("stats fps=\(st.fps, format: .fixed(precision: 1)) size=\(st.width)x\(st.height) kbps=\(st.kbps) loss=\(st.lossPct, format: .fixed(precision: 1)) rtt=\(st.rttMs ?? -1) path=\(st.path ?? "-", privacy: .public) video=\(self.video != nil)")
             self.session.report(lossPct: self.stats.lossPct, hidden: self.hidden)
         }
+    }
+
+    private func received(_ text: String) {
+        chat.append(ChatLine(fromHost: true, text: text, at: Date()))
+        if chat.count > 500 { chat.removeFirst(chat.count - 500) }
+        guard !showChat else { return }
+        unread += 1
+        toast = text
+        toastTimer?.invalidate()
+        toastTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.toast = nil }
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    /** Sends a chat line; false when there is nothing to send or the session is over. */
+    @discardableResult
+    func say(_ text: String) -> Bool {
+        guard session.sendChat(text) else { return false }
+        chat.append(ChatLine(fromHost: false, text: text.trimmingCharacters(in: .whitespacesAndNewlines), at: Date()))
+        return true
     }
 
     func hangUp() {
@@ -199,4 +229,12 @@ final class SessionModel: ObservableObject, MediaListener {
         files = nil
         showFiles = false
     }
+}
+
+/** One line of the session's chat. */
+struct ChatLine: Identifiable, Equatable {
+    let id = UUID()
+    let fromHost: Bool
+    let text: String
+    let at: Date
 }
