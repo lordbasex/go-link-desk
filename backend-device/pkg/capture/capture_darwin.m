@@ -11,6 +11,7 @@
 
 extern void goCaptureFrame(uintptr_t handle, void *pixelBuffer, int width, int height, int64_t ptsMicros);
 extern void goCaptureStopped(uintptr_t handle, char *err);
+extern void goCaptureAudio(uintptr_t handle, int16_t *samples, int frames);
 
 // ---- displays ----
 
@@ -93,11 +94,84 @@ int cap_displays(cap_display *out, int max, char **err) {
 @property(nonatomic) uintptr_t handle;
 @property(nonatomic, strong) SCStream *stream;
 @property(nonatomic, strong) dispatch_queue_t queue;
+@property(nonatomic, strong) dispatch_queue_t audioQueue;
 @end
+
+// The sound's sample rate and channels: what Opus and WebRTC use.
+enum { kAudioRate = 48000, kAudioChannels = 2 };
+
+static inline int16_t to_s16(float f) {
+	if (f > 1.0f)
+		f = 1.0f;
+	if (f < -1.0f)
+		f = -1.0f;
+	return (int16_t)(f * 32767.0f);
+}
+
+// audio hands a buffer of sound to Go as interleaved 16-bit stereo.
+// ScreenCaptureKit delivers 32-bit float, usually one buffer per channel.
+static void audio(uintptr_t handle, CMSampleBufferRef sb) {
+	CMAudioFormatDescriptionRef fmt = CMSampleBufferGetFormatDescription(sb);
+	const AudioStreamBasicDescription *asbd = fmt ? CMAudioFormatDescriptionGetStreamBasicDescription(fmt) : NULL;
+	if (!asbd || asbd->mFormatID != kAudioFormatLinearPCM || !(asbd->mFormatFlags & kAudioFormatFlagIsFloat) || asbd->mBitsPerChannel != 32)
+		return;
+	int frames = (int)CMSampleBufferGetNumSamples(sb);
+	int channels = (int)asbd->mChannelsPerFrame;
+	if (frames <= 0 || channels <= 0)
+		return;
+	// Ask how big the buffer list must be, then fetch it.
+	size_t need = 0;
+	if (CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sb, &need, NULL, 0, NULL, NULL, 0, NULL) != noErr || need == 0)
+		return;
+	AudioBufferList *list = malloc(need);
+	if (!list)
+		return;
+	CMBlockBufferRef block = NULL;
+	if (CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sb, NULL, list, need, NULL, NULL, kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment, &block) != noErr) {
+		free(list);
+		return;
+	}
+	BOOL planar = (asbd->mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
+	// Never read past what the buffers hold.
+	for (UInt32 i = 0; i < list->mNumberBuffers; i++) {
+		UInt32 per = planar ? 1 : (UInt32)channels;
+		if (list->mBuffers[i].mData == NULL || list->mBuffers[i].mDataByteSize < (UInt32)frames * per * sizeof(float)) {
+			free(list);
+			CFRelease(block);
+			return;
+		}
+	}
+	int16_t *out = malloc((size_t)frames * kAudioChannels * sizeof(int16_t));
+	if (out) {
+		for (int i = 0; i < frames; i++) {
+			for (int c = 0; c < kAudioChannels; c++) {
+				int src = c < channels ? c : channels - 1; // mono: both sides
+				float f;
+				if (planar) {
+					UInt32 b = (UInt32)src < list->mNumberBuffers ? (UInt32)src : 0;
+					f = ((const float *)list->mBuffers[b].mData)[i];
+				} else {
+					f = ((const float *)list->mBuffers[0].mData)[i * channels + src];
+				}
+				out[i * kAudioChannels + c] = to_s16(f);
+			}
+		}
+		goCaptureAudio(handle, out, frames);
+		free(out);
+	}
+	free(list);
+	CFRelease(block);
+}
 
 @implementation DeskCapture
 - (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sb ofType:(SCStreamOutputType)type {
-	if (type != SCStreamOutputTypeScreen || !CMSampleBufferIsValid(sb))
+	if (!CMSampleBufferIsValid(sb))
+		return;
+	if (type == SCStreamOutputTypeAudio) {
+		audio(self.handle, sb);
+		return;
+	}
+	if (type != SCStreamOutputTypeScreen)
 		return;
 	// Only complete frames carry a new picture: ScreenCaptureKit also sends
 	// "idle" ones while nothing changes, which are not encoded at all.
@@ -121,7 +195,7 @@ int cap_displays(cap_display *out, int max, char **err) {
 }
 @end
 
-static SCStreamConfiguration *make_config(int w, int h, int fps, int cursor) {
+static SCStreamConfiguration *make_config(int w, int h, int fps, int cursor, int audio) {
 	SCStreamConfiguration *c = [[SCStreamConfiguration alloc] init];
 	c.width = w;
 	c.height = h;
@@ -132,6 +206,11 @@ static SCStreamConfiguration *make_config(int w, int h, int fps, int cursor) {
 	c.showsCursor = cursor ? YES : NO;
 	c.scalesToFit = YES;
 	c.queueDepth = 5;
+	// The computer's sound, without the host's own.
+	c.capturesAudio = audio ? YES : NO;
+	c.excludesCurrentProcessAudio = YES;
+	c.sampleRate = kAudioRate;
+	c.channelCount = kAudioChannels;
 	return c;
 }
 
@@ -146,7 +225,7 @@ static SCDisplay *find_display(SCShareableContent *content, uint32_t id) {
 	return id == 0 ? first : nil;
 }
 
-void *cap_start(uint32_t display, int w, int h, int fps, int cursor, uintptr_t handle, char **err) {
+void *cap_start(uint32_t display, int w, int h, int fps, int cursor, int audio, uintptr_t handle, char **err) {
 	@autoreleasepool {
 		NSError *e = nil;
 		SCShareableContent *content = shareable(&e);
@@ -165,8 +244,14 @@ void *cap_start(uint32_t display, int w, int h, int fps, int cursor, uintptr_t h
 		DeskCapture *cap = [[DeskCapture alloc] init];
 		cap.handle = handle;
 		cap.queue = dispatch_queue_create("org.go-link.desk.capture", DISPATCH_QUEUE_SERIAL);
-		cap.stream = [[SCStream alloc] initWithFilter:filter configuration:make_config(w, h, fps, cursor) delegate:cap];
+		cap.audioQueue = dispatch_queue_create("org.go-link.desk.capture.audio", DISPATCH_QUEUE_SERIAL);
+		cap.stream = [[SCStream alloc] initWithFilter:filter configuration:make_config(w, h, fps, cursor, audio) delegate:cap];
 		if (![cap.stream addStreamOutput:cap type:SCStreamOutputTypeScreen sampleHandlerQueue:cap.queue error:&e]) {
+			*err = copy_error(e);
+			return NULL;
+		}
+		// The sound output is always there; capturesAudio turns it on and off.
+		if (![cap.stream addStreamOutput:cap type:SCStreamOutputTypeAudio sampleHandlerQueue:cap.audioQueue error:&e]) {
 			*err = copy_error(e);
 			return NULL;
 		}
@@ -190,12 +275,12 @@ void *cap_start(uint32_t display, int w, int h, int fps, int cursor, uintptr_t h
 
 // cap_update changes the size, frame rate, cursor and display of a running
 // capture, without stopping it.
-int cap_update(void *ref, uint32_t display, int w, int h, int fps, int cursor, char **err) {
+int cap_update(void *ref, uint32_t display, int w, int h, int fps, int cursor, int audio, char **err) {
 	@autoreleasepool {
 		DeskCapture *cap = (__bridge DeskCapture *)ref;
 		__block NSError *ue = nil;
 		dispatch_semaphore_t done = dispatch_semaphore_create(0);
-		[cap.stream updateConfiguration:make_config(w, h, fps, cursor) completionHandler:^(NSError *e) {
+		[cap.stream updateConfiguration:make_config(w, h, fps, cursor, audio) completionHandler:^(NSError *e) {
 			ue = e;
 			dispatch_semaphore_signal(done);
 		}];
@@ -237,6 +322,7 @@ void cap_stop(void *ref) {
 		dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 		// Frames already queued finish before the queue is let go.
 		dispatch_sync(cap.queue, ^{});
+		dispatch_sync(cap.audioQueue, ^{});
 	}
 }
 

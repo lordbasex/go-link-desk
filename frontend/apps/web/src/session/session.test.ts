@@ -128,4 +128,32 @@ describe("Session control messages", () => {
     control({ type: "cursor", id: "abc", hot_x: 8, hot_y: 8, width: 17, height: 23 });
     expect(cursors).toHaveLength(3);
   });
+
+  it("takes the host's clipboard only with the permission, and chats both ways", async () => {
+    const client = new FakeClient();
+    const { s } = start(client);
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const control = (s as unknown as { onControl(m: unknown): void }).onControl.bind(s);
+    const sent: unknown[] = [];
+    (s as unknown as { stream: { sendControl(m: unknown): void } }).stream.sendControl = (m) => sent.push(m);
+
+    control({ type: "clipboard", id: 1, part: 0, parts: 1, text: "secret" });
+    expect(s.current.hostClipboard).toBeNull(); // no permission yet
+    control({ type: "permissions", permissions: { view: true, clipboard: true } });
+    control({ type: "clipboard", id: 2, part: 0, parts: 2, text: "ho" });
+    expect(s.current.hostClipboard).toBeNull();
+    control({ type: "clipboard", id: 2, part: 1, parts: 2, text: "la" });
+    expect(s.current.hostClipboard).toEqual({ id: 1, text: "hola" });
+
+    expect(s.sendClipboard("pegar", true)).toBe(true);
+    expect(sent.at(-1)).toEqual({ type: "clipboard", id: 1, part: 0, parts: 1, text: "pegar", paste: true });
+
+    control({ type: "chat", text: "¿en qué te ayudo?" });
+    s.sendChat("  no anda el wifi  ");
+    expect(sent.at(-1)).toEqual({ type: "chat", text: "no anda el wifi" });
+    expect(s.current.chat.map((l) => [l.fromHost, l.text])).toEqual([
+      [true, "¿en qué te ayudo?"],
+      [false, "no anda el wifi"],
+    ]);
+  });
 });

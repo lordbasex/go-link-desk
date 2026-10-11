@@ -98,10 +98,12 @@ The host creates them, as in go-link. `control`, `pointer` and `input` are imple
 | `cursor_pos` | host → viewer | `{x, y, visible}`: where the pointer is, 0..1 over the display shown; up to 60 a second, only when it moves. |
 | `beacon` | viewer → host | `{seq}`: the latency beacon, white for an odd `seq`, black for an even one. See *Latency* below. |
 | `notice` | host → viewer | `{code}`: `no_screen_permission` (the host may not record its screen: the viewer sees the test card), `capture_failed`, or `no_accessibility` (the viewer may control, but the host has no Accessibility permission, so nothing it sends reaches the computer). |
-| `permissions` | host → viewer | `{view, control}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
+| `permissions` | host → viewer | `{view, control, audio, clipboard, files}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
+| `clipboard` | both | `{id, part, parts, text, paste?}`: one piece of a clipboard's text, at most 16 KiB of UTF-8, never splitting a character; a text is at most 1 MiB. Only with `permissions.clipboard`. Host → viewer: something new was copied on the host. Viewer → host: the viewer pasted (Cmd+V or Ctrl+V); `paste` on the last piece asks the host to paste it (Cmd+V) where its cursor is, for a viewer that may control. A piece out of order drops the text. |
+| `chat` | both | `{text}`: a chat message, at most 2000 characters. The host keeps printable text and line breaks (at most 20 lines) and drops control and format characters. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
-Later phases add `clipboard` and `chat`. A message type nobody handles is dropped. A message is at most 64 KiB.
+A message type nobody handles is dropped. A message is at most 64 KiB.
 
 ### Video
 
@@ -116,6 +118,12 @@ Later phases add `clipboard` and `chat`. A message type nobody handles is droppe
 - **Only when it changes.** ScreenCaptureKit hands over a frame when the picture changes; a still screen sends nothing. A few moments after it stops, the host sends the last frame again (four times, 0.4 s apart) so the encoder sharpens what it left blurry while it moved, and again for a viewer that needs a keyframe.
 - **The bandwidth.** Google Congestion Control on the host, from the browser's transport-wide feedback (TWCC), estimates what each viewer's path carries; the encoder aims at 90% of it, under the preset's ceiling. Under 2.5 Mbps the session drops to 30 frames per second, under 1.5 to 1280 pixels wide, under 800 kbps to 960 at 20, under 400 to 640 at 15; it climbs back a rung once the estimate is a third above it.
 - **Losses** are resent (NACK, RTX); a viewer that still cannot decode asks for a keyframe (PLI), which only its own encoder makes.
+
+### Sound
+
+Every viewer's offer has an Opus track (48 kHz, stereo, 96 kbps) next to its video, in the same media stream: allowing the sound later needs no new negotiation. Nothing is sent on it unless the viewer may hear (`permissions.audio`). On the screen, ScreenCaptureKit captures the computer's sound without the host's own (`excludesCurrentProcessAudio`), only while a viewer may hear it; the test card plays a 1 kHz tone. One encoder serves every viewer: the sound is the same for all.
+
+The viewer plays it in its own `<audio>` element (the video stays muted). Browsers let a page start sound only after a click; the Connect click usually counts, otherwise the page shows a button.
 
 ### Latency
 

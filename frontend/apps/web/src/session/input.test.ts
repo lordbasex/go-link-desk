@@ -5,21 +5,22 @@ import { InputCapture } from "./input";
 
 const bytes = (b: ArrayBuffer) => [...new Uint8Array(b)];
 
-function setup(ctrlIsCmd = false) {
+function setup(ctrlIsCmd = false, pasteToHost = false) {
   const surface = document.createElement("div");
   const keys = document.createElement("textarea");
   document.body.append(surface, keys);
   const pointer: ArrayBuffer[] = [];
   const input: ArrayBuffer[] = [];
+  const pasted: string[] = [];
   const cap = new InputCapture(
     surface,
     keys,
     { rect: () => ({ left: 100, top: 50, width: 1000, height: 500 }), display: () => 1 },
-    { sendPointer: (p) => pointer.push(p), sendInput: (p) => input.push(p) },
-    { ctrlIsCmd },
+    { sendPointer: (p) => pointer.push(p), sendInput: (p) => input.push(p), sendClipboard: (t) => (pasted.push(t), true) },
+    { ctrlIsCmd, pasteToHost },
   );
   cap.attach();
-  return { cap, surface, keys, pointer, input };
+  return { cap, surface, keys, pointer, input, pasted };
 }
 
 const key = (el: HTMLElement, type: "keydown" | "keyup", code: string, init: KeyboardEventInit = {}) =>
@@ -128,5 +129,83 @@ describe("InputCapture", () => {
     keys.dispatchEvent(new CompositionEvent("compositionend", { data: "日本" }));
     expect(input).toHaveLength(1);
     expect(new TextDecoder().decode(new Uint8Array(input[0]!).slice(1))).toBe("日本");
+  });
+
+  it("pastes what is copied here when the clipboard is shared, and the host's own otherwise", () => {
+    const paste = (el: HTMLElement, text: string) => {
+      const e = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(e, "clipboardData", { value: { getData: () => text } });
+      el.dispatchEvent(e);
+      return e;
+    };
+    const shared = setup(false, true);
+    key(shared.keys, "keydown", "MetaLeft", { metaKey: true });
+    const v = new KeyboardEvent("keydown", { code: "KeyV", metaKey: true, bubbles: true, cancelable: true });
+    shared.keys.dispatchEvent(v);
+    expect(v.defaultPrevented).toBe(false); // the browser fires its paste event
+    expect(paste(shared.keys, "hola ñandú").defaultPrevented).toBe(true);
+    expect(shared.pasted).toEqual(["hola ñandú"]);
+    expect(shared.input.map((p) => bytes(p)[2])).not.toContain(keycodeOf("KeyV") & 0xff);
+
+    document.body.innerHTML = "";
+    const own = setup(false, false);
+    const v2 = new KeyboardEvent("keydown", { code: "KeyV", metaKey: true, bubbles: true, cancelable: true });
+    own.keys.dispatchEvent(v2);
+    expect(v2.defaultPrevented).toBe(true); // the key goes to the host as it is
+    expect(own.input.length).toBe(1);
+  });
+
+  it("drives the pointer like a touchpad with a finger: moves, taps, two-finger right click and scroll", async () => {
+    const { surface, pointer, input } = setup();
+    const t = (type: string, id: number, x: number, y: number) =>
+      surface.dispatchEvent(Object.assign(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true }), { pointerType: "touch", pointerId: id }) as PointerEvent);
+    // A drag moves the host's pointer by relative steps (0x02), never to where the finger is.
+    t("pointerdown", 1, 500, 300);
+    t("pointermove", 1, 520, 300);
+    t("pointerup", 1, 520, 300);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(pointer.map((p) => bytes(p)[0])).toEqual([0x02]);
+    expect(input).toHaveLength(0); // it moved: not a tap
+    // A tap clicks where the pointer is.
+    t("pointerdown", 1, 500, 300);
+    t("pointerup", 1, 501, 300);
+    expect(input.map((p) => bytes(p).slice(0, 4))).toEqual([
+      [0x10, 0, 1, 0xff],
+      [0x10, 0, 0, 0xff],
+    ]);
+    // Two fingers tapped: a right click.
+    input.length = 0;
+    t("pointerdown", 1, 500, 300);
+    t("pointerdown", 2, 600, 300);
+    t("pointerup", 2, 600, 300);
+    t("pointerup", 1, 500, 300);
+    expect(input.map((p) => bytes(p).slice(0, 2))).toEqual([
+      [0x10, 2],
+      [0x10, 2],
+    ]);
+    // Two fingers moving up scroll the content down (the browser's sign: dy > 0).
+    input.length = 0;
+    t("pointerdown", 1, 500, 300);
+    t("pointerdown", 2, 600, 300);
+    t("pointermove", 1, 500, 280);
+    t("pointermove", 2, 600, 280);
+    await new Promise((r) => setTimeout(r, 5));
+    const wheel = input.find((p) => bytes(p)[0] === 0x20)!;
+    expect(new DataView(wheel).getInt16(3)).toBeGreaterThan(0);
+  });
+
+  it("types what a touchscreen keyboard inserts, and its Backspace and Return", () => {
+    const { keys, input } = setup();
+    const ins = (inputType: string, data: string | null = null) => keys.dispatchEvent(new InputEvent("input", { inputType, data, bubbles: true }));
+    expect((keys as HTMLTextAreaElement).value).toBe(" "); // something for Backspace to delete
+    ins("insertText", "ñ");
+    ins("deleteContentBackward");
+    ins("insertLineBreak");
+    const kinds = input.map((p) => bytes(p)[0]);
+    expect(kinds[0]).toBe(0x31); // text
+    expect(new TextDecoder().decode(new Uint8Array(input[0]!).slice(1))).toBe("ñ");
+    const keyOf = (p: ArrayBuffer) => (bytes(p)[1]! << 8) | bytes(p)[2]!;
+    expect(input.slice(1).map(keyOf)).toEqual([keycodeOf("Backspace"), keycodeOf("Backspace"), keycodeOf("Enter"), keycodeOf("Enter")]);
+    expect((keys as HTMLTextAreaElement).value).toBe(" ");
   });
 });

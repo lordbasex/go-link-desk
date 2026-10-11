@@ -6,7 +6,7 @@ Every file that came from [go-link](https://github.com/lordbasex/go-link), with 
 - **adapted:** go-link's file with changes, listed. A fix in go-link needs a look.
 - **rewritten:** a new file at the same path; only the mechanism or the pattern came from go-link.
 
-Files not listed here are go-link Desk's own: in phase 2, among others, `pkg/{capture,cursor,beacon,permission,mainloop}`, `internal/services/{video,screen_source,congestion}.go` and the session page's `LiveSession.tsx` and `latency.ts`; in phase 3, `protocol/keycodes.json`, `pkg/{keymap,inputproto,inject}`, `internal/services/input_service.go` and the viewer's `input.ts` (go-link's `pkg/input` is a gamepad's and was not used).
+Files not listed here are go-link Desk's own: in phase 2, among others, `pkg/{capture,cursor,beacon,permission,mainloop}`, `internal/services/{video,screen_source,congestion}.go` and the session page's `LiveSession.tsx` and `latency.ts`; in phase 3, `protocol/keycodes.json`, `pkg/{keymap,inputproto,inject}`, `internal/services/input_service.go` and the viewer's `input.ts` (go-link's `pkg/input` is a gamepad's and was not used); in phase 4, `pkg/clipboard`, `internal/services/{audio,clipboard_service,chat_service,file_board}.go`, the session panel's chat, the website's `ChatPanel.tsx`, `hostClipboard.ts`, `packages/shared/src/clipboard.ts` and `scripts/deploy-web.sh`.
 
 ## Host (`backend-device/`)
 

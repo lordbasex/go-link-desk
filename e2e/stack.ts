@@ -20,7 +20,11 @@ export interface Stack {
     accept: HostProc;
     /** Nobody to ask: turns every viewer down. */
     reject: HostProc;
-    /** Accepts every viewer with control, and logs its input instead of injecting it. */
+    /**
+     * Accepts every viewer with everything (control, sound, clipboard),
+     * logs its input instead of injecting it, and keeps its clipboard in
+     * clipboard.txt next to its log.
+     */
     control: HostProc;
   };
 }
@@ -54,4 +58,9 @@ export function hostLogged(re: RegExp, host: HostName = "accept", s: Stack = sta
 /** How many lines of a host's log match re. */
 export function hostLogCount(re: RegExp, host: HostName = "accept", s: Stack = stack()): number {
   return hostLog(host, s).split("\n").filter((l) => re.test(l)).length;
+}
+
+/** The control host's clipboard file (--test-clipboard-file). */
+export function hostClipboardFile(s: Stack = stack()): string {
+  return join(dirname(s.hosts.control.log), "clipboard.txt");
 }

@@ -21,6 +21,8 @@ type uiOptions struct {
 	endSession func()
 	// setPermissions changes what the viewer in session may do.
 	setPermissions func(models.Permissions)
+	// chat is the session's chat.
+	chat *services.ChatService
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)

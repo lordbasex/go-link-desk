@@ -31,6 +31,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/beacon"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/clipboard"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
@@ -61,6 +62,9 @@ type flags struct {
 	// inputLog writes the viewers' input to the log instead of injecting
 	// it, and lets them control: end-to-end tests only.
 	inputLog bool
+	// clipboardFile keeps the host's clipboard in a file: end-to-end
+	// tests only.
+	clipboardFile string
 }
 
 func parseFlags(args []string) (flags, error) {
@@ -75,6 +79,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.version, "version", false, "print the version and exit")
 	fs.BoolVar(&f.autoAccept, "test-auto-accept", false, "accept every viewer without asking (automated tests only; needs --source testpattern)")
 	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
+	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	if err := fs.Parse(args); err != nil {
 		return f, err
 	}
@@ -88,6 +93,9 @@ func parseFlags(args []string) (flags, error) {
 	}
 	if f.inputLog && !f.autoAccept {
 		return f, errors.New("--test-input-log needs --test-auto-accept")
+	}
+	if f.clipboardFile != "" && !f.inputLog {
+		return f, errors.New("--test-clipboard-file needs --test-input-log")
 	}
 	return f, nil
 }
@@ -182,7 +190,7 @@ func run(args []string) error {
 		// With control: the tests that log the input, and measurement
 		// builds on a test machine.
 		if f.inputLog || (allowAutoAcceptScreen && f.source == "screen") {
-			session.SetConsent(services.AutoAcceptControl)
+			session.SetConsent(services.AutoAcceptAll)
 		}
 	}
 	var injector inject.Injector = inject.New()
@@ -200,8 +208,21 @@ func run(args []string) error {
 	// A viewer whose connection stops answering may never send its
 	// releases: let go of everything it held.
 	stream.OnStall(input.Release)
+	board, shareClipboard := clipboard.System(), clipboard.Supported
+	if f.clipboardFile != "" {
+		board, shareClipboard = &services.FileBoard{Path: f.clipboardFile}, true
+	}
+	clip := services.NewClipboardService(board, stream.SendControl, input.Paste, logger)
+	chat := services.NewChatService(stream.SendControl, logger)
 	session.OnPermissions(func(peer string, p models.Permissions) {
 		input.Allow(peer, p.Control)
+		stream.SetAudio(peer, p.Audio)
+		clip.Allow(peer, p.Clipboard && shareClipboard)
+		if p.View {
+			chat.SetPeer(peer)
+		} else {
+			chat.SetPeer("")
+		}
 		if p.Control && !input.Trusted() {
 			logger.Warn("the viewer may control, but this app may not move the mouse or type yet: allow it in System Settings › Privacy & Security › Accessibility")
 			stream.Notice(services.NoticeNoAccessibility)
@@ -209,6 +230,8 @@ func run(args []string) error {
 	})
 	control := controllers.NewControl(logger)
 	controllers.SessionRoutes(control, session)
+	control.Handle("clipboard", clip.Handle)
+	control.Handle("chat", chat.Handle)
 	stream.OnControl(control.Dispatch)
 	stream.OnClosed(session.StreamClosed)
 	stream.OnStats(status.SetStream)
@@ -254,6 +277,7 @@ func run(args []string) error {
 			session.End(models.EndHost)
 		},
 		setPermissions: session.SetPermissions,
+		chat:           chat,
 		webURL:         web,
 		language:       cfg.Language,
 		logger:         logger,

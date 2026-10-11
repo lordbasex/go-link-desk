@@ -106,3 +106,26 @@ type ActiveSession struct {
 	Since       time.Time   `json:"since"`
 	Permissions Permissions `json:"permissions"`
 }
+
+// MaxChat bounds a chat message, in characters.
+const MaxChat = 2000
+
+// CleanChat trims a chat message to printable text of bounded length:
+// line breaks stay (at most 20 lines), control and format characters go.
+func CleanChat(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	if len(lines) > 20 {
+		lines = lines[:20]
+	}
+	left := MaxChat
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if left <= 0 {
+			break
+		}
+		c := cleanText(l, left)
+		left -= len([]rune(c)) + 1
+		out = append(out, c)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}

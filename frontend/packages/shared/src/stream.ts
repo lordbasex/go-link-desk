@@ -124,6 +124,9 @@ export interface StreamWindow {
   dropped: number;
   jitterMs: number;
   kbps: number;
+  /** The sound received (kilobits per second) and its packets lost (%); 0 while nothing is heard. */
+  audioKbps: number;
+  audioLossPct: number;
   seconds: number;
 }
 
@@ -135,6 +138,8 @@ export interface HostStreamOptions {
   /** The host's answer to the knock. */
   onDecision?: (d: Decision) => void;
   onTrack?: (stream: MediaStream) => void;
+  /** The computer's sound (silent until the viewer may hear it). */
+  onAudio?: (stream: MediaStream) => void;
   onState?: (state: StreamState) => void;
   /** Control messages other than ping. */
   onControl?: (message: unknown) => void;
@@ -282,10 +287,17 @@ export class HostStream {
       });
     if (selected && typeof selected.currentRoundTripTime === "number") result.rttMs = Math.round(selected.currentRoundTripTime * 1000);
     // Totals of the inbound video, for the window since the last call.
-    const totals: Record<string, number> = { lost: 0, recv: 0, freezes: 0, freezeS: 0, dropped: 0, bytes: 0, jitter: 0, nacks: 0, rtx: 0 };
+    const totals: Record<string, number> = { lost: 0, recv: 0, freezes: 0, freezeS: 0, dropped: 0, bytes: 0, jitter: 0, nacks: 0, rtx: 0, aLost: 0, aRecv: 0, aBytes: 0 };
     report.forEach((s: Record<string, unknown>) => {
-      if (s.type !== "inbound-rtp" || s.kind !== "video") return;
+      if (s.type !== "inbound-rtp") return;
       const n = (k: string) => (typeof s[k] === "number" ? (s[k] as number) : 0);
+      if (s.kind === "audio") {
+        totals.aLost! += n("packetsLost");
+        totals.aRecv! += n("packetsReceived");
+        totals.aBytes! += n("bytesReceived");
+        return;
+      }
+      if (s.kind !== "video") return;
       totals.lost! += n("packetsLost");
       totals.recv! += n("packetsReceived");
       totals.freezes! += n("freezeCount");
@@ -312,6 +324,8 @@ export class HostStream {
         dropped: d("dropped"),
         jitterMs: Math.round(totals.jitter! * 10000) / 10,
         kbps: Math.round((d("bytes") * 8) / 1000 / seconds),
+        audioKbps: Math.round((d("aBytes") * 8) / 1000 / seconds),
+        audioLossPct: d("aLost") + d("aRecv") > 0 ? Math.round((d("aLost") / (d("aLost") + d("aRecv"))) * 1000) / 10 : 0,
         seconds,
       };
     }
@@ -339,7 +353,8 @@ export class HostStream {
       if (ev.candidate) this.sendSignal({ kind: "candidate", candidate: ev.candidate.toJSON() });
     };
     pc.ontrack = (ev) => {
-      if (ev.track.kind === "video") this.opts.onTrack?.(ev.streams[0] ?? new MediaStream([ev.track]));
+      if (ev.track.kind === "video") this.opts.onTrack?.(new MediaStream([ev.track]));
+      else if (ev.track.kind === "audio") this.opts.onAudio?.(new MediaStream([ev.track]));
     };
     pc.ondatachannel = (ev) => {
       const ch = ev.channel;

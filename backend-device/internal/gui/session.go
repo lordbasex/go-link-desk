@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 )
 
 // sessionPanel is the small window that stays above every other one for
@@ -22,8 +23,9 @@ type sessionPanel struct {
 	browser    *widget.Label
 	since      *widget.Label
 	perms      *widget.Label
-	control    *widget.Check
-	setting    bool // render is updating the check, not the person
+	checks     *permChecks
+	chat       *chatBox // nil without a chat
+	peer       string   // the viewer shown, to start its chat empty
 	disconnect *widget.Button
 	shown      bool
 }
@@ -36,11 +38,10 @@ func (u *ui) newSessionPanel() *sessionPanel {
 	p.browser = widget.NewLabel("")
 	p.since = widget.NewLabel("")
 	p.perms = widget.NewLabel("")
-	p.control = widget.NewCheck(L("Use your mouse and keyboard"), func(on bool) {
-		if p.setting || u.opts.SetPermissions == nil {
-			return
+	p.checks = newPermChecks(func(perm models.Permissions) {
+		if u.opts.SetPermissions != nil {
+			u.opts.SetPermissions(perm)
 		}
-		u.opts.SetPermissions(models.Permissions{View: true, Control: on})
 	})
 	p.disconnect = widget.NewButtonWithIcon(L("Disconnect"), theme.LogoutIcon(), func() {
 		p.disconnect.Disable()
@@ -49,7 +50,18 @@ func (u *ui) newSessionPanel() *sessionPanel {
 		}
 	})
 	p.disconnect.Importance = widget.DangerImportance
-	p.win.SetContent(container.NewPadded(container.NewVBox(p.who, p.browser, p.since, p.perms, p.control, p.disconnect)))
+	items := append([]fyne.CanvasObject{p.who, p.browser, p.since, p.perms}, p.checks.objects()...)
+	top := container.NewVBox(items...)
+	if u.opts.Chat != nil {
+		p.chat = newChatBox(u.opts.Chat)
+		u.opts.Chat.OnMessage(func(m services.ChatMessage) {
+			// Never take the focus: the viewer may be typing into another app.
+			fyne.Do(func() { p.chat.add(m) })
+		})
+		p.win.SetContent(container.NewPadded(container.NewBorder(top, p.disconnect, nil, nil, p.chat.box)))
+	} else {
+		p.win.SetContent(container.NewPadded(container.NewVBox(top, p.disconnect)))
+	}
 	p.win.Resize(fyne.NewSize(320, 0))
 	p.win.SetFixedSize(true)
 	// The panel goes away with the session, not before.
@@ -74,9 +86,11 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	p.browser.SetText(a.Browser)
 	p.since.SetText(Lf("Since %s", a.Since.Local().Format("15:04")))
 	p.perms.SetText(L("Can:") + " " + L("See your screen"))
-	p.setting = true
-	p.control.SetChecked(a.Permissions.Control)
-	p.setting = false
+	p.checks.set(a.Permissions)
+	if p.chat != nil && p.peer != a.PeerID {
+		p.chat.clear()
+	}
+	p.peer = a.PeerID
 	if p.shown {
 		return
 	}

@@ -23,6 +23,7 @@ func runUI(o uiOptions) {
 		NewCode:        o.newCode,
 		EndSession:     o.endSession,
 		SetPermissions: o.setPermissions,
+		Chat:           o.chat,
 		SetConsent:     o.setConsent,
 		WebURL:         o.webURL,
 		Language:       o.language,

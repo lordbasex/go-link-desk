@@ -16,6 +16,7 @@ import (
 	"errors"
 	"runtime/cgo"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -58,6 +59,7 @@ type Stream struct {
 type callbacks struct {
 	frame func(Frame)
 	stop  func(error)
+	audio atomic.Pointer[func([]int16)]
 }
 
 // Start captures cfg.Display. onFrame runs on the capture's own thread,
@@ -70,7 +72,7 @@ func Start(cfg Config, onFrame func(Frame), onStop func(error)) (*Stream, error)
 	}
 	h := cgo.NewHandle(&callbacks{frame: onFrame, stop: onStop})
 	var cerr *C.char
-	ref := C.cap_start(C.uint32_t(cfg.Display), C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), cbool(cfg.ShowCursor), C.uintptr_t(h), &cerr)
+	ref := C.cap_start(C.uint32_t(cfg.Display), C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), cbool(cfg.ShowCursor), cbool(cfg.Audio), C.uintptr_t(h), &cerr)
 	if ref == nil {
 		h.Delete()
 		return nil, takeErr(cerr)
@@ -91,11 +93,18 @@ func (s *Stream) Update(cfg Config) error {
 		display = cfg.Display
 	}
 	var cerr *C.char
-	if C.cap_update(s.ref, C.uint32_t(display), C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), cbool(cfg.ShowCursor), &cerr) != 0 {
+	if C.cap_update(s.ref, C.uint32_t(display), C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), cbool(cfg.ShowCursor), cbool(cfg.Audio), &cerr) != 0 {
 		return takeErr(cerr)
 	}
 	s.cfg = cfg
 	return nil
+}
+
+// OnAudio receives the computer's sound while Config.Audio is on:
+// interleaved 16-bit stereo at AudioRate, in buffers of any length, on the
+// capture's sound thread. The slice is valid only during the call.
+func (s *Stream) OnAudio(fn func(samples []int16)) {
+	s.handle.Value().(*callbacks).audio.Store(&fn)
 }
 
 // Config is the capture's current setting.
@@ -121,6 +130,14 @@ func (s *Stream) Stop() {
 func goCaptureFrame(handle C.uintptr_t, pb unsafe.Pointer, w, h C.int, pts C.int64_t) {
 	cb := cgo.Handle(handle).Value().(*callbacks)
 	cb.frame(Frame{PixelBuffer: pb, Width: int(w), Height: int(h), PTS: time.Duration(pts) * time.Microsecond})
+}
+
+//export goCaptureAudio
+func goCaptureAudio(handle C.uintptr_t, samples *C.int16_t, frames C.int) {
+	cb := cgo.Handle(handle).Value().(*callbacks)
+	if fn := cb.audio.Load(); fn != nil && frames > 0 {
+		(*fn)(unsafe.Slice((*int16)(unsafe.Pointer(samples)), int(frames)*AudioChannels))
+	}
 }
 
 //export goCaptureStopped

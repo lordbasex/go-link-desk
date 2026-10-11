@@ -122,7 +122,7 @@ func (src *ScreenSource) capture(ctx context.Context, sink MediaSink) error {
 	frames := make(chan captured, 2)
 	stopped := make(chan error, 1)
 	req := sink.Capture()
-	cfg := screencap.Config{Display: req.Display.ID, Width: req.Width, Height: req.Height, FPS: req.FPS, ShowCursor: req.ShowCursor}
+	cfg := screencap.Config{Display: req.Display.ID, Width: req.Width, Height: req.Height, FPS: req.FPS, ShowCursor: req.ShowCursor, Audio: req.Audio}
 	stream, err := screencap.Start(cfg, func(f screencap.Frame) {
 		screencap.Retain(f.PixelBuffer)
 		select {
@@ -139,6 +139,7 @@ func (src *ScreenSource) capture(ctx context.Context, sink MediaSink) error {
 	if err != nil {
 		return err
 	}
+	stream.OnAudio(sink.AudioSamples)
 	src.Log.Info("screen capture started", "display", req.Display.Name, "size", cfgSize(cfg), "fps", cfg.FPS)
 	var last captured
 	defer func() {
@@ -176,12 +177,12 @@ func (src *ScreenSource) capture(ctx context.Context, sink MediaSink) error {
 			sink.VideoFrame(Frame{PixelBuffer: f.pb, Width: f.w, Height: f.h, PTS: f.pts})
 		case <-sink.Changed():
 			req := sink.Capture()
-			next := screencap.Config{Display: req.Display.ID, Width: req.Width, Height: req.Height, FPS: req.FPS, ShowCursor: req.ShowCursor}
+			next := screencap.Config{Display: req.Display.ID, Width: req.Width, Height: req.Height, FPS: req.FPS, ShowCursor: req.ShowCursor, Audio: req.Audio}
 			if next != stream.Config() {
 				if err := stream.Update(next); err != nil {
 					return err
 				}
-				src.Log.Info("screen capture changed", "display", req.Display.Name, "size", cfgSize(next), "fps", next.FPS, "cursor", next.ShowCursor)
+				src.Log.Info("screen capture changed", "display", req.Display.Name, "size", cfgSize(next), "fps", next.FPS, "cursor", next.ShowCursor, "audio", next.Audio)
 			}
 		case <-tick.C:
 			if !sink.Watching() {

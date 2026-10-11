@@ -8,7 +8,7 @@
 #   make e2e          end-to-end tests: signalhub + headless host + browser
 #   make help         everything else
 
-.PHONY: help info check check-go check-web check-secrets web-build device device-headless \
+.PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless \
 	device-darwin-universal e2e clean FORCE
 
 # The darwin and linux device targets are pattern rules (device-darwin-%,
@@ -59,6 +59,7 @@ help:
 	@echo ""
 	@echo "  make check                  gofmt, vet, test -race, govulncheck, typecheck, vitest, web build, gitleaks"
 	@echo "  make web-build              the website, in $(WEB_DIST)"
+	@echo "  make web-deploy             publish the website to desk.go-link.org"
 	@echo "  make device                 the host for this computer"
 	@echo "  make device-headless        the host without a window (servers, CI)"
 	@echo "  make device-darwin-universal  go-link-desk.app for Intel and Apple silicon"
@@ -104,6 +105,11 @@ web-build:
 		VITE_SIGNAL_URL=$(SIGNAL_URL) VITE_APP_VERSION=$(VERSION) npm run build
 	@find $(WEB_DIST) -name '*.map' -delete
 	@echo "$(GREEN)✓ $(WEB_DIST)$(NC)"
+
+# Publishes the website to desk.go-link.org (S3 + CloudFront; see
+# scripts/deploy-web.sh for the AWS profile it needs).
+web-deploy: web-build
+	scripts/deploy-web.sh $(WEB_DIST)
 
 # ---------------------------------------------------------------------------
 # Host
