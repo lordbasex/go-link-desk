@@ -43,7 +43,7 @@ describe("Session", () => {
     const { status } = start(client);
     await vi.waitFor(() => expect(status().kind).toBe("waiting"));
     expect(client.sent[0]).toEqual({ type: "join", app: "go-link-desk", code: "915355636" });
-    expect(client.signals()).toEqual([{ kind: "knock", name: "Ana", ua: "Chrome 141 on macOS" }]);
+    expect(client.signals()).toEqual([{ kind: "knock", name: "Ana", ua: "Chrome 141 on macOS", codecs: ["vp8"] }]);
   });
 
   it("connects once accepted, and learns who the host is", async () => {
@@ -96,5 +96,36 @@ describe("Session", () => {
     s.hangUp();
     expect(status()).toEqual({ kind: "ended", reason: "viewer" });
     expect(client.closed).toBe(true);
+  });
+});
+
+describe("Session control messages", () => {
+  it("reads the displays, notices and the pointer", async () => {
+    const client = new FakeClient();
+    const cursors: unknown[] = [];
+    const s = new Session({
+      client: client.asClient(),
+      target: { code: "915355636" },
+      name: "Ana",
+      browser: "x",
+      onChange: () => undefined,
+      onCursor: (c) => cursors.push(c),
+      RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection,
+    });
+    void s.start();
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    // The control channel is HostStream's; its messages reach the session through onControl.
+    const control = (s as unknown as { onControl(m: unknown): void }).onControl.bind(s);
+    control({ type: "displays", current: 2, displays: [{ id: 1, name: "Built-in", width: 2560, height: 1600, points_width: 1440, points_height: 900, primary: true }, { id: 2, name: "LG", width: 1920, height: 1080, points_width: 1920, points_height: 1080 }] });
+    expect(s.current.display).toBe(2);
+    expect(s.current.displays.map((d) => d.pointsWidth)).toEqual([1440, 1920]);
+    control({ type: "notice", code: "no_screen_permission" });
+    expect(s.current.notice).toBe("no_screen_permission");
+    control({ type: "cursor", id: "abc", png: "AAAA", hot_x: 8, hot_y: 8, width: 17, height: 23, pixels: 34 });
+    control({ type: "cursor_pos", x: 0.5, y: 0.25, visible: true });
+    expect(cursors.at(-1)).toMatchObject({ x: 0.5, y: 0.25, visible: true, shape: { hotX: 8, width: 17, pixels: 34 } });
+    // A known shape comes back without its image.
+    control({ type: "cursor", id: "abc", hot_x: 8, hot_y: 8, width: 17, height: 23 });
+    expect(cursors).toHaveLength(3);
   });
 });

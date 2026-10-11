@@ -10,7 +10,18 @@ import { InfoIcon } from "./Icons";
  * size: the numbers move every second, so they open on demand instead of
  * resizing a chip over the screen. The ring is orange on the TURN relay.
  */
-export function StreamInfo({ stats, sent }: { stats: StreamStats | null; sent: HostSent | null }) {
+export function StreamInfo({
+  stats,
+  sent,
+  latency = null,
+  onMeasure,
+}: {
+  stats: StreamStats | null;
+  sent: HostSent | null;
+  /** The last beacon measurement: ms, "measuring", "none" (no beacon on this host) or null (not measured). */
+  latency?: number | null | "measuring" | "none";
+  onMeasure?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -38,7 +49,11 @@ export function StreamInfo({ stats, sent }: { stats: StreamStats | null; sent: H
     [t.stats.size, stats?.width && stats.height ? `${stats.width}×${stats.height}` : dash],
     [t.stats.bitrate, stats?.window ? `${stats.window.kbps} kbps` : dash],
     [t.stats.loss, stats?.window ? `${stats.window.videoLossPct} %` : dash],
+    [t.stats.recovered, stats?.window ? `${stats.window.retransmitted} / ${stats.window.nacks}` : dash],
     [t.stats.codec, stats?.codec ?? sent?.codec ?? dash],
+    [t.stats.target, sent?.targetKbps ? `${sent.targetKbps} kbps` : dash],
+    [t.stats.estimate, sent?.estimateKbps ? `${sent.estimateKbps} kbps` : dash],
+    [t.stats.screenLatency, latency === null ? dash : latency === "measuring" ? t.stats.measuring : latency === "none" ? t.stats.noBeacon : `${latency} ms`],
   ];
   return (
     <div className={`stream-info${path === "relay" ? " is-relay" : ""}`} ref={rootRef}>
@@ -62,6 +77,11 @@ export function StreamInfo({ stats, sent }: { stats: StreamStats | null; sent: H
               </div>
             ))}
           </dl>
+          {onMeasure && (
+            <button type="button" className="button button-secondary button-small" disabled={latency === "measuring"} onClick={onMeasure}>
+              {t.stats.measure}
+            </button>
+          )}
           {path === "relay" && <p className="small muted">{t.stats.relayHint}</p>}
         </div>
       )}

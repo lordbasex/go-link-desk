@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it, vi } from "vitest";
-import { HostStream, MAX_NAME, endReason, parseDecision } from "../src/stream";
+import { HostStream, MAX_NAME, endReason, parseDecision, videoCodecs } from "../src/stream";
 import type { Envelope } from "../src/protocol";
 import type { SignalClient } from "../src/signal-client";
 
@@ -81,8 +81,8 @@ describe("HostStream", () => {
       RTCPeerConnectionImpl: fakePC(log),
     });
     s.start();
-    s.knock(`  ${"A".repeat(60)} `, "Chrome 141 on macOS");
-    expect(client.sent[0]).toEqual({ type: "signal", to: "H", payload: { kind: "knock", name: "A".repeat(MAX_NAME), ua: "Chrome 141 on macOS" } });
+    s.knock(`  ${"A".repeat(60)} `, "Chrome 141 on macOS", ["vp8"]);
+    expect(client.sent[0]).toEqual({ type: "signal", to: "H", payload: { kind: "knock", name: "A".repeat(MAX_NAME), ua: "Chrome 141 on macOS", codecs: ["vp8"] } });
 
     // Someone else's signal is not the host's.
     client.deliver({ type: "signal", from: "X", payload: { kind: "accepted" } });
@@ -95,5 +95,22 @@ describe("HostStream", () => {
     expect(client.sent[1]).toEqual({ type: "signal", to: "H", payload: { kind: "answer", sdp: "ans" } });
     s.close();
     expect(log).toContain("close");
+  });
+});
+
+describe("videoCodecs", () => {
+  it("names what the browser decodes", () => {
+    const caps = {
+      codecs: [
+        { mimeType: "video/VP8", clockRate: 90000 },
+        { mimeType: "video/H264", clockRate: 90000, sdpFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f" },
+        { mimeType: "video/H264", clockRate: 90000, sdpFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640c1f" },
+        { mimeType: "video/rtx", clockRate: 90000 },
+      ],
+      headerExtensions: [],
+    } as RTCRtpCapabilities;
+    expect(videoCodecs(caps).sort()).toEqual(["h264", "h264-high", "vp8"]);
+    expect(videoCodecs({ codecs: [], headerExtensions: [] })).toEqual(["vp8"]);
+    expect(videoCodecs(null)).toEqual(["vp8"]);
   });
 });
