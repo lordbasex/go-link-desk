@@ -104,29 +104,45 @@ func AppDarkPNG() []byte { return RenderApp(512, true) }
 // dark glass with a reflection, and a light pointer on it. The tray icon
 // stays flat (Render). graphite draws the dark variant: a dark square, the
 // screen's bezel and the pointer in amber.
-func RenderApp(px int, graphite bool) []byte {
+func RenderApp(px int, graphite bool) []byte { return renderApp(px, graphite, false) }
+
+// RenderAppSquare draws the color app icon to the edges, without rounded
+// corners or a shadow and with no transparency, as iOS wants its icon (the
+// system rounds it).
+func RenderAppSquare(px int) []byte { return renderApp(px, false, true) }
+
+func renderApp(px int, graphite, square bool) []byte {
 	side := float64(px) * 824 / 1024
+	if square {
+		side = float64(px)
+	}
 	off := (float64(px) - side) / 2
 	u := side / 32
 	g := func(v float64) float64 { return off + (v+4)*u }
 	at := func(x, y float64) fixed.Point26_6 { return rasterx.ToFixedP(g(x), g(y)) }
 	f := float64(px)
 
-	square := func(dy float64) *image.Alpha {
+	shape := func(dy float64) *image.Alpha {
 		return mask(px, func(sc *rasterx.ScannerGV) {
 			fl := rasterx.NewFiller(px, px, sc)
-			rasterx.AddRoundRect(off, off+dy, off+side, off+side+dy, 8*u, 8*u, 0, rasterx.RoundGap, fl)
+			if square {
+				rasterx.AddRect(0, 0, f, f, 0, fl)
+			} else {
+				rasterx.AddRoundRect(off, off+dy, off+side, off+side+dy, 8*u, 8*u, 0, rasterx.RoundGap, fl)
+			}
 			fl.Draw()
 		})
 	}
 	img := image.NewNRGBA(image.Rect(0, 0, px, px))
 
 	// The shadow: the square a little lower, blurred, faint.
-	shadow := blur(square(f*0.012), max(1, px/64))
-	paint(img, shadow, func(x, y int) color.NRGBA { return color.NRGBA{0, 0, 0, 0x55} })
+	if !square {
+		shadow := blur(shape(f*0.012), max(1, px/64))
+		paint(img, shadow, func(x, y int) color.NRGBA { return color.NRGBA{0, 0, 0, 0x55} })
+	}
 
 	// The square: amber, lighter at the top; a gloss on its upper half.
-	body := square(0)
+	body := shape(0)
 	top, bottom := color.NRGBA{0xFF, 0xC2, 0x5E, 0xFF}, color.NRGBA{0xE5, 0x86, 0x22, 0xFF}
 	ink := dark
 	lightTop, lightBottom := color.NRGBA{0xFF, 0xFF, 0xFF, 0xFF}, color.NRGBA{0xFF, 0xE0, 0xB0, 0xFF}

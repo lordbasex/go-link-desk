@@ -1,0 +1,9 @@
+// Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+// Shared build settings. Your Apple team goes in Local.xcconfig (gitignored,
+// copy Local.xcconfig.example) or comes from TEAM_ID: nothing about
+// signing is committed.
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"

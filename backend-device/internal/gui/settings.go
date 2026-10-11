@@ -58,9 +58,12 @@ type settingsWindow struct {
 
 	unattended *widget.Check
 	details    *fyne.Container // what only shows with unattended access on
+	passBox    *fyne.Container // the password, before unattended access can be on
 	code       *widget.Label
 	password   *widget.Label
 	newPass    *widget.Entry
+	again      *widget.Entry // the new password typed again
+	passOK     *widget.Label
 	passErr    *widget.Label
 	clearPass  *widget.Button
 	links      *fyne.Container
@@ -105,29 +108,44 @@ func (u *ui) newSettings() *settingsWindow {
 		if s.setting {
 			return
 		}
+		// Unattended access always has a password: the switch waits for it.
+		if on && set.Get().Unattended.PasswordHash == "" {
+			s.passErr.SetText(L("Set a password first: unattended access always has one."))
+			s.passErr.Show()
+			s.render()
+			return
+		}
 		_ = set.Update(func(c *models.Config) { c.Unattended.Enabled = on })
 	})
-	warn := wrap(L("Linked browsers come in without you accepting, with the permissions you gave them. Link only your own browsers."))
+	warn := wrap(L("Linked devices come in without you accepting, with the permissions you gave them and the password. Link only your own devices."))
 	warn.Importance = widget.WarningImportance
 	s.code = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
-	how := wrap(Lf("To link a browser, open %s in it and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link"))
+	how := wrap(Lf("To link a device: open %s in its browser, or in the iPhone and iPad app go to My computers › Link, and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link"))
 	s.password = wrap("")
 	s.newPass = widget.NewPasswordEntry()
 	s.newPass.SetPlaceHolder(Lf("New password (%d characters or more)", services.MinPassword))
+	s.again = widget.NewPasswordEntry()
+	s.again.SetPlaceHolder(L("The same again"))
 	s.passErr = widget.NewLabel("")
 	s.passErr.Importance = widget.DangerImportance
+	s.passErr.Wrapping = fyne.TextWrapWord
 	s.passErr.Hide()
-	setPass := widget.NewButton(L("Set password"), func() { s.setPassword(s.newPass.Text) })
-	s.clearPass = widget.NewButton(L("Remove password"), func() {
-		_ = set.Update(func(c *models.Config) { c.Unattended.PasswordHash = "" })
+	s.passOK = widget.NewLabel("")
+	s.passOK.Importance = widget.SuccessImportance
+	s.passOK.Wrapping = fyne.TextWrapWord
+	s.passOK.Hide()
+	setPass := widget.NewButton(L("Set password"), func() { s.setPassword(s.newPass.Text, s.again.Text) })
+	// Without a password there is no unattended access: removing it turns it off.
+	s.clearPass = widget.NewButton(L("Remove password (turns unattended access off)"), func() {
+		s.passOK.Hide()
+		_ = set.Update(func(c *models.Config) { c.Unattended.PasswordHash, c.Unattended.Enabled = "", false })
 	})
 	s.links = container.NewVBox()
+	s.passBox = container.NewVBox(s.password, s.newPass, s.again, container.NewHBox(setPass, s.clearPass), s.passErr, s.passOK)
 	s.details = container.NewVBox(
 		widget.NewLabel(L("Linking code")), s.code, how,
 		widget.NewSeparator(),
-		s.password, s.newPass, container.NewHBox(setPass, s.clearPass), s.passErr,
-		widget.NewSeparator(),
-		heading(L("Linked browsers")), s.links,
+		heading(L("Linked devices")), s.links,
 	)
 
 	// Around a session.
@@ -193,7 +211,7 @@ func (u *ui) newSettings() *settingsWindow {
 	langNote.Importance = widget.LowImportance
 
 	content := container.NewVBox(
-		heading(L("Unattended access")), s.unattended, warn, s.details,
+		heading(L("Unattended access")), s.unattended, warn, s.passBox, s.details,
 		widget.NewSeparator(),
 		heading(L("Sessions")),
 		container.NewBorder(nil, nil, widget.NewLabel(L("Disconnect when idle")), nil, s.idle),
@@ -239,8 +257,14 @@ func (u *ui) newSettings() *settingsWindow {
 	return s
 }
 
-// setPassword hashes and keeps a new unattended password.
-func (s *settingsWindow) setPassword(pw string) {
+// setPassword hashes and keeps a new unattended password, typed twice.
+func (s *settingsWindow) setPassword(pw, again string) {
+	s.passOK.Hide()
+	if pw != again {
+		s.passErr.SetText(L("The two passwords are not the same. Type them again."))
+		s.passErr.Show()
+		return
+	}
 	hash, err := services.HashPassword(pw)
 	if errors.Is(err, services.ErrPasswordLength) {
 		s.passErr.SetText(Lf("The password must have %d to %d characters.", services.MinPassword, services.MaxPassword))
@@ -253,6 +277,9 @@ func (s *settingsWindow) setPassword(pw string) {
 	}
 	s.passErr.Hide()
 	s.newPass.SetText("")
+	s.again.SetText("")
+	s.passOK.SetText(L("Password set. Linked devices will type it to come in."))
+	s.passOK.Show()
 	_ = s.u.opts.Settings.Update(func(c *models.Config) { c.Unattended.PasswordHash = hash })
 }
 
@@ -261,17 +288,18 @@ func (s *settingsWindow) render() {
 	cfg := s.u.opts.Settings.Get()
 	s.setting = true
 	defer func() { s.setting = false }()
-	s.unattended.SetChecked(cfg.Unattended.Enabled)
-	if cfg.Unattended.Enabled {
+	hasPass := cfg.Unattended.PasswordHash != ""
+	s.unattended.SetChecked(cfg.Unattended.Enabled && hasPass)
+	if cfg.Unattended.Enabled && hasPass {
 		s.details.Show()
 	} else {
 		s.details.Hide()
 	}
 	if cfg.Unattended.PasswordHash != "" {
-		s.password.SetText(L("Password: set. Linked browsers type it after their link."))
+		s.password.SetText(L("Password: set. Linked devices type it after their link; the iPhone and iPad app keeps it behind Face ID."))
 		s.clearPass.Enable()
 	} else {
-		s.password.SetText(L("No password: linked browsers come in with their link alone."))
+		s.password.SetText(L("No password yet: unattended access needs one."))
 		s.clearPass.Disable()
 	}
 	s.renderCode(s.u.opts.Status.Snapshot())

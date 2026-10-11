@@ -8,6 +8,7 @@ import { Select } from "../components/ui/Select";
 import { useFullscreen } from "../components/useFullscreen";
 import { CallPanel } from "./CallPanel";
 import { ChatPanel } from "./ChatPanel";
+import { playChatSound } from "./chatSound";
 import { FilesPanel } from "./FilesPanel";
 import { HostClipboard } from "./hostClipboard";
 import { InputCapture } from "./input";
@@ -156,6 +157,13 @@ export function LiveSession({
   const hostClipboard = useRef<HostClipboard | null>(null);
   if (!hostClipboard.current) hostClipboard.current = new HostClipboard(setClipboardWaiting);
   const unread = chatOpen ? 0 : view.chat.slice(readChat).filter((l) => l.fromHost).length;
+  // A message from the host plays the chat's sound (unless it is off).
+  const heard = useRef(view.chat.length);
+  useEffect(() => {
+    const fresh = view.chat.slice(heard.current);
+    heard.current = view.chat.length;
+    if (fresh.some((l) => l.fromHost)) playChatSound();
+  }, [view.chat]);
 
   const update = (p: Partial<Prefs>) => {
     const next = { ...prefs, ...p };
@@ -589,7 +597,9 @@ export function LiveSession({
           <ChatPanel
             lines={view.chat}
             hostName={hostName}
+            hostTyping={view.hostTyping}
             onSend={(text) => session?.sendChat(text)}
+            onTyping={(on) => session?.sendTyping(on)}
             onClose={() => {
               setChatOpen(false);
               setReadChat(view.chat.length);

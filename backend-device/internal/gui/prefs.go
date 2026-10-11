@@ -30,6 +30,7 @@ import (
 type prefsState struct {
 	open      bool   // shown at least once: keep it up to date
 	passErr   string // the last password refused
+	passOK    string // the last password set
 	serverErr string // the last server address refused
 	netErr    string // the last port or address refused
 	// start is the configuration this run started with: what a change of
@@ -135,14 +136,39 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		}},
 	}})
 
-	// Unattended access.
+	// Unattended access: always with a password, so it is set first and
+	// the switch waits for it.
+	hasPass := cfg.Unattended.PasswordHash != ""
+	toggle := remoteview.PrefRow{ID: "unattended", Kind: "toggle", Label: L("Allow unattended access"), On: cfg.Unattended.Enabled && hasPass}
+	if !hasPass {
+		toggle.Enabled = off()
+		toggle.Detail = L("Set a password below first.")
+	}
 	un := remoteview.PrefPage{ID: "unattended", Title: L("Unattended access"), Symbol: "lock.shield", Sections: []remoteview.PrefSection{
 		{Rows: []remoteview.PrefRow{
-			{ID: "unattended", Kind: "toggle", Label: L("Allow unattended access"), On: cfg.Unattended.Enabled},
-			{Kind: "note", Label: L("Linked browsers come in without you accepting, with the permissions you gave them. Link only your own browsers."), Tint: "warn"},
+			toggle,
+			{Kind: "note", Label: L("Linked devices come in without you accepting, with the permissions you gave them and the password. Link only your own devices."), Tint: "warn"},
 		}},
 	}}
-	if cfg.Unattended.Enabled {
+	pass := []remoteview.PrefRow{}
+	if hasPass {
+		pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("Set"), Tint: "ok", Detail: L("Linked devices type it after their link; the iPhone and iPad app keeps it behind Face ID.")})
+	} else {
+		pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("None"), Tint: "warn", Detail: L("Unattended access needs one.")})
+	}
+	pass = append(pass, remoteview.PrefRow{ID: "password", Kind: "password", Label: L("New password"),
+		Placeholder: Lf("%d characters or more", services.MinPassword), Repeat: L("The same again"), Button: L("Set password")})
+	if u.prefs.passErr != "" {
+		pass = append(pass, remoteview.PrefRow{Kind: "note", Label: u.prefs.passErr, Tint: "danger"})
+	} else if u.prefs.passOK != "" {
+		pass = append(pass, remoteview.PrefRow{Kind: "note", Label: u.prefs.passOK, Tint: "ok"})
+	}
+	if hasPass {
+		pass = append(pass, remoteview.PrefRow{ID: "password_clear", Kind: "button", Label: L("Remove the password"), Button: L("Remove password"), Tint: "danger",
+			Confirm: &remoteview.PrefConfirm{Title: L("Remove the password?"), Text: L("Unattended access turns off: it always needs a password."), OK: L("Remove password"), Cancel: L("Cancel")}})
+	}
+	un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Password"), Rows: pass})
+	if cfg.Unattended.Enabled && hasPass {
 		code := strings.ReplaceAll(st.Pairing.Code, " ", "")
 		shown := "— — —"
 		if code != "" {
@@ -150,36 +176,21 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		}
 		un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Linking code"), Rows: []remoteview.PrefRow{
 			{Kind: "code", Label: L("Linking code"), Value: shown,
-				Detail: Lf("To link a browser, open %s in it and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link")},
+				Detail: Lf("To link a device: open %s in its browser, or in the iPhone and iPad app go to My computers › Link, and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link")},
 		}})
-		pass := []remoteview.PrefRow{}
-		if cfg.Unattended.PasswordHash != "" {
-			pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("Set"), Tint: "ok", Detail: L("Linked browsers type it after their link.")})
-		} else {
-			pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("None"), Detail: L("Linked browsers come in with their link alone.")})
-		}
-		pass = append(pass, remoteview.PrefRow{ID: "password", Kind: "password", Label: L("New password"),
-			Placeholder: Lf("%d characters or more", services.MinPassword), Button: L("Set password")})
-		if u.prefs.passErr != "" {
-			pass = append(pass, remoteview.PrefRow{Kind: "note", Label: u.prefs.passErr, Tint: "danger"})
-		}
-		if cfg.Unattended.PasswordHash != "" {
-			pass = append(pass, remoteview.PrefRow{ID: "password_clear", Kind: "button", Label: L("Remove the password"), Button: L("Remove password")})
-		}
-		un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Password"), Rows: pass})
 		if len(cfg.Links) == 0 {
-			un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Linked browsers"), Rows: []remoteview.PrefRow{
-				{Kind: "note", Label: L("No browser is linked.")},
+			un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Linked devices"), Rows: []remoteview.PrefRow{
+				{Kind: "note", Label: L("No device is linked.")},
 			}})
 		}
 		for i, l := range cfg.Links {
 			name := l.Name
 			if name == "" {
-				name = L("A browser")
+				name = L("A device")
 			}
 			title := ""
 			if i == 0 {
-				title = L("Linked browsers")
+				title = L("Linked devices")
 			}
 			p := l.Permissions
 			perm := func(what, label string, on bool) remoteview.PrefRow {
@@ -191,8 +202,8 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 				perm("audio", L("Hear your computer's sound"), p.Audio),
 				perm("clipboard", L("Share the clipboard (copy and paste)"), p.Clipboard),
 				perm("files", L("Send and receive files"), p.Files),
-				{ID: "revoke:" + l.ID, Kind: "button", Label: L("Revoke this browser"), Button: L("Revoke"), Tint: "danger",
-					Confirm: &remoteview.PrefConfirm{Title: L("Revoke this browser?"), Text: Lf("%s will not be able to come in again until it is linked with a new code.", name), OK: L("Revoke"), Cancel: L("Cancel")}},
+				{ID: "revoke:" + l.ID, Kind: "button", Label: L("Revoke this device"), Button: L("Revoke"), Tint: "danger",
+					Confirm: &remoteview.PrefConfirm{Title: L("Revoke this device?"), Text: Lf("%s will not be able to come in again until it is linked with a new code.", name), OK: L("Revoke"), Cancel: L("Cancel")}},
 			}})
 		}
 	}
@@ -337,21 +348,36 @@ func (u *ui) setting(arg string) {
 	case id == "tabs":
 		update(func(c *models.Config) { c.SessionWindows = !on })
 	case id == "unattended":
+		if on && set.Get().Unattended.PasswordHash == "" {
+			u.prefs.passErr, u.prefs.passOK = L("Set a password first: unattended access always has one."), ""
+			u.prefs.last = ""
+			u.refreshPrefs()
+			return
+		}
 		update(func(c *models.Config) { c.Unattended.Enabled = on })
 	case id == "password":
-		hash, err := services.HashPassword(value)
+		pw, again, twice := strings.Cut(value, "\n")
+		if twice && pw != again {
+			u.prefs.passErr, u.prefs.passOK = L("The two passwords are not the same. Type them again."), ""
+			u.prefs.last = ""
+			u.refreshPrefs()
+			return
+		}
+		hash, err := services.HashPassword(pw)
 		switch {
 		case errors.Is(err, services.ErrPasswordLength):
-			u.prefs.passErr = Lf("The password must have %d to %d characters.", services.MinPassword, services.MaxPassword)
+			u.prefs.passErr, u.prefs.passOK = Lf("The password must have %d to %d characters.", services.MinPassword, services.MaxPassword), ""
+			u.prefs.last = ""
 			u.refreshPrefs()
 		case err != nil:
 			u.opts.Logger.Warn("cannot set the password", "err", err)
 		default:
-			u.prefs.passErr = ""
+			u.prefs.passErr, u.prefs.passOK = "", L("Password set. Linked devices will type it to come in.")
 			update(func(c *models.Config) { c.Unattended.PasswordHash = hash })
 		}
 	case id == "password_clear":
-		update(func(c *models.Config) { c.Unattended.PasswordHash = "" })
+		u.prefs.passErr, u.prefs.passOK = "", ""
+		update(func(c *models.Config) { c.Unattended.PasswordHash, c.Unattended.Enabled = "", false })
 	case strings.HasPrefix(id, "perm:") && u.perms != nil:
 		kind := permission.ScreenRecording
 		if id == "perm:accessibility" {

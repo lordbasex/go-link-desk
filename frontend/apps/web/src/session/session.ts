@@ -106,6 +106,12 @@ export interface CallState {
 
 /** The most characters of a chat message (the host's MaxChat). */
 export const MAX_CHAT = 2000;
+/** How long "is typing" stays without news from the host. */
+export const TYPING_SHOWN_MS = 6000;
+/** While writing, "typing" goes again this often; a pause this long is "stopped". */
+export const TYPING_EVERY_MS = 3000;
+export const TYPING_PAUSE_MS = 4000;
+
 /** The chat lines a session keeps. */
 const MAX_CHAT_LINES = 200;
 
@@ -143,6 +149,8 @@ export interface SessionView {
   /** What was copied on the host, newest first by id. */
   hostClipboard: { id: number; text: string } | null;
   chat: ChatLine[];
+  /** The person at the host is writing a chat message. */
+  hostTyping: boolean;
   call: CallState;
   /** The host's camera and microphone in a call. */
   callVideo: MediaStream | null;
@@ -182,7 +190,7 @@ export function isOver(s: SessionStatus): boolean {
  */
 export class Session {
   private view: SessionView = {
-    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null,
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null,
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
@@ -399,8 +407,23 @@ export class Session {
     this.addChat({ fromHost: false, text: clean, at: Date.now() });
   }
 
+  /** Tells the host this side is writing a chat message (on), or stopped. */
+  sendTyping(on: boolean): void {
+    if (isOver(this.view.status)) return;
+    this.stream?.sendControl({ type: "typing", on });
+  }
+
   private addChat(line: ChatLine): void {
     this.set({ chat: [...this.view.chat, line].slice(-MAX_CHAT_LINES) });
+  }
+
+  private typingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** The host is writing (on), or stopped; without news for a while, it stopped. */
+  private hostTyping(on: boolean): void {
+    if (this.typingTimer) clearTimeout(this.typingTimer);
+    this.typingTimer = on ? setTimeout(() => this.set({ hostTyping: false }), TYPING_SHOWN_MS) : null;
+    if (this.view.hostTyping !== on) this.set({ hostTyping: on });
   }
 
   /** Flips the latency beacon: odd turns it white, even black. */
@@ -467,9 +490,15 @@ export class Session {
       }
       case "chat": {
         const text = typeof m.text === "string" ? m.text.slice(0, MAX_CHAT) : "";
-        if (text) this.addChat({ fromHost: true, text, at: Date.now() });
+        if (text) {
+          this.hostTyping(false); // the message it was writing came
+          this.addChat({ fromHost: true, text, at: Date.now() });
+        }
         break;
       }
+      case "typing":
+        this.hostTyping(m.on === true);
+        break;
       case "session_end":
         this.finish({ kind: "ended", reason: endReason(m.reason) });
         break;

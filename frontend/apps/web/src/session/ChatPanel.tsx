@@ -1,30 +1,83 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
-import { MAX_CHAT, type ChatLine } from "./session";
+import { chatSoundOn, setChatSound } from "./chatSound";
+import { MAX_CHAT, TYPING_EVERY_MS, TYPING_PAUSE_MS, type ChatLine } from "./session";
+
+/**
+ * Tells the host this side is writing: "typing" again every few seconds
+ * while it writes, "stopped" after a pause, when the line is emptied or
+ * when the message goes.
+ */
+function useTypingSender(onTyping: (on: boolean) => void) {
+  const sentAt = useRef(0);
+  const pause = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quiet = () => {
+    if (pause.current) clearTimeout(pause.current);
+    pause.current = null;
+    if (sentAt.current) {
+      sentAt.current = 0;
+      onTyping(false);
+    }
+  };
+  const wrote = (any: boolean) => {
+    if (!any) return quiet();
+    if (Date.now() - sentAt.current >= TYPING_EVERY_MS) {
+      sentAt.current = Date.now();
+      onTyping(true);
+    }
+    if (pause.current) clearTimeout(pause.current);
+    pause.current = setTimeout(quiet, TYPING_PAUSE_MS);
+  };
+  useEffect(() => quiet, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { wrote, quiet };
+}
 
 /** The session's chat with the person at the host. */
-export function ChatPanel({ lines, hostName, onSend, onClose }: { lines: ChatLine[]; hostName: string; onSend: (text: string) => void; onClose: () => void }) {
+export function ChatPanel({ lines, hostName, hostTyping, onSend, onTyping, onClose }: {
+  lines: ChatLine[];
+  hostName: string;
+  hostTyping: boolean;
+  onSend: (text: string) => void;
+  onTyping: (on: boolean) => void;
+  onClose: () => void;
+}) {
   const [text, setText] = useState("");
+  const [sound, setSound] = useState(chatSoundOn);
   const listRef = useRef<HTMLOListElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typing = useTypingSender(onTyping);
 
   useEffect(() => inputRef.current?.focus({ preventScroll: true }), []);
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
+  }, [lines.length, hostTyping]);
 
   const send = () => {
     if (!text.trim()) return;
     onSend(text);
     setText("");
+    typing.quiet();
   };
 
   return (
     <aside className="chat-panel" role="dialog" aria-label={t.chat.title}>
       <header className="chat-head">
         <strong>{t.chat.title}</strong>
+        <button
+          type="button"
+          className="icon-button chat-sound"
+          aria-pressed={sound}
+          aria-label={sound ? t.chat.soundOff : t.chat.soundOn}
+          title={sound ? t.chat.soundOff : t.chat.soundOn}
+          onClick={() => {
+            setChatSound(!sound);
+            setSound(!sound);
+          }}
+        >
+          {sound ? "🔔" : "🔕"}
+        </button>
         <button type="button" className="button button-secondary button-small" onClick={onClose}>
           {t.session.close}
         </button>
@@ -39,6 +92,16 @@ export function ChatPanel({ lines, hostName, onSend, onClose }: { lines: ChatLin
             <span className="chat-text">{l.text}</span>
           </li>
         ))}
+        {hostTyping && (
+          <li className="chat-line from-host chat-typing" aria-label={t.chat.typing.replace("{name}", hostName)}>
+            <span className="chat-who">{t.chat.typing.replace("{name}", hostName)}</span>
+            <span className="chat-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+          </li>
+        )}
       </ol>
       <div className="chat-write">
         <textarea
@@ -48,7 +111,10 @@ export function ChatPanel({ lines, hostName, onSend, onClose }: { lines: ChatLin
           rows={2}
           aria-label={t.chat.write}
           placeholder={t.chat.write}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            typing.wrote(e.target.value.trim() !== "");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();

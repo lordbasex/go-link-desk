@@ -2088,6 +2088,8 @@ void rv_close(void *ref) {
 @property(nonatomic, strong) NSString *page;
 @property(nonatomic, strong) NSScrollView *scroll;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *rows;
+// A change came while a field was being typed in: shown when it ends.
+@property(nonatomic) BOOL stale;
 @end
 
 static RVPrefs *gPrefs;
@@ -2155,11 +2157,24 @@ static id objc_getAssociatedObjectField(id o) { return objc_getAssociatedObject(
 - (void)controlTextDidEndEditing:(NSNotification *)n {
 	NSTextField *f = n.object;
 	if (![f isKindOfClass:NSSecureTextField.class]) [self typed:f];
+	[self renderIfStale];
+}
+- (void)renderIfStale {
+	if (!self.stale) return;
+	self.stale = NO;
+	dispatch_async(dispatch_get_main_queue(), ^{ [self render]; });
 }
 - (void)setPassword:(NSButton *)b {
 	NSSecureTextField *f = (NSSecureTextField *)objc_getAssociatedObjectField(b);
-	[self send:b.identifier value:f.stringValue];
+	NSSecureTextField *f2 = (NSSecureTextField *)objc_getAssociatedObjectField(f);
+	// Typed twice: both go, a line apart, and the app compares them.
+	NSString *value = f2 ? [NSString stringWithFormat:@"%@\n%@", f.stringValue, f2.stringValue] : f.stringValue;
 	f.stringValue = @"";
+	f2.stringValue = @"";
+	// Out of the field, so the answer (set, or what is wrong) shows at once.
+	[self.window makeFirstResponder:nil];
+	[self send:b.identifier value:value];
+	[self renderIfStale];
 }
 - (void)pressed:(NSButton *)b {
 	NSDictionary *row = self.rows[b.identifier];
@@ -2262,10 +2277,29 @@ static NSColor *tint(NSString *t) {
 		NSButton *b = [NSButton buttonWithTitle:r[@"button"] ?: @"OK" target:self action:@selector(setPassword:)];
 		b.controlSize = NSControlSizeSmall;
 		b.identifier = ident;
-		f.target = b;
-		f.action = @selector(performClick:);
 		objc_setAssociatedObjectField(b, f);
-		NSStackView *s = [NSStackView stackViewWithViews:@[ f, b ]];
+		NSView *fields = f;
+		if ([r[@"repeat"] length]) {
+			// Typed twice, to be sure of it: Return in the first goes to the second.
+			NSSecureTextField *f2 = [[NSSecureTextField alloc] init];
+			f2.placeholderString = r[@"repeat"];
+			f2.font = [NSFont systemFontOfSize:12];
+			[f2.widthAnchor constraintEqualToConstant:170].active = YES;
+			f2.target = b;
+			f2.action = @selector(performClick:);
+			f.nextKeyView = f2;
+			f.target = f2;
+			f.action = @selector(selectText:);
+			objc_setAssociatedObjectField(f, f2);
+			NSStackView *col = [NSStackView stackViewWithViews:@[ f, f2 ]];
+			col.orientation = NSUserInterfaceLayoutOrientationVertical;
+			col.spacing = 4;
+			fields = col;
+		} else {
+			f.target = b;
+			f.action = @selector(performClick:);
+		}
+		NSStackView *s = [NSStackView stackViewWithViews:@[ fields, b ]];
 		s.spacing = 6;
 		right = s;
 	} else if ([kind isEqual:@"button"]) {
@@ -2424,7 +2458,12 @@ void rv_prefs(uintptr_t handle, const char *specJSON, int show) {
 		// Typing in a field: leave it, the change came from it.
 		NSResponder *fr = gPrefs.window.firstResponder;
 		BOOL typing = [fr isKindOfClass:NSTextView.class] && gPrefs.window.isKeyWindow;
-		if (!typing || bringUp) [gPrefs render];
+		if (!typing || bringUp) {
+			gPrefs.stale = NO;
+			[gPrefs render];
+		} else {
+			gPrefs.stale = YES;
+		}
 		if (bringUp) {
 			[NSApp activateIgnoringOtherApps:YES];
 			[gPrefs.window makeKeyAndOrderFront:nil];

@@ -157,6 +157,7 @@ type PrefRow struct {
 	Tint        string       `json:"tint,omitempty"`    // ok, warn, danger
 	Placeholder string       `json:"placeholder,omitempty"`
 	Button      string       `json:"button,omitempty"`
+	Repeat      string       `json:"repeat,omitempty"` // password: a second field to type it again (its placeholder)
 	Options     []PrefOption `json:"options,omitempty"`
 	Confirm     *PrefConfirm `json:"confirm,omitempty"` // asked before a button acts
 }

@@ -1,0 +1,5 @@
+// Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+// Copy to Local.xcconfig (gitignored) and put your Apple team id here:
+// Xcode > Settings > Accounts > your Apple ID > the team's "Team ID", or
+// developer.apple.com > Membership. A free Apple ID works for your own iPhone.
+DEVELOPMENT_TEAM = ABCDE12345

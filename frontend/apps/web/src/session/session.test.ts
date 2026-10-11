@@ -158,6 +158,14 @@ describe("Session control messages", () => {
       [true, "¿en qué te ayudo?"],
       [false, "no anda el wifi"],
     ]);
+
+    // Typing, both ways: the host's shows until its message comes.
+    control({ type: "typing", on: true });
+    expect(s.current.hostTyping).toBe(true);
+    control({ type: "chat", text: "listo" });
+    expect(s.current.hostTyping).toBe(false);
+    s.sendTyping(true);
+    expect(sent.at(-1)).toEqual({ type: "typing", on: true });
   });
 });
 

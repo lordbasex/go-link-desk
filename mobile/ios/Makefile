@@ -1,0 +1,78 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+# go-link Desk for iOS. `make help` lists the targets.
+
+SIM ?= iPhone 17 Pro
+DEST ?= platform=iOS Simulator,name=$(SIM)
+# VERSION=0.1.5 sets the app's version (MARKETING_VERSION) and its build
+# number (CURRENT_PROJECT_VERSION): major*10000 + minor*100 + patch
+# (0.1.5 -> 105). Without it, the latest
+# release tag (v0.1.9 -> 0.1.9), else Config/Base.xcconfig.
+VERSION ?= $(shell git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')
+ifneq ($(VERSION),)
+VERSION_CODE := $(shell echo '$(VERSION)' | awk -F. '{print $$1*10000 + $$2*100 + $$3}')
+VERSION_FLAGS := MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION_CODE)
+endif
+XCB = xcodebuild -project GoLinkDesk.xcodeproj -scheme GoLinkDesk -clonedSourcePackagesDirPath build/spm -derivedDataPath build/dd $(VERSION_FLAGS)
+
+# Signing for a device or TestFlight, all from the environment (never from
+# the repository): `source ~/.go-link-signing/env.sh` sets TEAM_ID and the App
+# Store Connect API key (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH). With the key
+# xcodebuild creates the certificates and profiles, registers the iPhone and
+# uploads, without Xcode's Accounts.
+TEAM_FLAG := $(if $(TEAM_ID),DEVELOPMENT_TEAM=$(TEAM_ID))
+ASC_AUTH := -allowProvisioningUpdates $(if $(ASC_KEY_ID),-authenticationKeyPath "$(ASC_KEY_PATH)" -authenticationKeyID $(ASC_KEY_ID) -authenticationKeyIssuerID $(ASC_ISSUER_ID))
+# TestFlight needs a new build number on every upload: the version code and
+# the time (0.3.0 at 12:30 on 2026-10-09 -> 300.2610091230).
+BUILD ?= $(or $(VERSION_CODE),1).$(shell date +%y%m%d%H%M)
+# The connected iPhone or iPad (the first one paired), for install-device.
+DEVICE ?= $(shell xcrun devicectl list devices 2>/dev/null | grep 'available (paired)' | grep -m1 -E 'iPhone|iPad' | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}')
+
+.PHONY: help project test-core build-sim device-build install-device testflight testflight-status clean
+
+help: ## This list
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-13s %s\n", $$1, $$2}'
+
+project: ## Generate GoLinkDesk.xcodeproj from project.yml (needs xcodegen)
+	xcodegen generate
+
+test-core: ## DeskCore unit tests on the Mac, and every text translated
+	cd DeskCore && swift test
+	python3 scripts/check-strings.py
+
+build-sim: project ## Debug build for the iOS Simulator (no signing)
+	$(XCB) -destination '$(DEST)' CODE_SIGNING_ALLOWED=NO build
+
+device-build: project ## Signed build for an iPhone or iPad (team in Config/Local.xcconfig, or source env.sh first)
+	$(XCB) -configuration Debug -destination 'generic/platform=iOS' $(TEAM_FLAG) $(ASC_AUTH) build
+
+install-device: project ## Build, sign and install on the connected iPhone (source env.sh first)
+	@test -n "$(DEVICE)" || { echo "no paired iPhone or iPad connected" >&2; exit 1; }
+	$(XCB) -configuration Debug -destination 'generic/platform=iOS' $(TEAM_FLAG) $(ASC_AUTH) build
+	xcrun devicectl device install app --device $(DEVICE) build/dd/Build/Products/Debug-iphoneos/GoLinkDesk.app
+	xcrun devicectl device process launch --device $(DEVICE) org.go-link.desk.ios
+
+testflight: project ## Archive, sign and upload a build to App Store Connect / TestFlight (source env.sh first)
+	@test -n "$(TEAM_ID)" -a -n "$(ASC_KEY_ID)" || { echo "source ~/.go-link-signing/env.sh first (TEAM_ID, ASC_KEY_ID)" >&2; exit 1; }
+	rm -rf build/GoLinkDesk.xcarchive build/export
+	$(XCB) -configuration Release -destination 'generic/platform=iOS' $(TEAM_FLAG) CURRENT_PROJECT_VERSION=$(BUILD) \
+		$(ASC_AUTH) -archivePath build/GoLinkDesk.xcarchive archive
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+		'<plist version="1.0"><dict>' \
+		'<key>method</key><string>app-store-connect</string>' \
+		'<key>destination</key><string>upload</string>' \
+		'<key>signingStyle</key><string>automatic</string>' \
+		'<key>teamID</key><string>$(TEAM_ID)</string>' \
+		'<key>uploadSymbols</key><true/>' \
+		'<key>manageAppVersionAndBuildNumber</key><false/>' \
+		'</dict></plist>' > build/ExportOptions.plist
+	xcodebuild -exportArchive -archivePath build/GoLinkDesk.xcarchive -exportPath build/export \
+		-exportOptionsPlist build/ExportOptions.plist $(ASC_AUTH)
+	@echo "uploaded build $(BUILD): App Store Connect checks it now (make testflight-status)"
+
+testflight-status: ## What App Store Connect said about the latest uploads (source env.sh first)
+	@python3 scripts/asc.py GET "/v1/apps/$$(python3 scripts/asc.py GET '/v1/apps?filter[bundleId]=org.go-link.desk.ios' | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"][0]["id"])')/buildUploads?limit=3" \
+		| python3 -c 'import json,sys;[print(u["attributes"]["cfBundleVersion"], u["attributes"]["state"]["state"], *[e["code"]+": "+e["description"] for e in u["attributes"]["state"]["errors"]]) for u in json.load(sys.stdin)["data"]]' 
+
+clean: ## Remove build output and the generated project
+	rm -rf build GoLinkDesk.xcodeproj

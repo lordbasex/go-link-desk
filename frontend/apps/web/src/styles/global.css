@@ -103,6 +103,13 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .step { padding: 18px; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border); }
 .step-title { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
 
+/* ---------- privacy ---------- */
+.prose { max-width: 680px; }
+.prose h1 { margin: 0 0 6px; font-family: var(--font-title); font-size: 30px; }
+.prose h2 { margin: 28px 0 6px; font-size: 16px; font-weight: 600; }
+.prose p { margin: 0 0 10px; color: var(--color-text-2); line-height: 1.55; }
+.footer a { color: inherit; }
+
 /* ---------- join form ---------- */
 .join { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
 .join-title { margin: 0; font-family: var(--font-title); font-size: 28px; }
@@ -187,6 +194,13 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .chat-who { font-size: 11px; color: var(--color-text-muted); }
 .chat-text { padding: 7px 10px; border-radius: 12px; background: var(--color-bg); color: var(--color-text); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-line.from-me .chat-text { background: var(--tint-accent-bg); }
+.chat-dots { display: inline-flex; gap: 4px; align-self: flex-start; padding: 9px 12px; border-radius: 12px; background: var(--color-bg); }
+.chat-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--color-text-muted); animation: chat-dot 1.2s infinite ease-in-out; }
+.chat-dots i:nth-child(2) { animation-delay: 0.15s; }
+.chat-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes chat-dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .chat-dots i { animation: none; opacity: 0.6; } }
+.chat-sound { margin-left: auto; font-size: 15px; }
 .chat-write { display: flex; gap: 8px; align-items: flex-end; padding: 10px 14px; border-top: 1px solid var(--color-border); }
 .chat-write textarea { flex: 1; min-height: 40px; max-height: 120px; padding: 8px 10px; border-radius: var(--radius-control); border: 1px solid var(--color-border-input); background: var(--color-bg); color: var(--color-text); font: 14px var(--font-text); resize: none; }
 @media (max-width: 600px) { .chat-panel { left: 16px; right: 16px; width: auto; top: auto; height: 60%; } }

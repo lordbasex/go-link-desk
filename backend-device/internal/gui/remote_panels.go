@@ -29,6 +29,8 @@ type remoteChat struct {
 	lines  *fyne.Container
 	scroll *container.Scroll
 	entry  *widget.Entry
+	out    *typingSender
+	in     *typingShown
 }
 
 // chatWindow returns the session's chat window (on Fyne's thread).
@@ -43,8 +45,11 @@ func (r *remote) chatWindow() *remoteChat {
 	c.entry = widget.NewEntry()
 	c.entry.SetPlaceHolder(L("Write a message"))
 	c.entry.OnSubmitted = func(string) { c.submit() }
+	c.out = &typingSender{send: r.s.SendTyping}
+	c.in = newTypingShown()
+	c.entry.OnChanged = func(text string) { c.out.wrote(text != "") }
 	send := widget.NewButtonWithIcon("", theme.MailSendIcon(), c.submit)
-	c.win.SetContent(container.NewPadded(container.NewBorder(nil, container.NewBorder(nil, nil, nil, send, c.entry), nil, nil, c.scroll)))
+	c.win.SetContent(container.NewPadded(container.NewBorder(nil, container.NewVBox(c.in.label, container.NewBorder(nil, nil, nil, send, c.entry)), nil, nil, c.scroll)))
 	c.win.Resize(fyne.NewSize(340, 420))
 	c.win.SetCloseIntercept(c.win.Hide)
 	r.chat = c
@@ -69,12 +74,27 @@ func (c *remoteChat) show() {
 func (c *remoteChat) submit() {
 	if line, ok := c.r.s.SendChat(c.entry.Text); ok {
 		c.entry.SetText("")
+		c.out.quiet()
 		c.add(line)
 	}
 }
 
+// showTyping shows (or hides) that the person at the other computer is writing.
+func (c *remoteChat) showTyping(on bool) {
+	c.r.mu.Lock()
+	name := c.r.host.Name
+	c.r.mu.Unlock()
+	if name == "" {
+		name = L("The other computer")
+	}
+	c.in.show(on, name)
+}
+
 func (c *remoteChat) add(line viewer.ChatLine) {
 	who := L("You")
+	if line.FromHost {
+		c.in.show(false, "")
+	}
 	if line.FromHost {
 		c.r.mu.Lock()
 		who = c.r.host.Name

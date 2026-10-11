@@ -25,12 +25,25 @@ type unattendedRig struct {
 	settings *SettingsService
 	u        *UnattendedService
 	saved    *[]models.Link
+	// autoPass: the rig gave the host rigPassword (unattended access needs
+	// one), and reach types it.
+	autoPass bool
 }
+
+const rigPassword = "rig password"
 
 func newUnattendedRig(t *testing.T, saved *[]models.Link, cfg models.Config) *unattendedRig {
 	t.Helper()
 	s, st, snd, v := openRoom(t)
 	links, tr, _ := newTestLinks(t, saved, time.Minute)
+	autoPass := false
+	if cfg.Unattended.Enabled && cfg.Unattended.PasswordHash == "" {
+		hash, err := HashPassword(rigPassword)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Unattended.PasswordHash, autoPass = hash, true
+	}
 	settings := NewSettingsService(cfg, nil, nil)
 	s.SetUnattended(settings)
 	u := NewUnattendedService(UnattendedConfig{
@@ -38,7 +51,7 @@ func newUnattendedRig(t *testing.T, saved *[]models.Link, cfg models.Config) *un
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	links.SetTransport(tr.send, func(peer string) { s.Drop(peer, models.EndRevoked) })
-	return &unattendedRig{session: s, status: st, snd: snd, viewers: v, links: links, tr: tr, settings: settings, u: u, saved: saved}
+	return &unattendedRig{session: s, status: st, snd: snd, viewers: v, links: links, tr: tr, settings: settings, u: u, saved: saved, autoPass: autoPass}
 }
 
 // claim plays a browser that types the pairing code, is accepted by the
@@ -85,6 +98,21 @@ func (r *unattendedRig) reach(t *testing.T, peer, linkID, token string) {
 		t.Fatalf("proof %+v", p)
 	}
 	r.u.HandleWaiting(peer, []byte(`{"type":"auth","link_id":"`+linkID+`","token":"`+token+`"}`))
+	if r.autoPass && r.tr.last(peer)["type"] == "password_required" {
+		r.u.HandleWaiting(peer, []byte(`{"type":"password","password":"`+rigPassword+`"}`))
+	}
+}
+
+func TestUnattendedAccessNeedsAPassword(t *testing.T) {
+	set := NewSettingsService(models.Config{Unattended: models.Unattended{Enabled: true}}, nil, nil)
+	if set.UnattendedOn() {
+		t.Fatal("unattended access without a password let linked devices in")
+	}
+	hash, _ := HashPassword("correct horse")
+	_ = set.Update(func(c *models.Config) { c.Unattended.PasswordHash = hash })
+	if !set.UnattendedOn() {
+		t.Fatal("with a password it is on")
+	}
 }
 
 func TestALinkKeepsWhatThePersonAllowedAndComesBackWithoutAnyone(t *testing.T) {

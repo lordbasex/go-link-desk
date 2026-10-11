@@ -160,6 +160,13 @@ func (s *Session) onControl(data []byte) {
 		if text != "" && ev.Chat != nil {
 			ev.Chat(ChatLine{FromHost: true, Text: text, At: time.Now()})
 		}
+	case "typing":
+		var t struct {
+			On bool `json:"on"`
+		}
+		if json.Unmarshal(data, &t) == nil && ev.Typing != nil {
+			ev.Typing(t.On)
+		}
 	case "session_end":
 		s.finish(Status{Kind: StatusEnded, Reason: endReason(m.Reason)})
 	default:
@@ -406,6 +413,15 @@ func (s *Session) SendChat(text string) (ChatLine, bool) {
 
 // SetHidden says whether the window is out of sight (reported to the
 // computer, which may send less).
+// SendTyping tells the computer this side is writing a chat message (on),
+// or stopped.
+func (s *Session) SendTyping(on bool) {
+	if s.Status().Over() {
+		return
+	}
+	s.sendControl(map[string]any{"type": "typing", "on": on})
+}
+
 func (s *Session) SetHidden(hidden bool) {
 	s.mu.Lock()
 	s.isHidden = hidden

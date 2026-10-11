@@ -6,7 +6,8 @@ import type { HostProc } from "../stack";
 
 /** A host of this spec's own, which it restarts. */
 const NAME = "unattended";
-const unattended = ["--test-auto-accept", "--test-unattended"];
+// Unattended access always has a password.
+const unattended = ["--test-auto-accept", "--test-unattended", "--test-unattended-password", "correct horse"];
 
 function log(h: HostProc): string {
   try {
@@ -44,7 +45,7 @@ async function live(page: Page) {
   await expect.poll(() => framesDecoded(page), { timeout: 30_000 }).toBeGreaterThan(0);
 }
 
-test("a linked browser comes back without a code after the host restarts, with the password if set; a revoked one is turned away", async ({ page }) => {
+test("a linked browser comes back without a code after the host restarts, with the password; a revoked one is turned away", async ({ page }) => {
   test.setTimeout(180_000);
   let host = await start(unattended);
   try {
@@ -64,22 +65,14 @@ test("a linked browser comes back without a code after the host restarts, with t
     await page.getByRole("button", { name: "Disconnect" }).click();
     await expect(page.getByText("You left the session.")).toBeVisible();
 
-    // The host restarts: My computers takes the browser back, no code, nobody asked.
+    // The host restarts: My computers takes the browser back, no code,
+    // nobody asked; the link alone is not enough, the password goes too.
     let seen = codes(host).length;
     await stopHost(host);
     host = await start(unattended, seen);
     await page.goto("/devices");
     await page.getByRole("link", { name: "Connect" }).first().click();
     await expect(page).toHaveURL(new RegExp(`/d/${deviceId}$`));
-    await live(page);
-    await expect.poll(() => /msg="unattended session started"/.test(log(host))).toBe(true);
-    await page.getByRole("button", { name: "Disconnect" }).click();
-
-    // With a password, the link alone is not enough.
-    seen = codes(host).length;
-    await stopHost(host);
-    host = await start([...unattended, "--test-unattended-password", "correct horse"], seen);
-    await page.goto(`/d/${deviceId}`);
     const password = page.getByLabel("Password of that computer");
     await password.fill("wrong guess");
     await page.getByRole("button", { name: "Connect" }).click();
@@ -100,7 +93,7 @@ test("a linked browser comes back without a code after the host restarts, with t
     await page.goto(`/d/${deviceId}`);
     await expect(page.getByText("That computer no longer has this browser linked.", { exact: false })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("go-link-desk.devices"))).toBe("[]");
-    expect(log(host).split("unattended session started").length - 1).toBe(2);
+    expect(log(host).split("unattended session started").length - 1).toBe(1);
   } finally {
     await stopHost(host);
   }

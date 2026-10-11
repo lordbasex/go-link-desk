@@ -128,6 +128,9 @@ export const es: Messages = {
     write: "Escribí un mensaje",
     send: "Enviar",
     you: "Vos",
+    typing: "{name} está escribiendo",
+    soundOn: "Activar el sonido de los mensajes",
+    soundOff: "Silenciar el sonido de los mensajes",
   },
   keys: {
     menu: "Teclas",
@@ -215,5 +218,45 @@ export const es: Messages = {
     unnamed: "Computadora",
     thumbOf: "La pantalla de {name} la última vez",
   },
-  footer: { source: "Código fuente" },
+  privacy: {
+    title: "Privacidad",
+    updated: "go-link Desk: la app de computadora, este sitio y la app para iPhone y iPad. Octubre de 2026.",
+    sections: [
+      {
+        title: "No se recolecta nada",
+        text: [
+          "go-link Desk no tiene cuentas, ni analíticas, ni publicidad, ni seguimiento. Nadie vende, comparte ni guarda tus datos, porque nunca se reúnen.",
+        ],
+      },
+      {
+        title: "La imagen, el sonido y el control",
+        text: [
+          "Van directo entre tus equipos por WebRTC, cifrados de punta a punta (DTLS y SRTP). Cuando no hay camino directo pasan por un relay (TURN) que solo ve tráfico cifrado y no guarda nada.",
+        ],
+      },
+      {
+        title: "El servidor de señalización",
+        text: [
+          "Para poner en contacto a dos equipos, el servidor de señalización (signalhub) pasa la preparación de la conexión y los códigos de 9 dígitos mientras empieza una sesión. Ve las direcciones IP de los equipos, como cualquier servidor, y no guarda registro de sesiones, imágenes ni de lo que se escribe.",
+        ],
+      },
+      {
+        title: "Lo que queda en tus equipos",
+        text: [
+          "La app de computadora guarda sus ajustes, sus logs y las computadoras y navegadores que vinculás, en esa computadora. Este sitio guarda tu tema, idioma, nombre y computadoras vinculadas en tu navegador. La app para iPhone y iPad guarda tu nombre, sus ajustes y tus computadoras recientes en el equipo. Podés borrarlos cuando quieras.",
+        ],
+      },
+      {
+        title: "Permisos",
+        text: [
+          "La persona en la computadora decide, en cada sesión, si solo podés ver la pantalla o también usar el mouse y el teclado, escuchar su sonido, compartir el portapapeles o enviar archivos, y puede cambiarlo durante la sesión.",
+        ],
+      },
+      {
+        title: "Contacto",
+        text: ["Consultas: lord.basex@gmail.com. go-link Desk es software libre y de código abierto (licencia MIT)."],
+      },
+    ],
+  },
+  footer: { source: "Código fuente", privacy: "Privacidad" },
 };

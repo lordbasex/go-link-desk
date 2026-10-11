@@ -66,6 +66,7 @@ func (u *ui) newSessionPanel() *sessionPanel {
 			// Never take the focus: the viewer may be typing into another app.
 			fyne.Do(func() { p.chat.add(m) })
 		})
+		u.opts.Chat.OnTyping(func(on bool) { fyne.Do(func() { p.chat.showTyping(on) }) })
 		p.win.SetContent(container.NewPadded(container.NewBorder(top, p.disconnect, nil, nil, p.chat.box)))
 	} else {
 		p.win.SetContent(container.NewPadded(container.NewVBox(top, p.disconnect)))
@@ -100,6 +101,9 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	p.checks.set(a.Permissions)
 	if p.chat != nil && p.peer != a.PeerID {
 		p.chat.clear()
+	}
+	if p.chat != nil {
+		p.chat.name = a.Name
 	}
 	p.peer = a.PeerID
 	if p.shown {

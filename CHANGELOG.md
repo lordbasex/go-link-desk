@@ -4,6 +4,27 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-11
+
+The first release: go-link Desk for macOS (13 or newer, Intel and Apple silicon, signed and notarized), for iPhone and iPad (iOS and iPadOS 26 or newer, on the App Store), and the website (desk.go-link.org). Tested on an iPhone 17 Pro Max and an iPad Pro (M4), connecting to a Mac.
+
+### Added (the iPhone and iPad app, phase 6c)
+
+- **go-link Desk for iPhone and iPad** (`mobile/ios`): connect to another computer with its 9-digit code, and see and use it once the person there accepts. Home has the code and the recent computers; Settings has your name, the fingers and your own signaling server. English, Spanish and Portuguese.
+- **Fingers as a trackpad** (slide, tap, long press to drag; two fingers to right click and zoom; three fingers to scroll) or by touch; an iPad's trackpad, mouse and keyboard; the on-screen keyboard with a bar of special keys; the computer's shortcuts (Ctrl+Alt+Del, Spotlight, switch apps…); the displays, the picture preset, the sound and the details.
+- **Files, as on the Mac app:** browse the computer's home folder, tap a file to download it (into the Files app, On My iPhone or iPad › go-link Desk, with Share), and send a file from the Files app or a photo or video to the computer's Downloads/go-link Desk, with progress and Cancel.
+- **Unattended access with Face ID** (Touch ID, Optic ID, or the device's passcode): link your own computers once with their pairing code (the person there accepts once), and open them from My computers without anyone there. Each link's token is in the keychain, only on this device and given back only after Face ID; the computer proves itself before the token goes out, as in the website and the Mac app, and its unattended password is asked when it has one.
+- **Unattended access always has a password** (all platforms): it cannot be turned on without one, removing it turns it off, and a configuration without one lets no linked device in. Settings asks for it twice, says when it is set or what is wrong, and shows the change at once (it waited for the field to lose the focus). The iPhone and iPad app keeps it with the link, behind Face ID, and sends it by itself; the website asks for it every time. "Linked browsers" are now "linked devices", and the linking code says how to link from the iPhone and iPad app.
+- **"Is typing"** in the chat, both ways and everywhere (the computer's session window, the website, the Mac app and the iPhone and iPad app), with three dots that rise in turn: a new `typing {on}` control message.
+- **The message sound:** a short sound when the person at the computer writes, on the website (two soft notes, with a 🔔 to turn it off in the chat) and the iPhone and iPad app (the system's chime; Settings › Message sound).
+- **Chat** with the person at the computer, with a count of the messages not read and a short notice when one comes in with the chat closed.
+- **How to use it:** a guide to the gestures (trackpad and touch), the keyboard and its keys, the toolbar, an iPad's trackpad and mouse, and the lock; it opens the first time a session starts, and from the toolbar's ? button.
+- **Lock, to watch** (a film, a presentation): the screen, an iPad's trackpad and keyboard stop sending and the view stays still; the toolbar becomes a small lock, held for a second to unlock.
+- **The same protocol as the website and the Mac app**, with libwebrtc (hardware H.264) and the picture shown as soon as it is decoded. `DeskCore`, the app's portable logic, is tested on the Mac (`make test-core`) and in CI, against the same input vectors as the host and the website.
+- **Signed and in TestFlight:** `make testflight` archives, signs with the App Store Connect API key and uploads.
+- **The Mac app signed and notarized:** `make device-notarized` signs with the Developer ID, notarizes the app and the disk image, and staples their tickets (`make device-dmg` for the disk image alone).
+- **A privacy page** on the website (desk.go-link.org/privacy), linked from the footer.
+
 ### Added
 
 - **About go-link Desk:** the version, what the app is, its license and website. On macOS it is the system's About panel, first in the app menu, which is now go-link Desk's own (About, Settings… with ⌘,, Hide, Quit) in the app's language; elsewhere, a small window. Also in the menu bar icon's menu.

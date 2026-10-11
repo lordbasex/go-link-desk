@@ -131,7 +131,7 @@ desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts
 | Kind | Arrives with | Gets |
 |---|---|---|
 | **Viewer** | `join` with the session code or invite | After the host accepts: video, audio and the `control`, `pointer`, `input` and `files` channels, within the permissions granted. |
-| **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password if there is one, and it becomes a full session with its link's permissions, nobody asked. |
+| **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password (unattended access always has one), and it becomes a full session with its link's permissions, nobody asked. |
 
 ## The app as a viewer
 
@@ -143,6 +143,15 @@ go-link Desk also connects to other computers, in the same window: Home has the 
 - **Sound** is decoded with libopus and played with the call's audio engine; files go through the same client as the website's (`files.ts`), into Downloads, never over a file.
 - **Not yet:** the video call from the app (it ignores the call's lines), and VP8 (a host that cannot send H.264 shows a message pointing to the website).
 - **What it keeps** (`remotes.json`, 0600): the links (with their tokens, as the browser's `localStorage` does), labels and favorites, the recent sessions, and a small thumbnail of each, taken from the window's own pixels while the session's tab is shown.
+
+## The iPhone and iPad app
+
+`mobile/ios` is a third viewer, with the same protocol: join with the session code, knock, answer the offer, and the control, pointer and input channels. It only connects; it never shows its own screen.
+
+- **Built like go-link's player app, not on the host's Go code.** Swift, with Google's libwebrtc (stasel/WebRTC). libwebrtc brings the jitter buffer, the loss recovery (NACK, PLI), the congestion feedback and the hardware H.264 decoder that Safari and Chrome use, on the networks phones roam between. The protocol is ported to Swift (`DeskCore`) and checked against the same vectors as the host and the website (`protocol/vectors/input.json`, `protocol/keycodes.json`).
+- **The picture is shown the way the Mac app shows it:** each decoded frame goes to an `AVSampleBufferDisplayLayer` at once. libwebrtc's Metal view drew nothing in the Simulator, and this path is the shortest.
+- **The pointer:** the app asks for the pointer's image and position (`cursor_mode` off) and draws it where the finger put it, without waiting for the picture. While zoomed in, the view follows the pointer.
+- **Keys by position from a hardware keyboard, text from the on-screen one** (the 0x31 text packet), so any layout and any language type right.
 
 ## Unattended access
 

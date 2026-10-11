@@ -130,6 +130,9 @@ export const en = {
     write: "Write a message",
     send: "Send",
     you: "You",
+    typing: "{name} is typing",
+    soundOn: "Turn the message sound on",
+    soundOff: "Turn the message sound off",
   },
   keys: {
     menu: "Keys",
@@ -217,7 +220,47 @@ export const en = {
     unnamed: "Computer",
     thumbOf: "The screen of {name} last time",
   },
-  footer: { source: "Source code" },
+  privacy: {
+    title: "Privacy",
+    updated: "go-link Desk: the computer app, this website and the iPhone and iPad app. October 2026.",
+    sections: [
+      {
+        title: "Nothing is collected",
+        text: [
+          "go-link Desk has no accounts, no analytics, no advertising and no tracking. Nobody sells, shares or keeps your data, because it is never gathered.",
+        ],
+      },
+      {
+        title: "The picture, sound and controls",
+        text: [
+          "They go straight between your devices over WebRTC, encrypted end to end (DTLS and SRTP). When a direct path is not possible they pass through a relay (TURN) that only sees encrypted traffic and keeps nothing.",
+        ],
+      },
+      {
+        title: "The signaling server",
+        text: [
+          "To put two devices in touch, the signaling server (signalhub) passes along the connection setup and the 9-digit codes while a session starts. It sees the devices' IP addresses, as any server does, and keeps no record of sessions, pictures or what is typed.",
+        ],
+      },
+      {
+        title: "What stays on your devices",
+        text: [
+          "The computer app keeps its settings, its logs and the computers and browsers you link, on that computer. This website keeps your theme, language, name and linked computers in your browser. The iPhone and iPad app keeps your name, its settings and your recent computers on the device. You can delete them at any time.",
+        ],
+      },
+      {
+        title: "Permissions",
+        text: [
+          "The person at a computer decides, in every session, whether you may only see the screen or also use the mouse and keyboard, hear its sound, share the clipboard or send files, and can change it while the session runs.",
+        ],
+      },
+      {
+        title: "Contact",
+        text: ["Questions: lord.basex@gmail.com. go-link Desk is free and open source software (MIT license)."],
+      },
+    ],
+  },
+  footer: { source: "Source code", privacy: "Privacy" },
 };
 
 export type Messages = typeof en;
