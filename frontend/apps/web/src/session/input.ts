@@ -222,7 +222,8 @@ export class InputCapture {
    */
   private mine(e: Event): boolean {
     const t = e.target as Element | null;
-    return this.locked || t === this.surface || t instanceof HTMLVideoElement || (t instanceof Element && t.classList.contains("remote-cursor"));
+    // The screen's own video only: a call's videos are the page's.
+    return this.locked || t === this.surface || (t instanceof HTMLVideoElement && t.classList.contains("screen")) || (t instanceof Element && t.classList.contains("remote-cursor"));
   }
 
   private onMove(e: PointerEvent): void {

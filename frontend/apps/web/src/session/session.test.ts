@@ -20,6 +20,9 @@ class NoPC {
     return { type: "answer", sdp: "ans" };
   }
   async setLocalDescription() {}
+  getTransceivers() {
+    return [];
+  }
   close() {}
 }
 
