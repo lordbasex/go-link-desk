@@ -154,6 +154,8 @@ export class HostStream {
   private closed = false;
   private control: RTCDataChannel | null = null;
   private pendingControl: string[] = [];
+  private pointer: RTCDataChannel | null = null;
+  private input: RTCDataChannel | null = null;
   // Signals are applied one after the other: a candidate must never pass
   // the offer it belongs to (with ICE restarts, it would belong to the new
   // credentials and fail against the old ones).
@@ -217,6 +219,22 @@ export class HostStream {
       return false;
     }
     ch.send(text);
+    return true;
+  }
+
+  /** Sends a pointer move: unreliable, unordered; dropped while not open. */
+  sendPointer(packet: ArrayBuffer): boolean {
+    if (this.pointer?.readyState !== "open") return false;
+    // A move is stale by the next frame: never queue them up.
+    if (this.pointer.bufferedAmount > 64 * 1024) return false;
+    this.pointer.send(packet);
+    return true;
+  }
+
+  /** Sends a button, wheel, key, text or release-all packet: reliable, ordered. */
+  sendInput(packet: ArrayBuffer): boolean {
+    if (this.input?.readyState !== "open") return false;
+    this.input.send(packet);
     return true;
   }
 
@@ -325,6 +343,12 @@ export class HostStream {
     };
     pc.ondatachannel = (ev) => {
       const ch = ev.channel;
+      if (ch.label === "pointer" || ch.label === "input") {
+        ch.binaryType = "arraybuffer";
+        if (ch.label === "pointer") this.pointer = ch;
+        else this.input = ch;
+        return;
+      }
       if (ch.label !== "control") return;
       this.control = ch;
       const flush = () => {

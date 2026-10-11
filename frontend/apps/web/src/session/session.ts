@@ -4,6 +4,7 @@ import {
   HostStream,
   ServerError,
   SignalError,
+  parseDecision,
   endReason,
   type EndReason,
   type Envelope,
@@ -214,6 +215,16 @@ export class Session {
     if (inVideo) this.opts.onCursor?.({ ...this.cursor, visible: false });
   }
 
+  /** Sends a pointer move (unreliable). */
+  sendPointer(packet: ArrayBuffer): void {
+    this.stream?.sendPointer(packet);
+  }
+
+  /** Sends a button, wheel, key, text or release-all packet (reliable). */
+  sendInput(packet: ArrayBuffer): void {
+    this.stream?.sendInput(packet);
+  }
+
   /** Flips the latency beacon: odd turns it white, even black. */
   flipBeacon(seq: number): void {
     this.stream?.sendControl({ type: "beacon", seq: seq & 0xffff });
@@ -239,6 +250,11 @@ export class Session {
       case "displays":
         this.set({ displays: parseDisplays(m.displays), display: n("current"), notice: this.view.notice });
         break;
+      case "permissions": {
+        const d = parseDecision({ kind: "accepted", permissions: m.permissions });
+        if (d?.kind === "accepted") this.set({ permissions: d.permissions });
+        break;
+      }
       case "notice":
         this.set({ notice: String(m.code ?? "").slice(0, 40) || null });
         break;
