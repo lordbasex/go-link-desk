@@ -11,7 +11,7 @@ package encoder
 #include <string.h>
 #include <VideoToolbox/VideoToolbox.h>
 
-extern void goVTFrame(uintptr_t handle, void *data, int len);
+extern void goVTFrame(uintptr_t handle, void *data, int len, int key, int64_t pts_us);
 
 typedef struct {
 	VTCompressionSessionRef session;
@@ -73,7 +73,9 @@ static void vt_out(void *refcon, void *src, OSStatus status, VTEncodeInfoFlags f
 		p += len;
 		at += len;
 	}
-	goVTFrame(e->handle, out, (int)(p - out));
+	CMTime pts = CMSampleBufferGetPresentationTimeStamp(sb);
+	int64_t us = CMTIME_IS_VALID(pts) ? CMTimeConvertScale(pts, 1000000, kCMTimeRoundingMethod_Default).value : 0;
+	goVTFrame(e->handle, out, (int)(p - out), key, us);
 	free(out);
 }
 
@@ -83,7 +85,26 @@ static void set_int(VTCompressionSessionRef s, CFStringRef key, int64_t v) {
 	CFRelease(n);
 }
 
-static vt_enc *vt_open(int w, int h, int fps, int kbps, int gop, uintptr_t handle, int *err) {
+// vt_set_rate sets the average bitrate and caps each second at 1.5 times
+// it: a steady stream for WebRTC. It works while encoding.
+static void vt_set_rate(vt_enc *e, int kbps) {
+	set_int(e->session, kVTCompressionPropertyKey_AverageBitRate, (int64_t)kbps * 1000);
+	int64_t bytes = (int64_t)kbps * 1000 / 8 * 3 / 2, one = 1;
+	CFNumberRef b = CFNumberCreate(NULL, kCFNumberSInt64Type, &bytes), o = CFNumberCreate(NULL, kCFNumberSInt64Type, &one);
+	const void *lim[] = { b, o };
+	CFArrayRef a = CFArrayCreate(NULL, lim, 2, &kCFTypeArrayCallBacks);
+	VTSessionSetProperty(e->session, kVTCompressionPropertyKey_DataRateLimits, a);
+	CFRelease(a);
+	CFRelease(b);
+	CFRelease(o);
+}
+
+// vt_open starts a session. high picks Constrained High (CABAC, 8x8
+// transforms: the same picture in fewer bits than Baseline; every browser
+// decodes it); lowlat turns on the rate control made for video calls,
+// which keeps each frame near the target instead of saving bits on still
+// pictures; maxqp > 0 caps the quantizer so text stays sharp.
+static vt_enc *vt_open(int w, int h, int fps, int kbps, int gop, int high, int lowlat, int maxqp, uintptr_t handle, int *err) {
 	vt_enc *e = (vt_enc *)calloc(1, sizeof *e);
 	if (!e) {
 		*err = -1;
@@ -93,10 +114,11 @@ static vt_enc *vt_open(int w, int h, int fps, int kbps, int gop, uintptr_t handl
 	e->h = h;
 	e->fps = fps;
 	e->handle = handle;
-	// the hardware encoder when there is one (every Mac since 2011, Apple silicon's media engine)
-	const void *sk[] = { kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder };
-	const void *sv[] = { kCFBooleanTrue };
-	CFDictionaryRef spec = CFDictionaryCreate(NULL, sk, sv, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	// The hardware encoder (every Mac that runs macOS 13 has one: Apple
+	// silicon's media engine, Intel Quick Sync, the T2 or the GPU's).
+	const void *sk[2] = { kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder, kVTVideoEncoderSpecification_EnableLowLatencyRateControl };
+	const void *sv[2] = { kCFBooleanTrue, kCFBooleanTrue };
+	CFDictionaryRef spec = CFDictionaryCreate(NULL, sk, sv, lowlat ? 2 : 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 	int32_t fmt = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange; // NV12, what the hardware takes
 	CFNumberRef fmtn = CFNumberCreate(NULL, kCFNumberSInt32Type, &fmt);
 	const void *bk[] = { kCVPixelBufferPixelFormatTypeKey };
@@ -112,28 +134,49 @@ static vt_enc *vt_open(int w, int h, int fps, int kbps, int gop, uintptr_t handl
 		return NULL;
 	}
 	VTSessionSetProperty(e->session, kVTCompressionPropertyKey_RealTime, kCFBooleanTrue);
-	VTSessionSetProperty(e->session, kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Baseline_AutoLevel);
+	VTSessionSetProperty(e->session, kVTCompressionPropertyKey_ProfileLevel, high ? kVTProfileLevel_H264_ConstrainedHigh_AutoLevel : kVTProfileLevel_H264_Baseline_AutoLevel);
 	VTSessionSetProperty(e->session, kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse);
-	set_int(e->session, kVTCompressionPropertyKey_AverageBitRate, (int64_t)kbps * 1000);
 	set_int(e->session, kVTCompressionPropertyKey_ExpectedFrameRate, fps);
 	set_int(e->session, kVTCompressionPropertyKey_MaxKeyFrameInterval, gop);
-	{
-		// no second's bytes over 1.5 times the average: a steady stream for WebRTC
-		int64_t bytes = (int64_t)kbps * 1000 / 8 * 3 / 2, one = 1;
-		CFNumberRef b = CFNumberCreate(NULL, kCFNumberSInt64Type, &bytes), o = CFNumberCreate(NULL, kCFNumberSInt64Type, &one);
-		const void *lim[] = { b, o };
-		CFArrayRef a = CFArrayCreate(NULL, lim, 2, &kCFTypeArrayCallBacks);
-		VTSessionSetProperty(e->session, kVTCompressionPropertyKey_DataRateLimits, a);
-		CFRelease(a);
-		CFRelease(b);
-		CFRelease(o);
-	}
+	if (maxqp > 0)
+		set_int(e->session, kVTCompressionPropertyKey_MaxAllowedFrameQP, maxqp);
+	vt_set_rate(e, kbps);
 	VTCompressionSessionPrepareToEncodeFrames(e->session);
 	*err = 0;
 	return e;
 }
 
-// One I420 frame in (copied into an NV12 buffer of the session's pool).
+// vt_hardware reports whether the session runs on the hardware encoder: 1
+// yes, 0 no, -1 the session does not say (the low-latency rate control
+// does not answer the question; it only exists on hardware encoders).
+static int vt_hardware(vt_enc *e) {
+	CFBooleanRef hw = NULL;
+	OSStatus st = VTSessionCopyProperty(e->session, kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, NULL, &hw);
+	if (st != noErr || !hw)
+		return -1;
+	int r = hw == kCFBooleanTrue;
+	CFRelease(hw);
+	return r;
+}
+
+// vt_encode_pb encodes a pixel buffer as it is (the screen capture's own,
+// no copy) at pts microseconds.
+static int vt_encode_pb(vt_enc *e, void *pbv, int64_t pts_us, int key) {
+	CVPixelBufferRef pb = (CVPixelBufferRef)pbv;
+	CFDictionaryRef props = NULL;
+	if (key) {
+		const void *k[] = { kVTEncodeFrameOptionKey_ForceKeyFrame };
+		const void *val[] = { kCFBooleanTrue };
+		props = CFDictionaryCreate(NULL, k, val, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	}
+	OSStatus st = VTCompressionSessionEncodeFrame(e->session, pb, CMTimeMake(pts_us, 1000000), kCMTimeInvalid, props, NULL, NULL);
+	if (props)
+		CFRelease(props);
+	return st == noErr ? 0 : (int)st;
+}
+
+// vt_encode copies one I420 frame into an NV12 buffer of the session's
+// pool and encodes it (the test card).
 static int vt_encode(vt_enc *e, const uint8_t *i420, int key) {
 	CVPixelBufferRef pb = NULL;
 	CVPixelBufferPoolRef pool = VTCompressionSessionGetPixelBufferPool(e->session);
@@ -157,17 +200,9 @@ static int vt_encode(vt_enc *e, const uint8_t *i420, int key) {
 		}
 	}
 	CVPixelBufferUnlockBaseAddress(pb, 0);
-	CFDictionaryRef props = NULL;
-	if (key) {
-		const void *k[] = { kVTEncodeFrameOptionKey_ForceKeyFrame };
-		const void *val[] = { kCFBooleanTrue };
-		props = CFDictionaryCreate(NULL, k, val, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-	}
-	OSStatus st = VTCompressionSessionEncodeFrame(e->session, pb, CMTimeMake(e->n++, e->fps), kCMTimeInvalid, props, NULL, NULL);
-	if (props)
-		CFRelease(props);
+	int r = vt_encode_pb(e, (void *)pb, e->n++ * 1000000 / e->fps, key);
 	CVPixelBufferRelease(pb);
-	return st == noErr ? 0 : (int)st;
+	return r;
 }
 
 static void vt_close(vt_enc *e) {
@@ -184,6 +219,7 @@ import (
 	"fmt"
 	"runtime/cgo"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -191,30 +227,44 @@ import (
 // the media engine's hardware), called directly: nothing to install, and
 // the encoder's licensing comes with the system.
 type vtEncoder struct {
-	mu      sync.Mutex
-	e       *C.vt_enc
-	handle  cgo.Handle
-	frameSz int
+	mu       sync.Mutex
+	e        *C.vt_enc
+	handle   cgo.Handle
+	frameSz  int
+	hardware int // 1 yes, 0 no, -1 not reported
 }
 
 //export goVTFrame
-func goVTFrame(handle C.uintptr_t, data unsafe.Pointer, n C.int) {
-	onFrame := cgo.Handle(handle).Value().(func([]byte))
-	onFrame(C.GoBytes(data, n))
+func goVTFrame(handle C.uintptr_t, data unsafe.Pointer, n C.int, key C.int, pts C.int64_t) {
+	onFrame := cgo.Handle(handle).Value().(func([]byte, bool, time.Duration))
+	onFrame(C.GoBytes(data, n), key != 0, time.Duration(pts)*time.Microsecond)
 }
 
 // newVT starts a VideoToolbox session; onFrame gets each access unit (Annex
 // B, with an access unit delimiter, and SPS and PPS before each keyframe)
-// from VideoToolbox's own thread.
-func newVT(cfg Config, gop int, onFrame func([]byte)) (*vtEncoder, error) {
+// from VideoToolbox's own thread, one at a time and in order.
+func newVT(cfg Config, gop int, onFrame func([]byte, bool, time.Duration)) (*vtEncoder, error) {
 	h := cgo.NewHandle(onFrame)
 	var cerr C.int
-	e := C.vt_open(C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), C.int(cfg.BitrateKbps), C.int(gop), C.uintptr_t(h), &cerr)
+	b := func(v bool) C.int {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	e := C.vt_open(C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), C.int(cfg.BitrateKbps), C.int(gop),
+		b(!cfg.Baseline), b(!cfg.NoLowLatency), C.int(cfg.MaxQP), C.uintptr_t(h), &cerr)
+	if e == nil && !cfg.NoLowLatency {
+		// The low-latency rate control is Apple silicon's: elsewhere (Intel
+		// Quick Sync, AMD) the session is refused, so it goes without.
+		e = C.vt_open(C.int(cfg.Width), C.int(cfg.Height), C.int(cfg.FPS), C.int(cfg.BitrateKbps), C.int(gop),
+			b(!cfg.Baseline), 0, C.int(cfg.MaxQP), C.uintptr_t(h), &cerr)
+	}
 	if e == nil {
 		h.Delete()
 		return nil, fmt.Errorf("h264: VideoToolbox session failed (%d)", int(cerr))
 	}
-	return &vtEncoder{e: e, handle: h, frameSz: cfg.Width*cfg.Height + 2*(cfg.Width/2)*(cfg.Height/2)}, nil
+	return &vtEncoder{e: e, handle: h, frameSz: cfg.Width*cfg.Height + 2*(cfg.Width/2)*(cfg.Height/2), hardware: int(C.vt_hardware(e))}, nil
 }
 
 func (v *vtEncoder) write(i420 []byte, key bool) error {
@@ -226,14 +276,32 @@ func (v *vtEncoder) write(i420 []byte, key bool) error {
 	if len(i420) < v.frameSz {
 		return fmt.Errorf("h264: frame is %d bytes, want %d", len(i420), v.frameSz)
 	}
-	k := C.int(0)
-	if key {
-		k = 1
-	}
-	if st := C.vt_encode(v.e, (*C.uint8_t)(unsafe.Pointer(&i420[0])), k); st != 0 {
+	if st := C.vt_encode(v.e, (*C.uint8_t)(unsafe.Pointer(&i420[0])), cbool(key)); st != 0 {
 		return fmt.Errorf("h264: VideoToolbox encode failed (%d)", int(st))
 	}
 	return nil
+}
+
+// writePixelBuffer encodes a CVPixelBufferRef as it is. The caller keeps
+// its own reference; VideoToolbox retains the buffer while it needs it.
+func (v *vtEncoder) writePixelBuffer(pb unsafe.Pointer, pts time.Duration, key bool) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.e == nil {
+		return errors.New("h264: closed")
+	}
+	if st := C.vt_encode_pb(v.e, pb, C.int64_t(pts.Microseconds()), cbool(key)); st != 0 {
+		return fmt.Errorf("h264: VideoToolbox encode failed (%d)", int(st))
+	}
+	return nil
+}
+
+func (v *vtEncoder) setBitrate(kbps int) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.e != nil && kbps > 0 {
+		C.vt_set_rate(v.e, C.int(kbps))
+	}
 }
 
 func (v *vtEncoder) close() {
@@ -245,6 +313,13 @@ func (v *vtEncoder) close() {
 	C.vt_close(v.e) // waits for the frames in flight: their callbacks still find the handle
 	v.e = nil
 	v.handle.Delete()
+}
+
+func cbool(v bool) C.int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // hasVT is whether this build can call VideoToolbox directly.

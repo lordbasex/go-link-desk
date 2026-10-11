@@ -115,6 +115,13 @@ type Config struct {
 	// GOPFrames is H264's keyframe interval (0: two seconds); a viewer
 	// switched onto a stream starts at its next keyframe.
 	GOPFrames int
+	// H.264 tuning, zero values are the streaming defaults: Constrained
+	// High profile, the low-latency rate control, no quantizer cap.
+	// Baseline and NoLowLatency go back to the plainer settings; MaxQP
+	// caps the quantizer (1-51, lower keeps text sharper but costs bits).
+	Baseline     bool
+	NoLowLatency bool
+	MaxQP        int
 }
 
 // Encoder defaults, used when Config leaves the tuning fields at zero.
