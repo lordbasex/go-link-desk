@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, rmSync, writeFileSync } from "node:fs";
+import { BIN, STATE, spawnHost } from "./host";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PORTS, SIGNAL_URL } from "./ports";
+import { PORTS } from "./ports";
 import { STATE_FILE, sessionCode, type HostProc, type Stack } from "./stack";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,8 +25,8 @@ async function waitFor(what: string, ok: () => Promise<boolean>, ms = 60_000) {
  * with the developer's).
  */
 export default async function globalSetup() {
-  const bin = join(here, ".bin");
-  const state = join(here, ".state");
+  const bin = BIN;
+  const state = STATE;
   rmSync(state, { recursive: true, force: true });
   mkdirSync(bin, { recursive: true });
   mkdirSync(state, { recursive: true });
@@ -59,32 +60,10 @@ export default async function globalSetup() {
   closeSync(signalLog);
   await waitFor("signalhub", async () => (await fetch(`http://127.0.0.1:${PORTS.signal}/healthz`)).ok);
 
-  // Two hosts: one accepts every viewer (--test-auto-accept, test card
-  // only), the other has no window and nobody to ask, so it turns every
-  // viewer down.
-  const startHost = (name: keyof Stack["hosts"], extra: string[]): HostProc => {
-    const dir = join(state, name);
-    mkdirSync(join(dir, "home"), { recursive: true });
-    const config = join(dir, "device.json");
-    const log = join(dir, "host.log");
-    const out = openSync(log, "a");
-    const host = spawn(
-      join(bin, "desk"),
-      [
-        "--headless",
-        "--config", config,
-        "--server-signaling", SIGNAL_URL,
-        "--web-url", `http://localhost:${PORTS.web}`,
-        "--source", "testpattern",
-        ...extra,
-        ...(process.env.E2E_HOST_DEBUG === "1" ? ["--debug"] : []),
-      ],
-      { env: { ...process.env, HOME: join(dir, "home") }, stdio: ["ignore", out, out], detached: true },
-    );
-    closeSync(out);
-    host.unref();
-    return { pid: host.pid!, log, config };
-  };
+  // Three hosts: one accepts every viewer (--test-auto-accept, test card
+  // only), one has no window and nobody to ask, so it turns every viewer
+  // down, and one accepts everything and logs its input.
+  const startHost = (name: keyof Stack["hosts"], extra: string[]): HostProc => spawnHost(name, extra);
   const s: Stack = {
     signalPid: signal.pid!,
     hosts: {
