@@ -41,7 +41,7 @@
 "Show the toolbar" = "Mostrar la barra";
 "Shown to the computer you connect to. Empty: this device's name." = "Lo ve la computadora a la que te conectás. Vacío: el nombre de este equipo.";
 "Signaling server" = "Servidor de señalización";
-"Slide a finger to move the pointer and tap to click. Long press then slide to drag; two fingers scroll, right click with a tap, and pinch to zoom." = "Deslizá un dedo para mover el puntero y tocá para hacer clic. Mantené apretado y deslizá para arrastrar; con dos dedos te desplazás, hacés clic derecho con un toque y pellizcás para hacer zoom.";
+"Slide a finger to move the pointer and tap to click; long press then slide to drag. Two fingers: tap to right click, pinch to zoom. Three fingers scroll." = "Deslizá un dedo para mover el puntero y tocá para hacer clic; mantené apretado y deslizá para arrastrar. Dos dedos: un toque es clic derecho y pellizcar hace zoom. Tres dedos para desplazarte.";
 "Special keys" = "Teclas especiales";
 "Speed" = "Velocidad";
 "Spotlight" = "Spotlight";
@@ -57,7 +57,7 @@
 "The connection was lost." = "Se perdió la conexión.";
 "The person at the computer did not accept." = "La persona en la computadora no aceptó.";
 "The person at the computer ended the session." = "La persona en la computadora terminó la sesión.";
-"The pointer goes where you touch, and a tap clicks there." = "El puntero va adonde tocás, y un toque hace clic ahí.";
+"The pointer goes where you touch, and a tap clicks there. Two fingers scroll." = "El puntero va adonde tocás, y un toque hace clic ahí. Dos dedos para desplazarte.";
 "The server does not answer. Check the connection." = "El servidor no responde. Revisá la conexión.";
 "The session ended after a while without use." = "La sesión terminó después de un rato sin uso.";
 "Too many tries. Wait a minute and try again." = "Demasiados intentos. Esperá un minuto y probá de nuevo.";

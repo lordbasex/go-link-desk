@@ -43,9 +43,10 @@ Dependencies are Swift packages only: [stasel/WebRTC](https://github.com/stasel/
 - One finger slides the pointer: slowly to be precise, quickly to go further.
 - A tap clicks.
 - A long press, then a slide, drags.
-- Two fingers: a tap right-clicks, a slide scrolls, and a pinch zooms. Zoomed in, the view follows the pointer.
+- Two fingers: a tap right-clicks and a pinch zooms. Zoomed in, a two-finger slide moves the view, and the view follows the pointer.
+- Three fingers scroll. The system's three-finger gestures (undo, the edit menu) are off over the computer's screen.
 
-**Touch mode** (the screen menu or Settings): the pointer goes where you touch.
+**Touch mode** (the screen menu or Settings): the pointer goes where you touch, and two fingers scroll.
 
 **An iPad's trackpad or mouse:** the pointer follows it, the buttons click and scrolling scrolls.
 

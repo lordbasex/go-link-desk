@@ -30,8 +30,8 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     Text(app.touchMode
-                        ? String(localized: "The pointer goes where you touch, and a tap clicks there.")
-                        : String(localized: "Slide a finger to move the pointer and tap to click. Long press then slide to drag; two fingers scroll, right click with a tap, and pinch to zoom."))
+                        ? String(localized: "The pointer goes where you touch, and a tap clicks there. Two fingers scroll.")
+                        : String(localized: "Slide a finger to move the pointer and tap to click; long press then slide to drag. Two fingers: tap to right click, pinch to zoom. Three fingers scroll."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

@@ -12,8 +12,9 @@ import UIKit
  *
  * Fingers, trackpad mode (the default): one finger slides the pointer, a
  * tap clicks, a long press then a slide drags; two fingers: a tap is a
- * right click, a slide scrolls, a pinch zooms. Touch mode: the pointer
- * jumps to the finger and a tap clicks there.
+ * right click, a pinch zooms and, zoomed in, a slide moves the view;
+ * three fingers scroll. Touch mode: the pointer jumps to the finger, a
+ * tap clicks there, and two fingers scroll.
  *
  * An iPad's trackpad or mouse moves the pointer directly, its buttons
  * click and its scrolling scrolls. A hardware keyboard's keys go by
@@ -178,11 +179,16 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
         twoTap.numberOfTouchesRequired = 2
         addGestureRecognizer(twoTap)
 
-        let scroll = UIPanGestureRecognizer(target: self, action: #selector(twoPan(_:)))
-        scroll.minimumNumberOfTouches = 2
-        scroll.maximumNumberOfTouches = 2
-        scroll.delegate = self
-        addGestureRecognizer(scroll)
+        let two = UIPanGestureRecognizer(target: self, action: #selector(twoPan(_:)))
+        two.minimumNumberOfTouches = 2
+        two.maximumNumberOfTouches = 2
+        two.delegate = self
+        addGestureRecognizer(two)
+
+        let three = UIPanGestureRecognizer(target: self, action: #selector(threePan(_:)))
+        three.minimumNumberOfTouches = 3
+        three.maximumNumberOfTouches = 3
+        addGestureRecognizer(three)
 
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:)))
         pinch.delegate = self
@@ -270,30 +276,39 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
         }
     }
 
+    /** Two fingers: the view while zoomed in (trackpad mode), or scrolling (touch mode). */
     @objc private func twoPan(_ g: UIPanGestureRecognizer) {
         let d = g.translation(in: self)
         g.setTranslation(.zero, in: self)
-        if zoom.scale > 1 && g.numberOfTouches == 2 && abs(d.x) + abs(d.y) > 0 && pinching {
+        if touchMode {
+            scroll(d)
+        } else if zoom.scale > 1 {
             zoom.pan(dx: d.x, dy: d.y, fit: fitRect)
             setNeedsLayout()
-            return
         }
-        // Natural scrolling: the content follows the fingers.
-        session?.wheel(dx: -d.x * 2, dy: -d.y * 2)
     }
 
-    private var pinching = false
+    /** Three fingers scroll, in trackpad mode. */
+    @objc private func threePan(_ g: UIPanGestureRecognizer) {
+        let d = g.translation(in: self)
+        g.setTranslation(.zero, in: self)
+        if !touchMode { scroll(d) }
+    }
+
+    /** Natural scrolling: the content follows the fingers. */
+    private func scroll(_ d: CGPoint) {
+        session?.wheel(dx: -d.x * 2, dy: -d.y * 2)
+    }
 
     @objc private func pinch(_ g: UIPinchGestureRecognizer) {
         switch g.state {
         case .began, .changed:
-            pinching = true
             let at = g.location(in: self)
             zoom.pinch(by: g.scale, aroundX: at.x, aroundY: at.y, fit: fitRect)
             g.scale = 1
             setNeedsLayout()
         default:
-            pinching = false
+            break
         }
     }
 
@@ -349,6 +364,9 @@ final class RemoteScreenView: UIView, UIKeyInput, UIGestureRecognizerDelegate {
     // MARK: - Keyboard
 
     override var canBecomeFirstResponder: Bool { true }
+
+    /** The system's three-finger gestures (undo, redo, the edit menu) would take the scrolling: off here. */
+    override var editingInteractionConfiguration: UIEditingInteractionConfiguration { .none }
 
     /** The on-screen keyboard shows only when asked; a hardware keyboard always works. */
     override var inputView: UIView? { softKeyboard ? nil : hiddenKeyboard }
