@@ -7,7 +7,7 @@ async function join(page: Page, name: string) {
   await page.getByLabel("Your name").fill(name);
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.querySelector("video.screen")?.videoWidth ?? 0), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => document.querySelector<HTMLVideoElement>("video.screen")?.videoWidth ?? 0), { timeout: 20_000 }).toBeGreaterThan(0);
 }
 
 test("a video call both ways: the host sees and hears the viewer, the viewer sees and hears the host", async ({ page, context }) => {
