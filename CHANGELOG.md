@@ -16,6 +16,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 - **`--connect`** opens sessions at start; **`--test-viewer`** runs only the viewer, without a window (end-to-end tests only).
 - **End-to-end tests:** the app's viewer joins with a code and gets the picture; links with the pairing code, is refused with a wrong password and comes back with the right one.
 
+### Fixed (phase 6b)
+
+- **The picture's size no longer flaps on a shaky network:** the bandwidth ladder still goes down at once, but climbs back one rung at a time and only 10 seconds after its last change. A browser on an iPad saw 21 size changes in two and a half minutes (each a new stream for its decoder) and closed twice.
+
 ### Added (unattended access and my computers, phase 6)
 
 - **Unattended access** (Settings, off by default): a browser linked once with the computer's linking code comes back from My computers without a code and without anyone accepting, also after the computer restarts. Linking asks the person at the computer, and the permissions they tick are the link's.

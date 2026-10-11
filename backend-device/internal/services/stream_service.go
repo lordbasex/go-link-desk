@@ -210,8 +210,9 @@ type StreamService struct {
 	want        VideoWant         // the latest viewer's wishes
 	display     uint32            // the display chosen (0: the main one)
 	displays    []screencap.Display
-	beacon      uint16 // the latency beacon's state, flipped by the viewer
-	rung        int    // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	beacon      uint16    // the latency beacon's state, flipped by the viewer
+	rung        int       // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	rungAt      time.Time // when it last changed
 	changed     chan struct{}
 	onControl   func(peerID, kind string, data []byte)
 	onClosed    func(peerID, reason string)
@@ -688,8 +689,11 @@ func (s *StreamService) followBandwidth() {
 		s.rung = len(bandwidthLadder)
 	}
 	before := s.rung
-	s.rung = ladderRung(worst, s.rung)
+	s.rung = ladderRung(worst, s.rung, time.Since(s.rungAt))
 	after := s.rung
+	if after != before {
+		s.rungAt = time.Now()
+	}
 	s.mu.Unlock()
 	if after != before {
 		s.log.Info("bandwidth", "estimate_kbps", worst, "rung", after)
