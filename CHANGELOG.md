@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **The connection request could stay behind the other windows** (macOS) when it came while the main thread was busy, as right after a session ended: it was brought to the front only within 200 ms of being asked. Now it is looked for until it is on screen (up to 5 s), and put over the app in front even when that app keeps the focus.
+
 ## [1.0.0] - 2026-10-11
 
 The first release: go-link Desk for macOS (13 or newer, Intel and Apple silicon, signed and notarized), for iPhone and iPad (iOS and iPadOS 26 or newer, on the App Store), and the website (desk.go-link.org). Tested on an iPhone 17 Pro Max and an iPad Pro (M4), connecting to a Mac.
