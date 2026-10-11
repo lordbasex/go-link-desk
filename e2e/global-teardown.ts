@@ -10,7 +10,7 @@ export default async function globalTeardown() {
   } catch {
     return;
   }
-  for (const pid of [s.hosts.accept.pid, s.hosts.reject.pid, s.signalPid]) {
+  for (const pid of [...Object.values(s.hosts).map((h) => h.pid), s.signalPid]) {
     try {
       process.kill(pid, "SIGTERM");
     } catch {

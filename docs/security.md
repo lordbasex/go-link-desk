@@ -29,7 +29,8 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Guessing codes: 10⁹ codes, and signalhub limits `join` to 5 attempts per minute per IP. A code only exists while a host shows it.
 - A session password (optional) is checked by the host with go-link's PIN gate: 5 tries per viewer, and 20 failures in 10 minutes lock the password path for 10 minutes. Viewers already in are not locked out.
 - Its declared `name` and browser are shown as declared, never as verified, and the dialog says so.
-- Input it sends is limited by the permissions granted, and stops when they are revoked.
+- Input it sends is limited by the permissions granted, and stops when they are revoked. Control is off unless the person at the computer ticks it in the request, and can be taken back at any moment from the session panel; every key and button held is let go at that moment.
+- Its input packets are parsed with fixed sizes and limits (text at most 1024 bytes, display indexes checked, unknown keycodes dropped); a malformed packet is ignored.
 
 ### The screen
 

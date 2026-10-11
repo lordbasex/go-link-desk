@@ -4,6 +4,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (control, phase 3)
+
+- **Control of the host's mouse and keyboard** from the browser, when the person at the computer allows it: a "Use your mouse and keyboard" checkbox in the connection request, off by default, and a switch in the session panel that gives or takes it back during the session.
+- **Mouse:** moves at up to one per frame on an unreliable channel, clicks that carry their own position, drags, double and triple clicks, back and forward buttons, and smooth (pixel) or line scrolling.
+- **Keyboard by position:** the host's own layout makes the characters, so shortcuts, dead keys and letters like ñ work as on the host. Key repeat, IME input (Chinese, Japanese) and "Type text…" for pasting text as typing.
+- **Nothing stays stuck:** everything held is let go when the page loses the focus, is hidden or leaves full screen, when the viewer loses control, hangs up or its connection stops answering. On macOS browsers, keys pressed with Cmd are let go when Cmd is.
+- **On the website:** a Keys menu with the host's special shortcuts (Cmd+Tab, Force Quit, Spotlight and screenshots on a Mac; Ctrl+Alt+Del, Alt+Tab and the Windows key elsewhere), "Ctrl is Cmd" for viewers on Windows or Linux, game mode (pointer lock), the keyboard locked in full screen so the system's shortcuts reach the host, and the host's pointer shape as the browser's cursor. The viewer is told when the host has no Accessibility permission.
+- **One list of keys,** `protocol/keycodes.json`, with the Go and TypeScript tables generated from it, and shared test vectors for the binary packets.
+- **`--test-input-log`** writes viewers' input to the log instead of injecting it, for the end-to-end tests; it needs `--test-auto-accept`.
+- **End-to-end tests** of control: a click, keys, Ctrl+C, the wheel, typed text and the release when the page loses the focus, and a watch-only viewer that gets no keyboard.
+
 ### Added (screen, phase 2)
 
 - **The real screen on macOS:** ScreenCaptureKit hands each changed frame to the system's H.264 encoder (VideoToolbox, on the hardware) without a copy, at up to 60 frames per second. Nothing is captured while nobody watches, and a still screen sends nothing but a few sharpening frames.

@@ -20,6 +20,8 @@ export interface Stack {
     accept: HostProc;
     /** Nobody to ask: turns every viewer down. */
     reject: HostProc;
+    /** Accepts every viewer with control, and logs its input instead of injecting it. */
+    control: HostProc;
   };
 }
 

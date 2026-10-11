@@ -87,9 +87,13 @@ export default async function globalSetup() {
   };
   const s: Stack = {
     signalPid: signal.pid!,
-    hosts: { accept: startHost("accept", ["--test-auto-accept"]), reject: startHost("reject", []) },
+    hosts: {
+      accept: startHost("accept", ["--test-auto-accept"]),
+      reject: startHost("reject", []),
+      control: startHost("control", ["--test-auto-accept", "--test-input-log"]),
+    },
   };
   writeFileSync(STATE_FILE, JSON.stringify(s));
-  await waitFor("the hosts' session codes", async () => sessionCode("accept", s) !== "" && sessionCode("reject", s) !== "");
+  await waitFor("the hosts' session codes", async () => sessionCode("accept", s) !== "" && sessionCode("reject", s) !== "" && sessionCode("control", s) !== "");
   signal.unref();
 }
