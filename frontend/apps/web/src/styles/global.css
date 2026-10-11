@@ -147,3 +147,11 @@ code, kbd, .mono { font-family: var(--font-mono); }
 @media (max-width: 760px) {
   .stage-check, .stage-tools .select { display: none; }
 }
+
+/* ---------- control ---------- */
+/* The keyboard's target: focused, invisible, out of the way. */
+.key-sink { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none; pointer-events: none; }
+.stage-screen:focus-within .screen { outline: none; }
+.button.is-on { border-color: var(--color-accent); color: var(--color-accent-text); }
+.type-text { position: absolute; left: 50%; top: 24px; transform: translateX(-50%); z-index: 60; width: min(520px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border-strong); box-shadow: 0 18px 50px var(--shadow-strong); }
+.type-text-field { min-height: 120px; padding: 10px 12px; border-radius: var(--radius-control); border: 1px solid var(--color-border-input); background: var(--color-bg); color: var(--color-text); font: 14px var(--font-mono); resize: vertical; }

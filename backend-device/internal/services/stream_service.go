@@ -204,6 +204,8 @@ type StreamService struct {
 	onClosed  func(peerID, reason string)
 	onStats   func(models.StreamStatus)
 	onBeacon  func(on bool, d screencap.Display)
+	onInput   func(peerID, channel string, data []byte)
+	onStall   func(peerID string)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -261,6 +263,42 @@ func (s *StreamService) OnControl(fn func(peerID, kind string, data []byte)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onControl = fn
+}
+
+// OnInput receives a viewer's input packets: channel is "pointer" or
+// "input".
+func (s *StreamService) OnInput(fn func(peerID, channel string, data []byte)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onInput = fn
+}
+
+func (s *StreamService) input(peerID, channel string, data []byte) {
+	s.mu.Lock()
+	fn := s.onInput
+	s.mu.Unlock()
+	if fn != nil {
+		fn(peerID, channel, data)
+	}
+}
+
+// OnStall is told when a viewer's connection stops answering (the input
+// it holds must be let go: it may never send the releases).
+func (s *StreamService) OnStall(fn func(peerID string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onStall = fn
+}
+
+// Displays lists the host's displays in the order the viewers know them.
+func (s *StreamService) Displays() []screencap.Display {
+	s.mu.Lock()
+	ds := s.displays
+	s.mu.Unlock()
+	if len(ds) == 0 {
+		ds = s.refreshDisplays()
+	}
+	return ds
 }
 
 // OnClosed is told when the stream drops a viewer by itself: its
@@ -759,6 +797,28 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 			s.handleControl(v, msg.Data)
 		}
 	})
+	// Input: pointer moves where a lost one does not matter (unordered,
+	// never resent), and buttons, keys and the rest where every one does
+	// (ordered, reliable). A lost key release would leave a key stuck.
+	unordered, noRetransmits := false, uint16(0)
+	pointer, err := pc.CreateDataChannel("pointer", &webrtc.DataChannelInit{Ordered: &unordered, MaxRetransmits: &noRetransmits})
+	if err != nil {
+		return fail(err)
+	}
+	pointer.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if !msg.IsString {
+			s.input(v.id, "pointer", msg.Data)
+		}
+	})
+	inputDC, err := pc.CreateDataChannel("input", &webrtc.DataChannelInit{Ordered: &ordered})
+	if err != nil {
+		return fail(err)
+	}
+	inputDC.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if !msg.IsString && len(msg.Data) <= maxControlMessage {
+			s.input(v.id, "input", msg.Data)
+		}
+	})
 	return s.offer(v)
 }
 
@@ -791,6 +851,12 @@ func (s *StreamService) offer(v *viewer) error {
 			v.keyframe.Store(true)
 			go s.logPath(peerID, pc)
 		case webrtc.PeerConnectionStateDisconnected:
+			s.mu.Lock()
+			stall := s.onStall
+			s.mu.Unlock()
+			if stall != nil {
+				go stall(peerID)
+			}
 			// Often back on its own in a moment; if not, restart ICE.
 			v.mu.Lock()
 			if v.restart == nil && !v.closed {

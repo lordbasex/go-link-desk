@@ -77,7 +77,21 @@ ScreenCaptureKit ──NV12 pixel buffer──► VideoToolbox H.264 (hardware) 
 - **The size** follows the preset and the viewer's window (`video_want`); **Quality** sends the display's own pixels. The bandwidth estimate (Google Congestion Control, TWCC) sets the bitrate and, when short, a smaller size and frame rate: some encoders (VideoToolbox on Intel Macs) send more than asked on a busy screen, and a smaller picture is what makes frames small enough to arrive whole.
 - **The pointer** is not in the picture: its shape and position travel on `control` and the browser draws it, sharp at any size. "Remote cursor in the picture" draws it into the video instead.
 - **Without a window** (headless) the host still serves the main thread's event loop on macOS (`pkg/mainloop`): ScreenCaptureKit answers there.
-- **Permissions.** Screen Recording (and, for phase 3, Accessibility) belong to the app's signature. The window shows both, with a button that asks the system and opens the right page of System Settings. Without Screen Recording, a session shows the test card and the viewer is told why.
+- **Permissions.** Screen Recording and Accessibility belong to the app's signature. The window shows both, with a button that asks the system and opens the right page of System Settings. Without Screen Recording, a session shows the test card and the viewer is told why.
+
+## Control
+
+```
+browser: pointer, buttons, wheel, keys ──pointer (unordered) / input (reliable)──► InputService ──► pkg/inject (CGEvent)
+          (KeyboardEvent.code, positions                                          (only a viewer with      (holds what it pressed,
+           0..65535 over the display)                                              control; seq order)      lets it all go)
+```
+
+- **Moves on an unreliable channel, everything else on a reliable one.** A late move is useless and a newer one replaces it; a lost click or key is a bug. A button carries its own position, so it lands where the viewer clicked even when moves were dropped.
+- **Keys by position.** The viewer sends which key, not which character, and the host's layout decides: shortcuts, dead keys and a Spanish keyboard's ñ work as on the host. Text typed out (a paste, an IME) goes as text.
+- **The viewer's pointer becomes the host's.** While controlling, the browser shows the host's pointer shape as its own cursor, so there is one pointer, not two.
+- **Control is a permission** of the session, asked for in the request (off by default) and changed live from the session panel (`permissions` message). Taking it back lets go of everything held.
+- **Without Accessibility** the host cannot inject: the viewer is told (`no_accessibility`) instead of clicking into nothing.
 
 ## Two kinds of browsers
 
@@ -134,4 +148,6 @@ The host is one self-contained program: no installer, no administrator rights, n
 - **The whole display is captured, the host's own windows included** (the session panel, the beacon): what the viewer sees is what the person at the computer sees, and a viewer never clicks on a window it cannot see.
 - **Measurement builds** (`-tags desk_test_screen`, `make device-darwin-arm64 GO_TAGS=desk_test_screen`) may accept viewers of the real screen without asking, to measure capture, latency and CPU on a test machine. A normal build refuses `--test-auto-accept` with the screen, and the release target refuses the tag.
 - **The permissions the dialog shows are the ones that exist.** In phase 1 a viewer can only see the screen, so the dialog says that and has no checkboxes; each phase adds the checkbox of what it brings (control, audio, clipboard, files), already defined in the `accepted` message.
+- **Control has one checkbox,** "Use your mouse and keyboard": a viewer that may control the mouse but not the keyboard is not a useful permission, and one checkbox reads clearly in a request dialog.
+- **The host applies the modifiers a key comes with** rather than only the ones whose presses it saw: a viewer that held Shift before the page had the focus still types a capital.
 - **Audio comes with its phase.** The test card's 1 kHz tone is not sent yet: audio, its permission and the browser's autoplay unlock arrive together in phase 4.

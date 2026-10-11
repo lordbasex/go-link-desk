@@ -5,6 +5,7 @@ import { ExpandIcon, HangUpIcon } from "../components/Icons";
 import { StreamInfo } from "../components/StreamInfo";
 import { Select } from "../components/ui/Select";
 import { useFullscreen } from "../components/useFullscreen";
+import { InputCapture } from "./input";
 import { measureLatency } from "./latency";
 import type { CursorState, Preset, Session, SessionView } from "./session";
 import { useStreamStats } from "./useStreamStats";
@@ -19,9 +20,10 @@ interface Prefs {
   retina: boolean;
   view: ViewMode;
   cursorInVideo: boolean;
+  ctrlIsCmd: boolean;
 }
 
-const DEFAULT_PREFS: Prefs = { preset: "balanced", retina: false, view: "fit", cursorInVideo: false };
+const DEFAULT_PREFS: Prefs = { preset: "balanced", retina: false, view: "fit", cursorInVideo: false, ctrlIsCmd: false };
 
 function loadPrefs(): Prefs {
   try {
@@ -31,6 +33,7 @@ function loadPrefs(): Prefs {
       retina: p.retina === true,
       view: p.view === "original" || p.view === "stretch" ? p.view : "fit",
       cursorInVideo: p.cursorInVideo === true,
+      ctrlIsCmd: p.ctrlIsCmd === true,
     };
   } catch {
     return DEFAULT_PREFS;
@@ -67,6 +70,18 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
   const live = view.status.kind === "live" || view.status.kind === "reconnecting";
   const stats = useStreamStats(session?.hostStream ?? null, live);
   const display = view.displays.find((d) => d.id === view.display) ?? null;
+  const control = view.permissions?.control === true;
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const displaysRef = useRef(view.displays);
+  displaysRef.current = view.displays;
+  const displayRef = useRef(view.display);
+  displayRef.current = view.display;
+  const keysRef = useRef<HTMLTextAreaElement>(null);
+  const captureRef = useRef<InputCapture | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const hostIsMac = view.host?.os === "darwin";
 
   const update = (p: Partial<Prefs>) => {
     const next = { ...prefs, ...p };
@@ -74,6 +89,74 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
     savePrefs(next);
     if (p.preset !== undefined || p.retina !== undefined) session?.setQuality(next.preset, next.retina);
     if (p.cursorInVideo !== undefined) session?.setCursorInVideo(next.cursorInVideo);
+    if (p.ctrlIsCmd !== undefined) captureRef.current?.setOptions({ ctrlIsCmd: next.ctrlIsCmd });
+  };
+
+  // The mouse and keyboard, while the host lets this viewer control.
+  useEffect(() => {
+    const surface = screenRef.current;
+    const keys = keysRef.current;
+    if (!control || !live || !session || !surface || !keys) return;
+    const cap = new InputCapture(
+      surface,
+      keys,
+      {
+        rect: () => {
+          const v = videoRef.current;
+          if (!v) return null;
+          const b = v.getBoundingClientRect();
+          const r = contentRect(b.width, b.height, v.videoWidth, v.videoHeight, prefsRef.current.view);
+          return { left: b.left + r.x, top: b.top + r.y, width: r.w, height: r.h };
+        },
+        display: () => Math.max(0, displaysRef.current.findIndex((d) => d.id === displayRef.current)),
+      },
+      session,
+      { ctrlIsCmd: prefsRef.current.ctrlIsCmd },
+    );
+    cap.attach();
+    captureRef.current = cap;
+    keys.focus({ preventScroll: true });
+    const onLock = () => setLocked(document.pointerLockElement === surface);
+    document.addEventListener("pointerlockchange", onLock);
+    return () => {
+      document.removeEventListener("pointerlockchange", onLock);
+      cap.detach();
+      captureRef.current = null;
+      if (document.pointerLockElement === surface) document.exitPointerLock();
+    };
+  }, [control, live, session]);
+
+  // Full screen takes the system's shortcuts too (Keyboard Lock, Chromium):
+  // Cmd+Tab, Alt+Tab and Esc go to the host; holding Esc leaves.
+  useEffect(() => {
+    type KL = { keyboard?: { lock?: () => Promise<void>; unlock?: () => void } };
+    const kb = (navigator as unknown as KL).keyboard;
+    if (!control || !fullscreen.active || fullscreen.pseudo || !kb?.lock) return;
+    void kb.lock().catch(() => undefined);
+    return () => kb.unlock?.();
+  }, [control, fullscreen.active, fullscreen.pseudo]);
+
+  const toggleLock = () => {
+    const surface = screenRef.current as (HTMLElement & { requestPointerLock(o?: { unadjustedMovement?: boolean }): Promise<void> | void }) | null;
+    if (!surface) return;
+    if (document.pointerLockElement === surface) {
+      document.exitPointerLock();
+      return;
+    }
+    // unadjustedMovement: the raw mouse, without this system's acceleration on top of the host's.
+    void Promise.resolve(surface.requestPointerLock({ unadjustedMovement: true })).catch(() => surface.requestPointerLock());
+  };
+
+  const special = (v: string) => {
+    const cap = captureRef.current;
+    if (!cap) return;
+    if (v === "type") {
+      setTyping(true);
+      return;
+    }
+    const combo = SPECIAL_KEYS[v];
+    if (combo) cap.sendCombo(combo);
+    keysRef.current?.focus({ preventScroll: true });
   };
 
   // The host learns the viewer's choices as soon as the session is live.
@@ -115,12 +198,24 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
     };
   }, [session, live]);
 
-  // The host's pointer, drawn here at its place over the picture.
+  // The host's pointer, drawn here at its place over the picture. While
+  // this viewer controls, its own pointer takes the host's shape instead
+  // (no delay at all), unless the pointer is locked (a game).
   const placeCursor = useCallback(
     (c: CursorState | null) => {
       const img = cursorRef.current;
       const video = videoRef.current;
       if (!img || !video) return;
+      const scale0 = display && display.pointsWidth > 0 ? contentRect(video.clientWidth, video.clientHeight, video.videoWidth, video.videoHeight, prefs.view).w / display.pointsWidth : 1;
+      if (control && !locked && !prefs.cursorInVideo && c?.shape) {
+        img.style.display = "none";
+        const res = c.shape.pixels > 0 ? c.shape.pixels / (c.shape.width * scale0) : 1;
+        const hx = Math.round((c.shape.hotX / res) * 100) / 100;
+        const hy = Math.round((c.shape.hotY / res) * 100) / 100;
+        video.style.cursor = `image-set(url("${c.shape.url}") ${res.toFixed(3)}x) ${Math.round(hx)} ${Math.round(hy)}, default`;
+        return;
+      }
+      video.style.cursor = control && !prefs.cursorInVideo ? "default" : "";
       if (!c || !c.visible || !c.shape || prefs.cursorInVideo || !display || display.pointsWidth <= 0) {
         img.style.display = "none";
         return;
@@ -136,7 +231,7 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
       img.style.height = `${h}px`;
       img.style.transform = `translate(${video.offsetLeft + r.x + c.x * r.w - c.shape.hotX * perPixel * scale}px, ${video.offsetTop + r.y + c.y * r.h - c.shape.hotY * perPixel * scale}px)`;
     },
-    [prefs.cursorInVideo, prefs.view, display],
+    [prefs.cursorInVideo, prefs.view, display, control, locked],
   );
 
   useEffect(() => {
@@ -158,7 +253,14 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
 
   const hostName = view.host?.name || t.session.title;
   const notice = view.status.kind === "connecting" ? t.session.connecting : view.status.kind === "reconnecting" ? t.session.reconnecting : null;
-  const hostNotice = view.notice === "no_screen_permission" ? t.session.noScreenPermission : view.notice === "capture_failed" ? t.session.captureFailed : null;
+  const hostNotice =
+    view.notice === "no_screen_permission"
+      ? t.session.noScreenPermission
+      : view.notice === "capture_failed"
+        ? t.session.captureFailed
+        : view.notice === "no_accessibility" && control
+          ? t.session.noAccessibility
+          : null;
   return (
     <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
       <div className="stage-bar">
@@ -203,6 +305,26 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
             <input type="checkbox" checked={prefs.cursorInVideo} onChange={(e) => update({ cursorInVideo: e.target.checked })} />
             {t.session.cursorInVideo}
           </label>
+          {control && (
+            <>
+              <Select<string>
+                className="select-sm"
+                ariaLabel={t.keys.menu}
+                value=""
+                options={[{ value: "", label: t.keys.menu }, ...specialKeys(hostIsMac).map((k) => ({ value: k, label: t.keys.items[k as keyof typeof t.keys.items] })), { value: "type", label: t.keys.type }]}
+                onChange={special}
+              />
+              {hostIsMac && (
+                <label className="stage-check" title={t.keys.ctrlIsCmdHint}>
+                  <input type="checkbox" checked={prefs.ctrlIsCmd} onChange={(e) => update({ ctrlIsCmd: e.target.checked })} />
+                  {t.keys.ctrlIsCmd}
+                </label>
+              )}
+              <button type="button" className={`button button-secondary button-small${locked ? " is-on" : ""}`} aria-pressed={locked} onClick={toggleLock} title={t.keys.gameModeHint}>
+                {t.keys.gameMode}
+              </button>
+            </>
+          )}
           <StreamInfo stats={stats} sent={view.sent} latency={latency} onMeasure={() => void measure()} />
           <button type="button" className="icon-button" aria-label={t.session.fullscreen} title={t.session.fullscreen} onClick={fullscreen.toggle}>
             <ExpandIcon />
@@ -237,11 +359,53 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
           }
         />
         <img ref={cursorRef} className="remote-cursor" alt="" draggable={false} />
+        {/* Where the keyboard goes while this viewer controls: it keeps nothing. */}
+        <textarea ref={keysRef} className="key-sink" aria-label={t.keys.sink} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
+        {typing && <TypeText onSend={(text) => { captureRef.current?.typeText(text); setTyping(false); keysRef.current?.focus({ preventScroll: true }); }} onClose={() => setTyping(false)} />}
         {notice && (
           <p className="stage-notice" role="status">
             {notice}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** The special keys menu, as shortcuts by KeyboardEvent.code. */
+export const SPECIAL_KEYS: Record<string, string[]> = {
+  cmdTab: ["MetaLeft", "Tab"],
+  cmdSpace: ["MetaLeft", "Space"],
+  forceQuit: ["MetaLeft", "AltLeft", "Escape"],
+  screenshot: ["MetaLeft", "ShiftLeft", "Digit3"],
+  lockScreen: ["ControlLeft", "MetaLeft", "KeyQ"],
+  ctrlAltDel: ["ControlLeft", "AltLeft", "Delete"],
+  altTab: ["AltLeft", "Tab"],
+  win: ["MetaLeft"],
+  printScreen: ["PrintScreen"],
+};
+
+/** The special keys that make sense for the host's system. */
+export function specialKeys(hostIsMac: boolean): string[] {
+  return hostIsMac ? ["cmdTab", "cmdSpace", "forceQuit", "screenshot", "lockScreen"] : ["ctrlAltDel", "altTab", "win", "printScreen"];
+}
+
+/** "Type text": a paste typed out on the host, character by character. */
+function TypeText({ onSend, onClose }: { onSend: (text: string) => void; onClose: () => void }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="type-text" role="dialog" aria-label={t.keys.type}>
+      <label className="field-label" htmlFor="type-text-field">
+        {t.keys.typeHint}
+      </label>
+      <textarea id="type-text-field" className="type-text-field" autoFocus value={text} maxLength={20000} onChange={(e) => setText(e.target.value)} />
+      <div className="join-row">
+        <button type="button" className="button button-primary" disabled={!text} onClick={() => onSend(text)}>
+          {t.keys.typeSend}
+        </button>
+        <button type="button" className="button button-secondary" onClick={onClose}>
+          {t.session.cancel}
+        </button>
       </div>
     </div>
   );

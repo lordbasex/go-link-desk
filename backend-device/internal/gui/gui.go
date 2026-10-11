@@ -36,6 +36,8 @@ type Options struct {
 	NewCode func() // replaces the session code
 	// EndSession disconnects the viewer in session.
 	EndSession func()
+	// SetPermissions changes what the viewer in session may do.
+	SetPermissions func(models.Permissions)
 	// SetConsent hands the window's connection requests to the session
 	// (nil: the session keeps its own, the tests' auto-accept).
 	SetConsent func(services.Consent)

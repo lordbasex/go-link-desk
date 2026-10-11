@@ -72,13 +72,13 @@ The host proves itself first, so a fake signaling server never learns a token. A
 
 ## 4. DataChannels
 
-The host creates them, as in go-link. `control` is implemented; the others come in their phases.
+The host creates them, as in go-link. `control`, `pointer` and `input` are implemented; `files` comes in its phase.
 
 | Label | Settings | Content | Status |
 |---|---|---|---|
 | `control` | ordered, reliable, JSON | see below | implemented |
-| `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only | proposed, phase 3 |
-| `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` | proposed, phase 3 |
+| `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only | implemented |
+| `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` | implemented |
 | `files` | ordered, reliable | go-link's file protocol (section 6) | proposed, phase 5 |
 
 ### `control` messages
@@ -97,10 +97,11 @@ The host creates them, as in go-link. `control` is implemented; the others come 
 | `cursor` | host → viewer | `{id, png, hot_x, hot_y, width, height, pixels}`: the pointer's image (PNG in base64, up to twice its size in points), its hot spot in the image's pixels, its size on screen in points, and the image's width in pixels. A viewer gets each image once; after that `png` is left out and the `id` is enough. |
 | `cursor_pos` | host → viewer | `{x, y, visible}`: where the pointer is, 0..1 over the display shown; up to 60 a second, only when it moves. |
 | `beacon` | viewer → host | `{seq}`: the latency beacon, white for an odd `seq`, black for an even one. See *Latency* below. |
-| `notice` | host → viewer | `{code}`: `no_screen_permission` (the host may not record its screen: the viewer sees the test card) or `capture_failed`. |
+| `notice` | host → viewer | `{code}`: `no_screen_permission` (the host may not record its screen: the viewer sees the test card), `capture_failed`, or `no_accessibility` (the viewer may control, but the host has no Accessibility permission, so nothing it sends reaches the computer). |
+| `permissions` | host → viewer | `{view, control}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
-Later phases add `clipboard`, `chat` and `permissions`. A message type nobody handles is dropped. A message is at most 64 KiB.
+Later phases add `clipboard` and `chat`. A message type nobody handles is dropped. A message is at most 64 KiB.
 
 ### Video
 
@@ -120,28 +121,35 @@ Later phases add `clipboard`, `chat` and `permissions`. A message type nobody ha
 
 The viewer flips the beacon and times, with `requestVideoFrameCallback`, how long until the top-left corner of its video turns white (or black): capture, encoder, network, decoder and display. Half the control channel's round trip (the flip's own trip) is taken out, and the median of seven flips is shown. On the screen, the host shows a 32-point square in the top-left corner of the display shown, above everything and letting clicks through, for four seconds after the last flip; the test card draws it itself.
 
-## 5. Input packets (proposed, phase 3)
+## 5. Input packets (implemented)
 
-Big endian. Test vectors go in `protocol/vectors/`, read by the Go and the TypeScript tests.
+Big endian. The test vectors in `protocol/vectors/input.json` are read by the Go and the TypeScript tests, so both sides encode and decode the same bytes.
 
 ```
-pointer channel:
+pointer channel (unordered, no retransmits):
   0x01 abs : u16 seq | u8 display | u16 x | u16 y      x, y normalized 0..65535 over the display
-  0x02 rel : u16 seq | i16 dx | i16 dy                  pointer-lock mode
+  0x02 rel : u16 seq | i16 dx | i16 dy                  pointer lock ("game mode")
 
-input channel:
+input channel (ordered, reliable):
   0x10 button : u8 button (0 left, 1 middle, 2 right, 3 back, 4 forward) | u8 down | u8 display | u16 x | u16 y
-                carries the position, so a click lands right even if moves were dropped
-  0x20 wheel  : i16 dx | i16 dy | u8 mode (0 pixel, 1 line)
-  0x30 key    : u16 keycode | u8 down | u8 mods (bit 0 shift, 1 ctrl, 2 alt, 3 meta, 4 caps lock)
+                carries the position, so a click lands right even if moves were dropped;
+                display 0xFF: no position, act where the pointer is (pointer lock, or a
+                release outside the picture)
+  0x20 wheel  : i16 dx | i16 dy | u8 mode (0 pixel, 1 line)    the browser's sign: dy > 0 scrolls the content down
+  0x30 key    : u16 keycode | u8 down (0 up, 1 down, 2 the keyboard's repeat) | u8 mods
+                mods: bit 0 shift, 1 ctrl, 2 alt, 3 meta, 4 caps lock
                 keycode = index into protocol/keycodes.json (KeyboardEvent.code)
-  0x31 text   : UTF-8 bytes            IME commits and "paste as typing"
+  0x31 text   : UTF-8 bytes, at most 1024           IME commits and "Type text…"
   0x3F release_all
 ```
 
-- `seq` wraps at 65536; the host drops a pointer move older than the last one it applied.
-- `protocol/keycodes.json` maps every `KeyboardEvent.code` to an index, and that index to the macOS virtual key code, the Windows scan code and the X11 keysym. The Go and TypeScript tables are generated from it.
-- The viewer sends `release_all` on `blur`, on `visibilitychange` and when leaving full screen. The host releases everything when a viewer disconnects or stops answering.
+- `display` is the display's index in the `displays` message.
+- `seq` wraps at 65536; the host drops a pointer move older than the last one it applied. The viewer sends at most one move a frame.
+- **Keys go by position** (`KeyboardEvent.code`), not by character: the host's own layout makes the characters, as if the viewer's keyboard were plugged into it. `protocol/keycodes.json` lists every code once; its index is the wire keycode, with the macOS virtual key code, the Windows scan code and the X11 keysym (`-1`: none). `pkg/keymap` and `packages/shared/src/keycodes.gen.ts` are generated from it, and their tests fail when they fall behind.
+- A key comes with the modifiers held on the viewer's keyboard: the host applies them even if their own presses never arrived (a Shift held before the page had the focus). Caps Lock is the host's own and is not applied.
+- Text the viewer types out (a paste, an IME's commit) goes as `text`: the host types it character by character, whatever its layout.
+- **Nothing stays stuck.** The viewer sends `release_all` when the page loses the focus, is hidden, leaves full screen or loses pointer lock. On macOS browsers a key pressed with Cmd held never reports its release, so the viewer lets go of those keys when Cmd goes up. The host lets go of every key and button it pressed when the viewer asks, loses the control permission, hangs up, or its connection stops answering.
+- The host acts only on packets from a viewer that may control (`permissions.control`), and only with the Accessibility permission.
 
 ## 6. Files (from go-link, phase 5)
 

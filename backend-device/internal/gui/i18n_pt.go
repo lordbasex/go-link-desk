@@ -42,7 +42,8 @@ func init() {
 		"Accessibility: to let the viewer use the mouse and keyboard": "Acessibilidade: para quem se conecta usar o mouse e o teclado",
 		"Allow…": "Permitir…",
 		"After allowing it in System Settings, quit go-link Desk and open it again.": "Depois de permitir em Ajustes do Sistema, feche o go-link Desk e abra de novo.",
-		"Allowed":     "Permitido",
-		"Not allowed": "Não permitido",
+		"Allowed":                     "Permitido",
+		"Not allowed":                 "Não permitido",
+		"Use your mouse and keyboard": "Usar seu mouse e seu teclado",
 	}
 }

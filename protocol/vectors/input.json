@@ -1,0 +1,16 @@
+{
+  "description": "Input packets (docs/protocol.md, section 5): each one's bytes, in hex, and what it means. The Go decoder and the TypeScript encoder both test against this file.",
+  "packets": [
+    {"name": "pointer abs", "hex": "01 0102 01 8000 4000", "packet": {"type": "abs", "seq": 258, "display": 1, "x": 32768, "y": 16384}},
+    {"name": "pointer rel", "hex": "02 ffff fffb 000a", "packet": {"type": "rel", "seq": 65535, "dx": -5, "dy": 10}},
+    {"name": "button down", "hex": "10 00 01 00 0000 ffff", "packet": {"type": "button", "button": 0, "down": true, "display": 0, "x": 0, "y": 65535}},
+    {"name": "right button up", "hex": "10 02 00 01 1234 5678", "packet": {"type": "button", "button": 2, "down": false, "display": 1, "x": 4660, "y": 22136}},
+    {"name": "wheel pixels", "hex": "20 0000 ff88 00", "packet": {"type": "wheel", "dx": 0, "dy": -120, "mode": 0}},
+    {"name": "wheel lines", "hex": "20 0003 0001 01", "packet": {"type": "wheel", "dx": 3, "dy": 1, "mode": 1}},
+    {"name": "key down", "hex": "30 0001 01 02", "packet": {"type": "key", "keycode": 1, "down": true, "repeat": false, "mods": 2}},
+    {"name": "key repeat", "hex": "30 0001 02 00", "packet": {"type": "key", "keycode": 1, "down": true, "repeat": true, "mods": 0}},
+    {"name": "key up with every modifier", "hex": "30 007f 00 1f", "packet": {"type": "key", "keycode": 127, "down": false, "repeat": false, "mods": 31}},
+    {"name": "text", "hex": "31 68 6f 6c 61 20 c3 b1", "packet": {"type": "text", "text": "hola ñ"}},
+    {"name": "release all", "hex": "3f", "packet": {"type": "release_all"}}
+  ]
+}

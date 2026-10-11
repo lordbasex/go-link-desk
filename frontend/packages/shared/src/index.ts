@@ -8,3 +8,4 @@ export * from "./device-link";
 export * from "./hmac";
 export * from "./stream";
 export * from "./browser-label";
+export * from "./input";
