@@ -154,7 +154,30 @@ jobs:
       - name: The keyboard table is generated from protocol/keycodes.json
         run: |
           node frontend/packages/shared/scripts/gen-keycodes.mjs
-          git diff --exit-code -- mobile/ios/DeskCore/Sources/DeskCore/KeyCodes.gen.swift frontend/packages/shared/src/keycodes.gen.ts
+          git diff --exit-code -- mobile/ios/DeskCore/Sources/DeskCore/KeyCodes.gen.swift frontend/packages/shared/src/keycodes.gen.ts mobile/android/core/src/main/kotlin/org/golink/desk/core/KeyCodes.gen.kt
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      # The runner has the Android SDK (ANDROID_HOME); Gradle adds the
+      # platform and build tools it needs.
+      - uses: gradle/actions/setup-gradle@v6
+      - name: The texts, from the iOS app's translations
+        working-directory: mobile/android
+        run: |
+          python3 scripts/strings.py
+          git diff --exit-code -- app/src/main/res
+      - name: The portable logic's tests
+        working-directory: mobile/android
+        run: ./gradlew :core:test --no-configuration-cache
+      - name: The app builds
+        working-directory: mobile/android
+        run: ./gradlew :app:assembleDebug --no-configuration-cache
 
   secrets:
     runs-on: ubuntu-latest

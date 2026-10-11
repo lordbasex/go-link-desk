@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com> -->
+<resources>
+    <color name="accent">#F2A33A</color>
+    <!-- The launcher's ground around the icon: its own amber. -->
+    <color name="icon_bg">#EE9B36</color>
+    <color name="bg_light">#F2F2F7</color>
+    <color name="bg_dark">#000000</color>
+</resources>

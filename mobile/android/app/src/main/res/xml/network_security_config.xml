@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com> -->
+<!-- Signaling is always wss://; no clear-text traffic at all. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
