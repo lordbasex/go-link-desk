@@ -115,7 +115,7 @@ func (c *ClipboardService) watch(ctx context.Context, peerID string) {
 		if !ok || text == "" || len(text) > MaxClipboard {
 			continue // an image, a file, or too much
 		}
-		for _, m := range clipboardPieces(id, text, false) {
+		for _, m := range ClipboardPieces(id, text, false) {
 			if !c.send(peerID, m) {
 				break
 			}
@@ -165,9 +165,9 @@ func (c *ClipboardService) Handle(peerID string, data []byte) {
 	}
 }
 
-// clipboardPieces cuts text into messages of at most ClipboardPiece bytes
+// ClipboardPieces cuts text into messages of at most ClipboardPiece bytes
 // of text each, never splitting a character.
-func clipboardPieces(id uint32, text string, paste bool) [][]byte {
+func ClipboardPieces(id uint32, text string, paste bool) [][]byte {
 	var pieces []string
 	for len(text) > ClipboardPiece {
 		cut := ClipboardPiece

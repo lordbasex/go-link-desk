@@ -1,0 +1,482 @@
+// Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+
+//go:build !headless
+
+package gui
+
+import (
+	"encoding/json"
+	"errors"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+
+	"fyne.io/fyne/v2"
+
+	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/trayicon"
+)
+
+// Settings in the system's own window (macOS): the same settings as the
+// Fyne window, as pages of rows. prefs builds the pages from the settings
+// as they are; setting takes a change.
+
+// prefsState is what the native Settings keeps between renders.
+type prefsState struct {
+	open      bool   // shown at least once: keep it up to date
+	passErr   string // the last password refused
+	serverErr string // the last server address refused
+	netErr    string // the last port or address refused
+	// start is the configuration this run started with: what a change of
+	// server or port needs a new start for is told against it.
+	start    models.Config
+	startSet bool
+	last     string // the last pages sent, to send only changes
+}
+
+// showPrefs brings the native Settings up.
+func (u *ui) showPrefs() {
+	u.prefs.open = true
+	spec := u.prefsSpec()
+	b, _ := json.Marshal(spec)
+	u.prefs.last = string(b)
+	remoteview.SetPrefs(spec, true)
+}
+
+// refreshPrefs redraws the native Settings if it was opened and something
+// changed (on Fyne's goroutine).
+func (u *ui) refreshPrefs() {
+	if !u.native || !u.prefs.open {
+		return
+	}
+	spec := u.prefsSpec()
+	b, _ := json.Marshal(spec)
+	if string(b) == u.prefs.last {
+		return
+	}
+	u.prefs.last = string(b)
+	remoteview.SetPrefs(spec, false)
+}
+
+func off() *bool { f := false; return &f }
+
+func (u *ui) prefsSpec() remoteview.Prefs {
+	cfg := u.opts.Settings.Get()
+	st := u.lastSt
+	var pages []remoteview.PrefPage
+
+	// General.
+	server := L("Connecting…")
+	tint := "warn"
+	switch st.Signal.State {
+	case models.SignalConnected:
+		server, tint = L("Connected"), "ok"
+	case models.SignalDisconnected:
+		server = L("Offline, reconnecting…")
+	}
+	host, _ := os.Hostname()
+	langs := []remoteview.PrefOption{}
+	for _, l := range languages {
+		title := l.label
+		if l.id == "" {
+			title = L("Automatic")
+		}
+		langs = append(langs, remoteview.PrefOption{ID: l.id, Title: title})
+	}
+	general := remoteview.PrefPage{ID: "general", Title: L("General"), Symbol: "gearshape", Sections: []remoteview.PrefSection{
+		{Title: L("State"), Rows: []remoteview.PrefRow{
+			{Kind: "info", Label: L("Version"), Value: "v" + strings.TrimPrefix(u.opts.Version, "v")},
+			{Kind: "info", Label: L("This computer"), Value: host},
+			{Kind: "info", Label: L("go-link server"), Value: server, Tint: tint},
+		}},
+		{Title: L("Appearance"), Rows: []remoteview.PrefRow{
+			{ID: "theme", Kind: "select", Label: L("Theme"), Value: cfg.Theme,
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Dark")}, {ID: "light", Title: L("Light")}, {ID: "system", Title: L("Like the system")}}},
+			{ID: "app_icon", Kind: "select", Label: L("App icon"), Detail: L("The one in the Dock while go-link Desk is open."), Value: cfg.AppIcon,
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
+			{ID: "tray_icon", Kind: "select", Label: L("Menu bar icon"), Detail: L("Next to the clock. It turns red while someone is connected."), Value: cfg.TrayIcon,
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
+		}},
+		u.serverSection(cfg),
+		u.directSection(cfg),
+		{Title: L("Interface"), Footer: L("The new language shows the next time go-link Desk opens."), Rows: []remoteview.PrefRow{
+			{ID: "language", Kind: "select", Label: L("Language"), Value: cfg.Language, Options: langs},
+		}},
+	}}
+	if a := u.opts.Autostart; a != nil {
+		row := remoteview.PrefRow{ID: "autostart", Kind: "toggle", Label: L("Open go-link Desk when I log in"), On: a.Enabled()}
+		if !a.Supported {
+			row.Enabled = off()
+		}
+		general.Sections = append(general.Sections, remoteview.PrefSection{Title: L("Start"), Rows: []remoteview.PrefRow{row}})
+	}
+	pages = append(pages, general)
+
+	// Sessions.
+	idle := []remoteview.PrefOption{}
+	for _, m := range idleChoices {
+		idle = append(idle, remoteview.PrefOption{ID: strconv.Itoa(m), Title: idleLabel(m)})
+	}
+	pages = append(pages, remoteview.PrefPage{ID: "sessions", Title: L("Sessions"), Symbol: "display.2", Sections: []remoteview.PrefSection{
+		{Title: L("When someone connects to this computer"), Rows: []remoteview.PrefRow{
+			{ID: "idle", Kind: "select", Label: L("Disconnect when idle"), Value: strconv.Itoa(cfg.IdleMinutes), Options: idle},
+			{ID: "lock", Kind: "toggle", Label: L("Lock the screen when a session ends"), On: cfg.LockOnEnd},
+			{ID: "request_ticks", Kind: "select", Label: L("A request starts with"), Detail: L("Only the screen: whoever asks has to be given each permission by hand."), Value: cfg.RequestTicks,
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Full control")}, {ID: "view", Title: L("Only the screen")}}},
+		}},
+		{Title: L("Connecting to other computers"), Rows: []remoteview.PrefRow{
+			{ID: "viewer_name", Kind: "text", Label: L("Your name"), Detail: L("Shown to the computer you connect to. Empty: your user's name."), Value: cfg.ViewerName, Placeholder: u.viewerName()},
+			{ID: "tabs", Kind: "toggle", Label: L("Open sessions in tabs"), Detail: L("Off: each session in a window of its own."), On: !cfg.SessionWindows},
+		}},
+	}})
+
+	// Unattended access.
+	un := remoteview.PrefPage{ID: "unattended", Title: L("Unattended access"), Symbol: "lock.shield", Sections: []remoteview.PrefSection{
+		{Rows: []remoteview.PrefRow{
+			{ID: "unattended", Kind: "toggle", Label: L("Allow unattended access"), On: cfg.Unattended.Enabled},
+			{Kind: "note", Label: L("Linked browsers come in without you accepting, with the permissions you gave them. Link only your own browsers."), Tint: "warn"},
+		}},
+	}}
+	if cfg.Unattended.Enabled {
+		code := strings.ReplaceAll(st.Pairing.Code, " ", "")
+		shown := "— — —"
+		if code != "" {
+			shown = services.FormatCode(code)
+		}
+		un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Linking code"), Rows: []remoteview.PrefRow{
+			{Kind: "code", Label: L("Linking code"), Value: shown,
+				Detail: Lf("To link a browser, open %s in it and type this code. You will be asked to accept it.", strings.TrimRight(u.opts.WebURL, "/")+"/link")},
+		}})
+		pass := []remoteview.PrefRow{}
+		if cfg.Unattended.PasswordHash != "" {
+			pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("Set"), Tint: "ok", Detail: L("Linked browsers type it after their link.")})
+		} else {
+			pass = append(pass, remoteview.PrefRow{Kind: "info", Label: L("Password"), Value: L("None"), Detail: L("Linked browsers come in with their link alone.")})
+		}
+		pass = append(pass, remoteview.PrefRow{ID: "password", Kind: "password", Label: L("New password"),
+			Placeholder: Lf("%d characters or more", services.MinPassword), Button: L("Set password")})
+		if u.prefs.passErr != "" {
+			pass = append(pass, remoteview.PrefRow{Kind: "note", Label: u.prefs.passErr, Tint: "danger"})
+		}
+		if cfg.Unattended.PasswordHash != "" {
+			pass = append(pass, remoteview.PrefRow{ID: "password_clear", Kind: "button", Label: L("Remove the password"), Button: L("Remove password")})
+		}
+		un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Password"), Rows: pass})
+		if len(cfg.Links) == 0 {
+			un.Sections = append(un.Sections, remoteview.PrefSection{Title: L("Linked browsers"), Rows: []remoteview.PrefRow{
+				{Kind: "note", Label: L("No browser is linked.")},
+			}})
+		}
+		for i, l := range cfg.Links {
+			name := l.Name
+			if name == "" {
+				name = L("A browser")
+			}
+			title := ""
+			if i == 0 {
+				title = L("Linked browsers")
+			}
+			p := l.Permissions
+			perm := func(what, label string, on bool) remoteview.PrefRow {
+				return remoteview.PrefRow{ID: "link:" + l.ID + ":" + what, Kind: "toggle", Label: label, On: on}
+			}
+			un.Sections = append(un.Sections, remoteview.PrefSection{Title: title, Rows: []remoteview.PrefRow{
+				{Kind: "info", Label: name, Detail: Lf("Linked %s · last used %s", l.CreatedAt.Local().Format("2006-01-02"), l.LastSeen.Local().Format("2006-01-02 15:04"))},
+				perm("control", L("Use your mouse and keyboard"), p.Control),
+				perm("audio", L("Hear your computer's sound"), p.Audio),
+				perm("clipboard", L("Share the clipboard (copy and paste)"), p.Clipboard),
+				perm("files", L("Send and receive files"), p.Files),
+				{ID: "revoke:" + l.ID, Kind: "button", Label: L("Revoke this browser"), Button: L("Revoke"), Tint: "danger",
+					Confirm: &remoteview.PrefConfirm{Title: L("Revoke this browser?"), Text: Lf("%s will not be able to come in again until it is linked with a new code.", name), OK: L("Revoke"), Cancel: L("Cancel")}},
+			}})
+		}
+	}
+	pages = append(pages, un)
+
+	// Permissions.
+	if p := u.perms; p != nil {
+		rows := []remoteview.PrefRow{}
+		for _, k := range []struct {
+			kind  permission.Kind
+			id    string
+			label string
+		}{
+			{permission.ScreenRecording, "screen", L("Screen Recording: to show your screen")},
+			{permission.Accessibility, "accessibility", L("Accessibility: to let the viewer use the mouse and keyboard")},
+		} {
+			if p.granted(k.kind) {
+				rows = append(rows, remoteview.PrefRow{Kind: "info", Label: k.label, Value: L("Allowed"), Tint: "ok"})
+			} else {
+				rows = append(rows, remoteview.PrefRow{ID: "perm:" + k.id, Kind: "button", Label: k.label, Button: L("Allow…")})
+			}
+		}
+		pages = append(pages, remoteview.PrefPage{ID: "permissions", Title: L("Permissions"), Symbol: "hand.raised", Sections: []remoteview.PrefSection{
+			{Title: L("This computer's permissions"), Footer: L("After allowing it in System Settings, quit go-link Desk and open it again."), Rows: rows},
+		}})
+	}
+	return remoteview.Prefs{Pages: pages}
+}
+
+// setting takes a change from the native Settings.
+func (u *ui) setting(arg string) {
+	id, value, _ := strings.Cut(arg, "\n")
+	set := u.opts.Settings
+	update := func(fn func(*models.Config)) { go func() { _ = set.Update(fn); fyne.Do(u.refreshPrefs) }() }
+	on := value == "1"
+	switch {
+	case id == "app_icon":
+		if value != "dark" {
+			value = ""
+		}
+		u.app.SetIcon(fyne.NewStaticResource("go-link-desk.png", appIcon(value)))
+		remoteview.SetDockIcon(appIcon(value))
+		update(func(c *models.Config) { c.AppIcon = value })
+	case id == "tray_icon":
+		if value != "dark" {
+			value = ""
+		}
+		u.trayDark = value == "dark"
+		u.trayLive = !u.trayLive // repaint
+		u.renderTray(activeOf(u.lastSt))
+		update(func(c *models.Config) { c.TrayIcon = value })
+	case id == "theme":
+		remoteview.SetTheme(themeOf(value))
+		update(func(c *models.Config) { c.Theme = value })
+	case id == "signal_url":
+		v := strings.TrimSpace(value)
+		if v != "" {
+			if _, err := signalclient.CheckURL(v); err != nil {
+				u.prefs.serverErr = L("That is not a server address: it starts with wss:// (or ws:// on this computer).")
+				u.prefs.last = ""
+				u.refreshPrefs()
+				return
+			}
+		}
+		if v == models.DefaultSignalURL {
+			v = ""
+		}
+		u.prefs.serverErr = ""
+		update(func(c *models.Config) { c.SignalURL = v })
+	case id == "web_url":
+		v := strings.TrimRight(strings.TrimSpace(value), "/")
+		if v != "" && !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://") {
+			u.prefs.serverErr = L("The website's address starts with https://.")
+			u.prefs.last = ""
+			u.refreshPrefs()
+			return
+		}
+		if v == models.DefaultWebURL {
+			v = ""
+		}
+		u.prefs.serverErr = ""
+		update(func(c *models.Config) { c.WebURL = v })
+	case id == "udp_port":
+		v := strings.TrimSpace(value)
+		port := 0
+		if v != "" {
+			p, err := strconv.Atoi(v)
+			if err != nil || (p != 0 && (p < 1024 || p > 65535)) {
+				u.prefs.netErr = L("The port is a number from 1024 to 65535 (0 or empty: a random one).")
+				u.prefs.last = ""
+				u.refreshPrefs()
+				return
+			}
+			port = p
+		}
+		u.prefs.netErr = ""
+		update(func(c *models.Config) { c.UDPPort = port })
+	case id == "announce_ips":
+		var ips []string
+		for _, f := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+			if net.ParseIP(f) == nil {
+				u.prefs.netErr = Lf("%s is not an IP address.", f)
+				u.prefs.last = ""
+				u.refreshPrefs()
+				return
+			}
+			ips = append(ips, f)
+		}
+		u.prefs.netErr = ""
+		update(func(c *models.Config) { c.AnnounceIPs = ips })
+	case id == "server_default":
+		u.prefs.serverErr = ""
+		update(func(c *models.Config) { c.SignalURL, c.WebURL = "", "" })
+	case id == "relaunch":
+		go u.relaunch()
+	case id == "language":
+		update(func(c *models.Config) { c.Language = value })
+	case id == "autostart":
+		go func() {
+			if err := u.opts.Autostart.Set(on); err != nil {
+				u.opts.Logger.Warn("cannot change the login item", "err", err)
+			}
+			fyne.Do(u.refreshPrefs)
+		}()
+	case id == "idle":
+		if m, err := strconv.Atoi(value); err == nil {
+			update(func(c *models.Config) { c.IdleMinutes = m })
+		}
+	case id == "lock":
+		update(func(c *models.Config) { c.LockOnEnd = on })
+	case id == "request_ticks":
+		if value != "view" {
+			value = ""
+		}
+		update(func(c *models.Config) { c.RequestTicks = value })
+	case id == "viewer_name":
+		name := strings.TrimSpace(value)
+		if r := []rune(name); len(r) > models.MaxKnockName {
+			name = string(r[:models.MaxKnockName])
+		}
+		update(func(c *models.Config) { c.ViewerName = name })
+	case id == "tabs":
+		update(func(c *models.Config) { c.SessionWindows = !on })
+	case id == "unattended":
+		update(func(c *models.Config) { c.Unattended.Enabled = on })
+	case id == "password":
+		hash, err := services.HashPassword(value)
+		switch {
+		case errors.Is(err, services.ErrPasswordLength):
+			u.prefs.passErr = Lf("The password must have %d to %d characters.", services.MinPassword, services.MaxPassword)
+			u.refreshPrefs()
+		case err != nil:
+			u.opts.Logger.Warn("cannot set the password", "err", err)
+		default:
+			u.prefs.passErr = ""
+			update(func(c *models.Config) { c.Unattended.PasswordHash = hash })
+		}
+	case id == "password_clear":
+		update(func(c *models.Config) { c.Unattended.PasswordHash = "" })
+	case strings.HasPrefix(id, "perm:") && u.perms != nil:
+		kind := permission.ScreenRecording
+		if id == "perm:accessibility" {
+			kind = permission.Accessibility
+		}
+		go func() {
+			u.perms.request(kind)
+			fyne.Do(u.refreshPrefs)
+		}()
+	case strings.HasPrefix(id, "link:") && u.opts.Links != nil:
+		parts := strings.Split(id, ":")
+		if len(parts) != 3 {
+			return
+		}
+		go func() {
+			u.opts.Links.SetLink(parts[1], func(l *models.Link) {
+				switch parts[2] {
+				case "control":
+					l.Permissions.Control = on
+				case "audio":
+					l.Permissions.Audio = on
+				case "clipboard":
+					l.Permissions.Clipboard = on
+				case "files":
+					l.Permissions.Files = on
+				}
+			})
+			fyne.Do(u.refreshPrefs)
+		}()
+	case strings.HasPrefix(id, "revoke:") && u.opts.Links != nil:
+		go func() {
+			u.opts.Links.Revoke(strings.TrimPrefix(id, "revoke:"))
+			fyne.Do(u.refreshPrefs)
+		}()
+	}
+}
+
+// appIcon is the app icon chosen in Settings.
+func appIcon(choice string) []byte {
+	if choice == "dark" {
+		return trayicon.AppDarkPNG()
+	}
+	return trayicon.AppPNG()
+}
+
+// themeOf is the windows' theme for the setting.
+func themeOf(v string) int {
+	switch v {
+	case "light":
+		return remoteview.ThemeLight
+	case "system":
+		return remoteview.ThemeSystem
+	}
+	return remoteview.ThemeDark
+}
+
+// serverSection is where this computer finds signalhub: go-link's, or the
+// person's own (github.com/lordbasex/signalhub).
+func (u *ui) serverSection(cfg models.Config) remoteview.PrefSection {
+	rows := []remoteview.PrefRow{
+		{ID: "signal_url", Kind: "text", Label: L("Signaling server"), Value: cfg.SignalURL, Placeholder: models.DefaultSignalURL,
+			Detail: L("Your own signalhub (github.com/lordbasex/signalhub). Empty: go-link's.")},
+		{ID: "web_url", Kind: "text", Label: L("Website for viewers"), Value: cfg.WebURL, Placeholder: models.DefaultWebURL,
+			Detail: L("The one shown with your code. It must use the same server.")},
+	}
+	if u.prefs.serverErr != "" {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: u.prefs.serverErr, Tint: "danger"})
+	}
+	want := cfg.EffectiveSignalURL()
+	if enc, err := signalclient.CheckURL(want); err == nil && !enc && !signalclient.IsLoopback(want) {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: L("ws:// is not encrypted: use wss:// outside this computer."), Tint: "warn"})
+	}
+	if u.opts.SignalURL != "" && u.opts.SignalURL != want {
+		rows = append(rows, remoteview.PrefRow{Kind: "info", Label: L("In use now"), Value: u.opts.SignalURL, Tint: "warn"},
+			remoteview.PrefRow{ID: "relaunch", Kind: "button", Label: L("The new server is used when go-link Desk opens again."), Button: L("Open again now")})
+	}
+	if cfg.SignalURL != "" || cfg.WebURL != "" {
+		rows = append(rows, remoteview.PrefRow{ID: "server_default", Kind: "button", Label: L("Go back to go-link's server"), Button: L("Use go-link's")})
+	}
+	return remoteview.PrefSection{Title: L("Server"), Footer: L("This computer, the computers it connects to and their browsers must all use the same server."), Rows: rows}
+}
+
+// directSection is the advanced part of the network: one UDP port for
+// every connection, and the addresses where viewers reach it through a
+// router that forwards it (a computer behind a second router, which
+// browsers on the first one cannot reach on their own).
+func (u *ui) directSection(cfg models.Config) remoteview.PrefSection {
+	local := localIPs()
+	port := ""
+	if cfg.UDPPort > 0 {
+		port = strconv.Itoa(cfg.UDPPort)
+	}
+	rows := []remoteview.PrefRow{
+		{Kind: "info", Label: L("This computer's address"), Value: strings.Join(local, ", ")},
+		{ID: "udp_port", Kind: "text", Label: L("UDP port"), Value: port, Placeholder: L("Random"),
+			Detail: L("Every connection on one port, to open it in a router.")},
+		{ID: "announce_ips", Kind: "text", Label: L("Announced address"), Value: strings.Join(cfg.AnnounceIPs, ", "), Placeholder: "192.168.1.20",
+			Detail: L("Where viewers reach that port through the router: its address on their network. Several, with commas.")},
+	}
+	if u.prefs.netErr != "" {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: u.prefs.netErr, Tint: "danger"})
+	}
+	if cfg.UDPPort > 0 && len(local) > 0 {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: Lf("In the router, forward UDP port %d to %s.", cfg.UDPPort, local[0])})
+	}
+	if u.prefs.startSet && (cfg.UDPPort != u.prefs.start.UDPPort || strings.Join(cfg.AnnounceIPs, ",") != strings.Join(u.prefs.start.AnnounceIPs, ",")) {
+		rows = append(rows, remoteview.PrefRow{ID: "relaunch", Kind: "button", Label: L("The port and address are used when go-link Desk opens again."), Button: L("Open again now")})
+	}
+	return remoteview.PrefSection{Title: L("Direct connection (advanced)"),
+		Footer: L("For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay."), Rows: rows}
+}
+
+// localIPs are this computer's IPv4 addresses on its networks.
+func localIPs() []string {
+	var out []string
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	for _, a := range addrs {
+		n, ok := a.(*net.IPNet)
+		if !ok || n.IP.IsLoopback() || n.IP.To4() == nil || n.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, n.IP.String())
+	}
+	return out
+}

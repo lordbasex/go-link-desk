@@ -30,11 +30,12 @@ type permissionsBox struct {
 	rows    []*permRow
 	restart *widget.Label
 	granted func(permission.Kind) bool
+	request func(permission.Kind) bool
 	asked   bool
 }
 
 func (u *ui) newPermissionsBox(granted func(permission.Kind) bool, request func(permission.Kind) bool) *permissionsBox {
-	p := &permissionsBox{granted: granted}
+	p := &permissionsBox{granted: granted, request: request}
 	title := widget.NewLabelWithStyle(L("Permissions"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	items := []fyne.CanvasObject{title}
 	for _, k := range []struct {

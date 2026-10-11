@@ -47,8 +47,8 @@ func TestTheAppIconHasAMarginAndTheMarkInTheMiddle(t *testing.T) {
 	if _, _, _, a := img.At(4, 4).RGBA(); a != 0 {
 		t.Fatalf("corner should be transparent, alpha %d", a)
 	}
-	// The amber square fills the space between the gamepad's buttons.
-	if r, g, _, a := img.At(256, 150).RGBA(); a == 0 || r>>8 < 0xE0 || g>>8 < 0x90 {
+	// The amber square shows above the screen.
+	if r, g, _, a := img.At(256, 115).RGBA(); a == 0 || r>>8 < 0xE0 || g>>8 < 0x90 {
 		t.Fatalf("expected amber at the top middle, got %d %d alpha %d", r>>8, g>>8, a)
 	}
 }
@@ -64,5 +64,25 @@ func TestTheLiveIconIsRed(t *testing.T) {
 	// Inside the square, away from the mark's strokes.
 	if r, g, _, a := img.At(size/2, 4).RGBA(); a == 0 || r>>8 < 0xD0 || g>>8 > 0x60 {
 		t.Fatalf("expected red at the top middle, got r %d g %d alpha %d", r>>8, g>>8, a)
+	}
+}
+
+func TestTheDarkAppIconIsDark(t *testing.T) {
+	img, err := png.Decode(bytes.NewReader(AppDarkPNG()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, g, b, a := img.At(256, 440).RGBA(); a == 0 || r>>8 > 0x40 || g>>8 > 0x40 || b>>8 > 0x50 {
+		t.Fatalf("expected a dark square near the bottom, got %d %d %d alpha %d", r>>8, g>>8, b>>8, a)
+	}
+}
+
+func TestTheDarkTrayIconIsGraphite(t *testing.T) {
+	img, err := png.Decode(bytes.NewReader(DarkPNG()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _, _, a := img.At(size/2, 4).RGBA(); a == 0 || r>>8 > 0x40 {
+		t.Fatalf("expected graphite at the top middle, got r %d alpha %d", r>>8, a)
 	}
 }

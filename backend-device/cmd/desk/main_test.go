@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 	"testing"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
@@ -74,8 +75,8 @@ func TestIsLoopback(t *testing.T) {
 		"ws://[::1]:8090/ws":          true,
 		"wss://signal.go-link.org/ws": false,
 	} {
-		if got := isLoopback(in); got != want {
-			t.Errorf("isLoopback(%q) = %v", in, got)
+		if got := signalclient.IsLoopback(in); got != want {
+			t.Errorf("signalclient.IsLoopback(%q) = %v", in, got)
 		}
 	}
 }

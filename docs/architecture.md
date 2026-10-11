@@ -1,6 +1,6 @@
 # Architecture
 
-go-link Desk is a remote desktop that follows go-link's design: the computer being controlled runs a small portable app (the **host**), whoever controls it only needs a **browser**, and the two meet through **signalhub**, a generic signaling server that never sees the session.
+go-link Desk is a remote desktop that follows go-link's design: the computer being controlled runs a small portable app (the **host**), whoever controls it needs only a **browser** or go-link Desk itself (the same app is also a viewer), and the two meet through **signalhub**, a generic signaling server that never sees the session.
 
 ```
  Browser (desk.go-link.org)                               Controlled computer
@@ -25,10 +25,12 @@ go-link Desk is a remote desktop that follows go-link's design: the computer bei
 | `backend-device/internal/models` | Domain types: configuration, status, sessions (knock, permissions, reasons). |
 | `backend-device/internal/services` | Signaling handlers (pairing, room opener, session and consent), the WebRTC stream, linked browsers, PIN gate, status, metrics, updates. |
 | `backend-device/internal/controllers` | The routing of viewers' control-channel messages by type, which go-link keeps in one big `switch` in its `main.go`. |
-| `backend-device/internal/repositories` | `device.json`, written atomically with mode 0600. |
-| `backend-device/internal/gui` | The window, the connection request, the session panel and the tray icon (Fyne). Built unless `-tags headless`. |
+| `backend-device/internal/repositories` | `device.json` and `remotes.json` (the computers this app connects to), written atomically with mode 0600. |
+| `backend-device/internal/viewer` | The app's own viewer: a session to another computer with the website's protocol (join, claim, reach and its proof), the WebRTC answerer, frames put back together from RTP, the files client and the input packets. No window: the GUI drives it, and the end-to-end tests run it headless (`--test-viewer`). |
+| `backend-device/internal/gui` | The connection request, the session panel, the tray icon and, on systems without the native window, the main window and Settings (Fyne); on macOS, what drives the native main window and Settings (`home.go`, `prefs.go`) and the sessions to other computers (`remote.go`). Built unless `-tags headless`. |
 | `backend-device/internal/telemetry` | Per-session measurements (SQLite, pure Go). |
 | `backend-device/test` | Integration tests: the real stream against a browser played by Pion. |
+| `backend-device/pkg/remoteview` | The native window on macOS (AppKit): Home (this computer's code, the address bar, My computers and the recent sessions as cards, a list or a detailed list), a tab per session (the picture drawn by the system from H.264, the remote pointer, the toolbar, mouse and keyboard), and Settings. Light and dark themes. |
 | `backend-device/pkg/*` | Reusable libraries: `signalclient`, `capture` (ScreenCaptureKit), `cursor`, `beacon`, `permission`, `mainloop`, `encoder` (VideoToolbox H.264, VP8, Opus), `testpattern`, `ids`, `instancelock`, `jsonkeys`, `sysinfo`, `trayicon`, `watermark`. One implementation per OS behind build tags; Windows and Linux come in phase 7. Input injection, clipboard and audio come in later phases. |
 | `frontend/` | npm workspaces: `packages/shared` (signalhub client, the session's WebRTC side, codes, HMAC, design tokens) and `apps/web` (desk.go-link.org). |
 | `protocol/` | The single source of truth shared by Go and TypeScript: `keycodes.json` and test vectors. |
@@ -131,6 +133,17 @@ desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts
 | **Viewer** | `join` with the session code or invite | After the host accepts: video, audio and the `control`, `pointer`, `input` and `files` channels, within the permissions granted. |
 | **Linked browser** | `claim` with the pairing code (first time, accepted by the person at the host), `reach` with the `device_id` (after) | Unattended access, off by default. The host proves itself first with an HMAC, then the browser shows its token, then the password if there is one, and it becomes a full session with its link's permissions, nobody asked. |
 
+## The app as a viewer
+
+go-link Desk also connects to other computers, in the same window: Home has the address bar (a session code, or a pairing code to link), My computers and the recent sessions; each session opens in a tab (or, in Settings, a window of its own).
+
+- **The website's protocol, as it is.** `internal/viewer` joins, knocks, answers the offer and speaks the same control messages, input packets and files protocol as the website; the host cannot tell them apart (it sees `go-link Desk 1.x on macOS` where a browser says its name). A linked computer proves itself before the token goes out, exactly as in the browser.
+- **The picture is H.264 drawn by the system.** The viewer puts RTP packets back into access units itself (Pion's sample builder holds a frame until the next one starts, and a still screen sends no next one), and hands them to an `AVSampleBufferDisplayLayer`: the hardware decodes and draws, no frame is copied through Go. A lost packet waits 250 ms for its resend, then the frames until a keyframe are dropped and one is asked for (PLI); so is one when a hidden tab comes back.
+- **Input** is captured by the picture's view: keys by position (macOS key codes mapped through `protocol/keycodes.json`), the browser's wheel sign, Cmd+V pasting this computer's clipboard there, and the keys pressed with Cmd let go when Cmd goes up (macOS may never report their release). While the viewer controls, shortcuts go to the other computer, not to this app.
+- **Sound** is decoded with libopus and played with the call's audio engine; files go through the same client as the website's (`files.ts`), into Downloads, never over a file.
+- **Not yet:** the video call from the app (it ignores the call's lines), and VP8 (a host that cannot send H.264 shows a message pointing to the website).
+- **What it keeps** (`remotes.json`, 0600): the links (with their tokens, as the browser's `localStorage` does), labels and favorites, the recent sessions, and a small thumbnail of each, taken from the window's own pixels while the session's tab is shown.
+
 ## Unattended access
 
 - **One door, three ways in.** The session service takes guests from the session room (`join`), from the pairing code (`claim`) and from `reach`; all of them knock with the same message, and only what follows the knock changes. A browser that came with the pairing code is asked about like any viewer, in a request window that says it is a link; one that came with `reach` is connected gated.
@@ -177,6 +190,10 @@ The host is one self-contained program: no installer, no administrator rights, n
 
 ## Decisions
 
+- **The app is also a viewer (phase 6b).** The plan had the viewer only in the browser; the app now connects too, in one window with a tab per session. It reuses everything the host already had (Pion, signalclient, libopus, the call's audio engine, the input protocol) and the website's protocol unchanged, so the host needs no change and the browser keeps working as before.
+- **The main window and Settings are native on macOS** (AppKit through cgo): Fyne cannot hold the system's video layer, and a single window with the sessions as tabs needs it. Fyne stays for the connection request, the session panel, the chat and files windows, and as the whole window on systems without the native one.
+- **The signaling server can be changed in Settings** (a person's own signalhub), and takes effect when the app opens again: the host's room, codes and links live on the server it registered with.
+
 - **Phase 0 copies only go-link's generic pieces.** go-link's `internal/services` is one package; its stream, test room and recording services depend on the game room manager and on ROM symbols. They come in the phase that uses them, adapted (stream and session in phase 1, recordings in phase 8), instead of compiling dead code through stubs.
 - **The unattended password is hashed with argon2id** (`golang.org/x/crypto/argon2`, OWASP's minimum parameters: 19 MiB, 2 passes), never kept or logged in clear, and checked with the PIN gate's limits. `x/crypto` was already in the build through Pion; it is now a direct dependency (BSD-3-Clause).
 - **The linked-browser proof is domain-separated:** it signs `go-link-desk link proof\n<nonce>`, so a proof made for one app never passes in the other.
@@ -189,6 +206,6 @@ The host is one self-contained program: no installer, no administrator rights, n
 - **The permissions the dialog shows are the ones that exist.** In phase 1 a viewer can only see the screen, so the dialog says that and has no checkboxes; each phase adds the checkbox of what it brings (control, audio, clipboard, files), already defined in the `accepted` message.
 - **Control has one checkbox,** "Use your mouse and keyboard": a viewer that may control the mouse but not the keyboard is not a useful permission, and one checkbox reads clearly in a request dialog.
 - **The host applies the modifiers a key comes with** rather than only the ones whose presses it saw: a viewer that held Shift before the page had the focus still types a capital.
-- **Sound, clipboard and control are separate boxes, all unticked:** each is a different risk (hearing a call, reading what was copied, using the computer), and the person at the computer picks each one.
+- **Sound, clipboard and control are separate boxes,** each a different risk (hearing a call, reading what was copied, using the computer). They came unticked until phase 6b; now they come ticked in a session's request (not in a link's, which is for good), because asking for support should take one click, and the person at the computer unticks what they do not want, there or during the session. Settings can make them start unticked again ("A request starts with: Only the screen"); a one-click "Allow full control" button was weighed and left out, since the scammer on the phone asks for that click as easily as for Accept.
 - **A video call is asked for during the session, not in the connection request:** it is a moment, not a standing permission; the person at the host answers it then, with their camera and microphone as boxes.
 - **Audio comes with its phase.** The test card's 1 kHz tone is not sent yet: audio, its permission and the browser's autoplay unlock arrive together in phase 4.

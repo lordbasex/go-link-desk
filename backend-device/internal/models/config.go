@@ -45,6 +45,23 @@ type Config struct {
 	IdleMinutes int `json:"idle_minutes,omitempty"`
 	// LockOnEnd locks the computer's screen when a session ends.
 	LockOnEnd bool `json:"lock_on_end,omitempty"`
+	// ViewerName is the name this app gives when it connects to another
+	// computer ("" for the computer user's name).
+	ViewerName string `json:"viewer_name,omitempty"`
+	// SessionWindows opens each session to another computer in a window of
+	// its own instead of a tab.
+	SessionWindows bool `json:"session_windows,omitempty"`
+	// AppIcon is the app's icon in the Dock: "" (the amber one) or "dark".
+	AppIcon string `json:"app_icon,omitempty"`
+	// TrayIcon is the menu bar icon: "" (amber) or "dark".
+	TrayIcon string `json:"tray_icon,omitempty"`
+	// Theme is the windows': "" (dark), "light" or "system".
+	Theme string `json:"theme,omitempty"`
+	// RequestTicks is what a connection request starts with ticked: ""
+	// (everything, to untick what is not wanted) or "view" (only seeing the
+	// screen: each box is ticked by hand). Set ahead, calmly, by whoever
+	// owns the computer, not in the middle of a call.
+	RequestTicks string `json:"request_ticks,omitempty"`
 }
 
 // Unattended is the unattended access setting.

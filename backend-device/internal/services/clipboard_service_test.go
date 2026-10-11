@@ -109,7 +109,7 @@ func TestClipboardFromTheViewerLandsAndPastes(t *testing.T) {
 	c, b, sent, pasted := newClipboard(t)
 	c.Allow("P", true)
 	text := strings.Repeat("a", ClipboardPiece) + "日本"
-	pieces := clipboardPieces(7, text, true)
+	pieces := ClipboardPieces(7, text, true)
 	for _, m := range pieces {
 		c.Handle("Q", m) // another peer: ignored
 	}
@@ -128,7 +128,7 @@ func TestClipboardFromTheViewerLandsAndPastes(t *testing.T) {
 		t.Fatal("the viewer's own text came back")
 	}
 	// A piece out of order drops the text.
-	ms := clipboardPieces(8, text+"x", false)
+	ms := ClipboardPieces(8, text+"x", false)
 	c.Handle("P", ms[1])
 	c.Handle("P", ms[0])
 	if b.text != text {
@@ -139,7 +139,7 @@ func TestClipboardFromTheViewerLandsAndPastes(t *testing.T) {
 func TestClipboardPiecesNeverSplitACharacter(t *testing.T) {
 	text := "a" + strings.Repeat("日", ClipboardPiece) // 3 bytes each, misaligned
 	var got strings.Builder
-	for _, b := range clipboardPieces(1, text, false) {
+	for _, b := range ClipboardPieces(1, text, false) {
 		var m clipboardMsg
 		if err := json.Unmarshal(b, &m); err != nil || len(m.Text) > ClipboardPiece || strings.ContainsRune(m.Text, '�') {
 			t.Fatalf("piece %d bytes, err %v", len(m.Text), err)

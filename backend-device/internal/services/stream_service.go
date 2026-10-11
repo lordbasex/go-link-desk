@@ -163,7 +163,9 @@ type viewer struct {
 	keyframe atomic.Bool
 	// kbps is the bitrate its encoder should use: the preset's ceiling,
 	// or less when the bandwidth estimate says so.
-	kbps    atomic.Int64
+	kbps atomic.Int64
+	// sendCap bounds the estimate by what actually got through.
+	sendCap sendCap
 	playout playoutLadder // under mu
 
 	mu        sync.Mutex
@@ -210,8 +212,9 @@ type StreamService struct {
 	want        VideoWant         // the latest viewer's wishes
 	display     uint32            // the display chosen (0: the main one)
 	displays    []screencap.Display
-	beacon      uint16 // the latency beacon's state, flipped by the viewer
-	rung        int    // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	beacon      uint16    // the latency beacon's state, flipped by the viewer
+	rung        int       // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	rungAt      time.Time // when it last changed
 	changed     chan struct{}
 	onControl   func(peerID, kind string, data []byte)
 	onClosed    func(peerID, reason string)
@@ -674,13 +677,12 @@ func (s *StreamService) followBandwidth() {
 	s.mu.Lock()
 	ceiling := presetLimits[ParsePreset(string(s.want.Preset))].kbps
 	worst := 0
+	now := time.Now()
 	for _, v := range s.viewers {
-		kbps := ceiling
-		if est := estimateKbps(v.pc); est > 0 {
-			kbps = max(min(kbps, est*9/10), minKbps)
-			if worst == 0 || est < worst {
-				worst = est
-			}
+		est := effectiveKbps(estimateKbps(v.pc), v.sendCap.update(now))
+		kbps := max(min(ceiling, est*9/10), minKbps)
+		if worst == 0 || est < worst {
+			worst = est
 		}
 		v.kbps.Store(int64(kbps)) // the encoder takes it with the next frame
 	}
@@ -688,8 +690,11 @@ func (s *StreamService) followBandwidth() {
 		s.rung = len(bandwidthLadder)
 	}
 	before := s.rung
-	s.rung = ladderRung(worst, s.rung)
+	s.rung = ladderRung(worst, s.rung, time.Since(s.rungAt))
 	after := s.rung
+	if after != before {
+		s.rungAt = time.Now()
+	}
 	s.mu.Unlock()
 	if after != before {
 		s.log.Info("bandwidth", "estimate_kbps", worst, "rung", after)
@@ -750,7 +755,7 @@ func (s *StreamService) sendStreamStats(window time.Duration) {
 		st := streamStats{
 			Type: "stream_stats", FPS: round1(float64(frames) / window.Seconds()),
 			Kbps: round1(float64(bytes) * 8 / 1000 / window.Seconds()), Codec: codecLabel(v.codec),
-			TargetKbps: int(v.kbps.Load()), EstimateKbps: estimateKbps(v.pc),
+			TargetKbps: int(v.kbps.Load()), EstimateKbps: effectiveKbps(estimateKbps(v.pc), v.sendCap.current()),
 		}
 		st.Width, st.Height = s.sizes[id][0], s.sizes[id][1]
 		stats[id] = st
@@ -875,7 +880,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 		return fail(err)
 	}
 	v.video = video
-	v.out = &sampleWriter{track: video}
+	v.out = &sampleWriter{track: video, cap: &v.sendCap}
 	rtpSender, err := pc.AddTrack(video)
 	if err != nil {
 		return fail(err)
@@ -1388,6 +1393,7 @@ func (s *StreamService) noteClientReport(v *viewer, data []byte) {
 	if json.Unmarshal(data, &rep) != nil || rep.Metrics == nil {
 		return
 	}
+	v.sendCap.lost(rep.Metrics["video_loss_pct"], time.Now())
 	v.mu.Lock()
 	changed, why := v.playout.note(rep.Metrics)
 	ms := v.playout.maxMs()

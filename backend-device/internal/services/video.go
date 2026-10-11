@@ -61,8 +61,11 @@ const minVideoSide = 320
 // read better than many blurry ones, and a smaller picture makes smaller
 // frames, which arrive whole on a bad network. The bitrate alone is not
 // enough: some encoders (VideoToolbox on Intel Macs) send far more than
-// asked for on a busy screen. Rungs go down at once and back up only when
-// the estimate is a third above them, so the picture does not flap.
+// asked for on a busy screen. Rungs go down at once; back up one at a
+// time, only when the estimate is a third above them and the last change
+// is ladderClimbWait old, so the picture does not flap: every new size is
+// a new stream for the viewer's decoder, which some (iPadOS) do not take
+// many times in a row.
 var bandwidthLadder = []struct {
 	underKbps, maxWidth, fps int
 }{
@@ -72,9 +75,13 @@ var bandwidthLadder = []struct {
 	{2500, 0, 30}, // the preset's width, at 30
 }
 
+// ladderClimbWait is how long a rung holds before the picture grows again.
+const ladderClimbWait = 10 * time.Second
+
 // ladderRung is the rung for an estimate, starting from the current one
-// (len(bandwidthLadder): no limit). est 0 (no estimate yet) keeps it.
-func ladderRung(est, current int) int {
+// (len(bandwidthLadder): no limit), changed since ago. est 0 (no estimate
+// yet) keeps it.
+func ladderRung(est, current int, since time.Duration) int {
 	if est <= 0 {
 		return current
 	}
@@ -86,8 +93,8 @@ func ladderRung(est, current int) int {
 			break
 		}
 	}
-	// up one rung only with room to spare
-	for current < len(bandwidthLadder) && est >= bandwidthLadder[current].underKbps*4/3 {
+	// up one rung, with room to spare and after a while
+	if since >= ladderClimbWait && current < len(bandwidthLadder) && est >= bandwidthLadder[current].underKbps*4/3 {
 		current++
 	}
 	return current
@@ -206,6 +213,8 @@ type sampleWriter struct {
 	have   bool
 	frames int // since the last count (for stream_stats)
 	bytes  int
+	// cap counts what is sent, to bound the bitrate by it (nil: none).
+	cap *sendCap
 }
 
 // write sends one frame. A sample's duration moves the next one's RTP
@@ -223,6 +232,9 @@ func (w *sampleWriter) write(data []byte, pts time.Duration) {
 	}
 	w.frames++
 	w.bytes += len(data)
+	if w.cap != nil {
+		w.cap.sent(len(data))
+	}
 }
 
 // counts reads and resets the frames and bytes sent.

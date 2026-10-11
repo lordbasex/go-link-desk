@@ -4,6 +4,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 )
@@ -54,21 +55,25 @@ func TestPickCodec(t *testing.T) {
 
 func TestTheBandwidthLadder(t *testing.T) {
 	none := len(bandwidthLadder)
+	long := ladderClimbWait
 	for _, tc := range []struct {
-		est, from, want int
+		est, from int
+		since     time.Duration
+		want      int
 	}{
-		{0, none, none},     // no estimate yet
-		{20000, none, none}, // plenty
-		{2000, none, 3},     // 30 fps
-		{1000, none, 2},     // 1280 wide
-		{300, none, 0},      // 640 wide, straight down
-		{450, 0, 0},         // just over a rung: not up yet
-		{600, 0, 1},         // a third over 400: up one
-		{30000, 0, none},    // all the way back up
-		{3000, 3, 3},        // 2500 * 4/3 = 3333: stays
+		{0, none, long, none},     // no estimate yet
+		{20000, none, long, none}, // plenty
+		{2000, none, 0, 3},        // 30 fps, at once
+		{1000, none, 0, 2},        // 1280 wide, at once
+		{300, none, 0, 0},         // 640 wide, straight down
+		{450, 0, long, 0},         // just over a rung: not up yet
+		{600, 0, long, 1},         // a third over 400: up one
+		{600, 0, time.Second, 0},  // ...but not right after a change
+		{30000, 0, long, 1},       // one rung at a time, never a jump
+		{3000, 3, long, 3},        // 2500 * 4/3 = 3333: stays
 	} {
-		if got := ladderRung(tc.est, tc.from); got != tc.want {
-			t.Errorf("ladderRung(%d, %d) = %d, want %d", tc.est, tc.from, got, tc.want)
+		if got := ladderRung(tc.est, tc.from, tc.since); got != tc.want {
+			t.Errorf("ladderRung(%d, %d, %s) = %d, want %d", tc.est, tc.from, tc.since, got, tc.want)
 		}
 	}
 }

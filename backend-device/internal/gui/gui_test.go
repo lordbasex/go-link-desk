@@ -7,6 +7,7 @@ package gui
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -216,13 +217,26 @@ func TestPermissionsAreAskedForAndChangedLive(t *testing.T) {
 	var set []models.Permissions
 	u := newUI(a, Options{Status: st, Language: "en", SetPermissions: func(p models.Permissions) { set = append(set, p) }})
 	r := u.newRequest(services.ConsentRequest{PeerID: "P"}, time.Now().Add(time.Minute), func(error) {})
-	if r.perms.value() != models.ViewOnly {
-		t.Fatalf("the request allows %+v before anyone ticks a box", r.perms.value())
+	// Everything is ticked: whoever asks for support accepts at once, and
+	// unticks what they do not want.
+	if r.perms.value() != fullControl {
+		t.Fatalf("the request starts with %+v", r.perms.value())
 	}
 	test.Tap(r.perms.audio)
-	if p := r.perms.value(); !p.Audio || p.Control || p.Clipboard {
-		t.Fatalf("ticking the sound gives %+v", p)
+	if p := r.perms.value(); p.Audio || !p.Control || !p.Clipboard || !p.Files {
+		t.Fatalf("unticking the sound gives %+v", p)
 	}
+	// A link is for good: nothing is ticked for it.
+	if l := u.newRequest(services.ConsentRequest{PeerID: "L", Link: true}, time.Now().Add(time.Minute), func(error) {}); l.perms.value() != models.ViewOnly {
+		t.Fatalf("a link request starts with %+v", l.perms.value())
+	}
+	// Settings can make a request start with only the screen.
+	ticks := services.NewSettingsService(models.Config{RequestTicks: "view"}, func(models.Config) error { return nil }, slog.New(slog.DiscardHandler))
+	u.opts.Settings = ticks
+	if v := u.newRequest(services.ConsentRequest{PeerID: "V"}, time.Now().Add(time.Minute), func(error) {}); v.perms.value() != models.ViewOnly {
+		t.Fatalf("with only the screen, a request starts with %+v", v.perms.value())
+	}
+	u.opts.Settings = nil
 	st.SetSession(&models.SessionStatus{RoomID: "R"})
 	st.SetActive(&models.ActiveSession{PeerID: "P", Name: "Ana", Permissions: models.Permissions{View: true, Control: true}})
 	u.render(st.Snapshot())

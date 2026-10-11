@@ -39,6 +39,7 @@ both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
 - **One session at a time.** A knock while another viewer is in session, or while another knock is being asked, is `rejected` with `busy`.
 - **One knock per guest.** A guest that was turned down, or whose session ended, is ignored until it leaves signalhub's session; to try again it joins again (signalhub limits `join` to 5 a minute per IP).
 - The host never sends an offer, and ignores every offer, answer or candidate, from a viewer that was not accepted. A viewer never sends an offer.
+- The viewer may be a browser or go-link Desk itself: the app sends `ua` as `go-link Desk 1.2 on macOS` and `codecs` `["h264-high","h264"]` (it draws H.264 with the system's decoder), and does not take a video call yet (it leaves the call's lines without a track).
 - `name` (up to 40 characters) and `ua` (up to 60) are what the viewer declares. The host keeps printable characters only, without line breaks or control and format characters, and shows them as declared, never as verified.
 - `codecs` are the video codecs the browser decodes (`RTCRtpReceiver.getCapabilities`): `h264-high` (Constrained High, profile `640c`), `h264` (Constrained Baseline) and `vp8`. The host sends H.264 from the system's encoder when it has one and the browser takes it, High when it can; otherwise VP8. Without the field, VP8.
 - `view` is always granted; the other permissions are part of the message from the start and are granted in the phases that use them.
@@ -132,7 +133,7 @@ A message type nobody handles is dropped. A message is at most 64 KiB.
   | Quality | the display's pixels | 60 | 20 Mbps |
 
 - **Only when it changes.** ScreenCaptureKit hands over a frame when the picture changes; a still screen sends nothing. A few moments after it stops, the host sends the last frame again (four times, 0.4 s apart) so the encoder sharpens what it left blurry while it moved, and again for a viewer that needs a keyframe.
-- **The bandwidth.** Google Congestion Control on the host, from the browser's transport-wide feedback (TWCC), estimates what each viewer's path carries; the encoder aims at 90% of it, under the preset's ceiling. Under 2.5 Mbps the session drops to 30 frames per second, under 1.5 to 1280 pixels wide, under 800 kbps to 960 at 20, under 400 to 640 at 15; it climbs back a rung once the estimate is a third above it.
+- **The bandwidth.** Google Congestion Control on the host, from the browser's transport-wide feedback (TWCC), estimates what each viewer's path carries, bounded by what that viewer was actually sent (a cap that starts at 4 Mbps, grows 15% a second while the encoder fills it without loss, and drops to what got through when `client_report` says 10% or more was lost); the encoder aims at 90% of it, under the preset's ceiling. Under 2.5 Mbps the session drops to 30 frames per second, under 1.5 to 1280 pixels wide, under 800 kbps to 960 at 20, under 400 to 640 at 15; it climbs back one rung at a time, once the estimate is a third above it and the last change is 10 seconds old.
 - **Losses** are resent (NACK, RTX); a viewer that still cannot decode asks for a keyframe (PLI), which only its own encoder makes.
 
 ### Sound

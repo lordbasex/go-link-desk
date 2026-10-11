@@ -96,7 +96,7 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	}
 	p.browser.SetText(a.Browser)
 	p.since.SetText(Lf("Since %s", a.Since.Local().Format("15:04")))
-	p.perms.SetText(L("Can:") + " " + L("See your screen"))
+	p.perms.SetText(L("Can see your screen, and:"))
 	p.checks.set(a.Permissions)
 	if p.chat != nil && p.peer != a.PeerID {
 		p.chat.clear()

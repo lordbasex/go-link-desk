@@ -18,6 +18,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/autostart"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 )
 
 // Autostart starts the host at login (Settings). Tests replace it.
@@ -67,7 +68,10 @@ type settingsWindow struct {
 	startup    *widget.Check
 	idle       *widget.Select
 	lock       *widget.Check
+	ticks      *widget.Select // what a request starts with ticked
 	language   *widget.Select
+	viewerName *widget.Entry // nil without the Connect side
+	tabs       *widget.Check
 	setting    bool // render is updating the widgets, not the person
 }
 
@@ -157,6 +161,19 @@ func (u *ui) newSettings() *settingsWindow {
 			_ = set.Update(func(c *models.Config) { c.LockOnEnd = on })
 		}
 	})
+	ticks := []string{L("Full control"), L("Only the screen")}
+	s.ticks = widget.NewSelect(ticks, func(v string) {
+		if !s.setting {
+			_ = set.Update(func(c *models.Config) {
+				c.RequestTicks = ""
+				if v == ticks[1] {
+					c.RequestTicks = "view"
+				}
+			})
+		}
+	})
+	ticksNote := wrap(L("Only the screen: whoever asks has to be given each permission by hand."))
+	ticksNote.Importance = widget.LowImportance
 	langs := make([]string, len(languages))
 	for i, l := range languages {
 		langs[i] = l.label
@@ -181,10 +198,39 @@ func (u *ui) newSettings() *settingsWindow {
 		heading(L("Sessions")),
 		container.NewBorder(nil, nil, widget.NewLabel(L("Disconnect when idle")), nil, s.idle),
 		s.lock,
+		container.NewBorder(nil, nil, widget.NewLabel(L("A request starts with")), nil, s.ticks), ticksNote,
 		widget.NewSeparator(),
+	)
+	if u.opts.Remotes != nil && remoteview.Supported {
+		// Connecting to other computers.
+		s.viewerName = widget.NewEntry()
+		s.viewerName.SetPlaceHolder(u.viewerName())
+		s.viewerName.OnChanged = func(v string) {
+			if !s.setting {
+				name := strings.TrimSpace(v)
+				if len([]rune(name)) > models.MaxKnockName {
+					name = string([]rune(name)[:models.MaxKnockName])
+				}
+				_ = set.Update(func(c *models.Config) { c.ViewerName = name })
+			}
+		}
+		nameNote := wrap(L("Shown to the computer you connect to. Empty: your user's name."))
+		nameNote.Importance = widget.LowImportance
+		s.tabs = widget.NewCheck(L("Open sessions in tabs"), func(on bool) {
+			if !s.setting {
+				_ = set.Update(func(c *models.Config) { c.SessionWindows = !on })
+			}
+		})
+		content.Add(heading(L("Connecting to other computers")))
+		content.Add(container.NewBorder(nil, nil, widget.NewLabel(L("Your name")), nil, s.viewerName))
+		content.Add(nameNote)
+		content.Add(s.tabs)
+		content.Add(widget.NewSeparator())
+	}
+	content.Add(container.NewVBox(
 		heading(L("This computer")), s.startup,
 		container.NewBorder(nil, nil, widget.NewLabel(L("Language")), nil, s.language), langNote,
-	)
+	))
 	s.win.SetContent(container.NewVScroll(container.NewPadded(content)))
 	s.win.Resize(fyne.NewSize(480, 620))
 	s.win.SetCloseIntercept(s.win.Hide)
@@ -240,6 +286,17 @@ func (s *settingsWindow) render() {
 		s.idle.ClearSelected()
 	}
 	s.lock.SetChecked(cfg.LockOnEnd)
+	s.ticks.SetSelectedIndex(0)
+	if cfg.RequestTicks == "view" {
+		s.ticks.SetSelectedIndex(1)
+	}
+	if s.viewerName != nil {
+		// Not while it is being typed in: the change came from it.
+		if f, ok := s.win.Canvas().Focused().(*widget.Entry); !ok || f != s.viewerName {
+			s.viewerName.SetText(cfg.ViewerName)
+		}
+		s.tabs.SetChecked(!cfg.SessionWindows)
+	}
 	for i, l := range languages {
 		if l.id == cfg.Language {
 			s.language.SetSelectedIndex(i)

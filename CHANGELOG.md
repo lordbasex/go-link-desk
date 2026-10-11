@@ -4,6 +4,25 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (the app as a viewer, phase 6b)
+
+- **go-link Desk connects to other computers too,** in one window: Home has the address bar (a 9-digit session code, or a pairing code to link the computer for unattended access), and each session opens in a tab, or in a window of its own (Settings).
+- **The same protocol as the website,** so the other computer needs nothing new: the knock, the consent, the permissions, the link, with the computer's proof before the token, and the unattended password.
+- **The picture is H.264 drawn by the system** (decoded on the hardware, no copy through Go), with the computer's pointer, and the mouse, keyboard and wheel while it may be controlled: keys by position, shortcuts to the other computer, Cmd+V pasting this computer's clipboard there.
+- **In the session's toolbar:** displays, picture preset (Speed, Balanced, Quality, Retina), special keys (switch apps, Spotlight, force quit, lock screen, screenshot; Ctrl+Alt+Del and the Windows key for other systems), type the clipboard, chat, files (browse and download, send with a button or by dropping files on the picture), sound, details and full screen.
+- **Home:** this computer's code in a panel of the brand's color (clicking the code or its link copies it), My computers (the linked ones, with favorites), the recent sessions, as cards with a picture of the screen, a list or a detailed list.
+- **Settings, native on macOS, in pages:** General (state, appearance: dark, light or the system's theme, the app icon and the menu bar icon in color or dark; the signaling server and website, for a person's own signalhub; language; open at login), Sessions, Unattended access and Permissions.
+- **Direct connection (advanced), in Settings:** the UDP port every connection uses and the addresses announced for it, for a computer behind a second router (a double NAT, where browsers on the first network cannot reach it and go through a relay); it shows this computer's address and which port to forward to it, and applies on opening again.
+- **The connection request comes with every box ticked** (mouse and keyboard, sound, clipboard, files; not a request to link a browser, which is for good): whoever asks for support accepts with one click, and unticks what they do not want, there or in the session panel. The session panel says "Can see your screen, and:" above its boxes (it said only "See your screen" whatever was allowed). Settings › Sessions › "A request starts with" (Full control, or Only the screen) chooses it ahead of time.
+- **A new icon:** a screen with a pointer, with depth in the Dock (amber, or graphite with amber), flat in the menu bar.
+- **`--connect`** opens sessions at start; **`--test-viewer`** runs only the viewer, without a window (end-to-end tests only).
+- **End-to-end tests:** the app's viewer joins with a code and gets the picture; links with the pairing code, is refused with a wrong password and comes back with the right one.
+
+### Fixed (phase 6b)
+
+- **The bitrate follows what gets through, not only the estimate:** while the picture is small or still, the congestion control saw no congestion and climbed to 30 Mbps, and the next busy screen was sent at 20 Mbps through a relay that carries 2 (40–50% lost, frames dropped, the size falling to 640 and climbing back every half minute). Each viewer's bitrate is now also capped by what it was actually sent: the cap starts at 4 Mbps, grows 15% a second while the encoder fills it and nothing is lost, and drops at once to what got through when the viewer reports 10% loss or more over enough data (by half at most). Without loss it always comes back to 4 Mbps, also on a still screen; beyond that only while the encoder fills it. The session details show that figure as the estimated bandwidth.
+- **The picture's size no longer flaps on a shaky network:** the bandwidth ladder still goes down at once, but climbs back one rung at a time and only 10 seconds after its last change. A browser on an iPad saw 21 size changes in two and a half minutes (each a new stream for its decoder) and closed twice.
+
 ### Added (unattended access and my computers, phase 6)
 
 - **Unattended access** (Settings, off by default): a browser linked once with the computer's linking code comes back from My computers without a code and without anyone accepting, also after the computer restarts. Linking asks the person at the computer, and the permissions they tick are the link's.

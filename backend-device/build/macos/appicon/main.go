@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
 // Command appicon writes the macOS app icon set (go-link-desk.iconset) from the
-// brand mark drawn by pkg/trayicon; iconutil turns it into go-link-desk.icns.
+// app icon drawn by pkg/trayicon (RenderApp); iconutil turns it into go-link-desk.icns.
 //
 //	go run ./build/macos/appicon DIR/go-link-desk.iconset
 package main
@@ -28,7 +28,7 @@ func main() {
 	for _, size := range []int{16, 32, 128, 256, 512} {
 		for scale, suffix := range map[int]string{1: "", 2: "@2x"} {
 			name := fmt.Sprintf("icon_%dx%d%s.png", size, size, suffix)
-			if err := os.WriteFile(filepath.Join(dir, name), trayicon.Render(size*scale, true), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, name), trayicon.RenderApp(size*scale, false), 0o644); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}

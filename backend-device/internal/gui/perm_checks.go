@@ -12,9 +12,10 @@ import (
 )
 
 // permChecks are the boxes of what a viewer may do besides seeing the
-// screen, in the connection request and in the session panel. All start
-// unticked: the least, unless the person at the computer says so (a
-// scammer on the phone needs these boxes ticked).
+// screen, in the connection request and in the session panel. In the
+// request they start ticked (fullControl): whoever asks for support should
+// not have to tick four boxes; the person at the computer unticks what
+// they do not want, there or during the session.
 type permChecks struct {
 	control   *widget.Check
 	audio     *widget.Check
@@ -57,3 +58,6 @@ func (c *permChecks) set(p models.Permissions) {
 	c.clipboard.SetChecked(p.Clipboard)
 	c.files.SetChecked(p.Files)
 }
+
+// fullControl is everything a viewer may be given.
+var fullControl = models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}
