@@ -4,16 +4,25 @@
 
 package encoder
 
-import "errors"
+import (
+	"errors"
+	"time"
+	"unsafe"
+)
 
-// VideoToolbox is macOS's: elsewhere the encoder "videotoolbox" is not there.
-type vtEncoder struct{}
+// VideoToolbox is macOS's: elsewhere there is no system H.264 encoder yet
+// (Media Foundation on Windows comes in a later phase).
+type vtEncoder struct{ hardware int }
 
-func newVT(cfg Config, gop int, onFrame func([]byte)) (*vtEncoder, error) {
+func newVT(Config, int, func([]byte, bool, time.Duration)) (*vtEncoder, error) {
 	return nil, errors.New("h264: VideoToolbox is only on macOS")
 }
 
-func (v *vtEncoder) write(i420 []byte, key bool) error { return errors.New("h264: no VideoToolbox") }
-func (v *vtEncoder) close()                            {}
+func (v *vtEncoder) write([]byte, bool) error { return errors.New("h264: no VideoToolbox") }
+func (v *vtEncoder) writePixelBuffer(unsafe.Pointer, time.Duration, bool) error {
+	return errors.New("h264: no VideoToolbox")
+}
+func (v *vtEncoder) setBitrate(int) {}
+func (v *vtEncoder) close()         {}
 
 const hasVT = false

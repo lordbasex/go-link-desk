@@ -61,7 +61,14 @@ type Controls struct {
 	// Pressed lights the pointer while a mouse button or key is down.
 	Pressed bool
 	FPS     float64 // frames per second actually sent by the host
+	// Beacon is the latency beacon's state: a square in the top-left
+	// corner, white while on and black while off. The viewer flips it
+	// and times how long the change takes to reach its screen.
+	Beacon bool
 }
+
+// BeaconSize is the beacon square's side for a frame width.
+func BeaconSize(w int) int { return max(w/40, 16) }
 
 type box struct{ x, y, w, h int }
 
@@ -84,6 +91,12 @@ func (p *Pattern) Frame(now time.Time, c Controls) []byte {
 	p.drawClock(now)
 	p.drawInfo(c)
 	p.drawPointer(c)
+	beacon := black
+	if c.Beacon {
+		beacon = white
+	}
+	side := BeaconSize(p.w)
+	p.fill(p.frame, box{0, 0, side, side}, beacon)
 	return p.frame
 }
 

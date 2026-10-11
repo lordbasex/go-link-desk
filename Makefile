@@ -124,6 +124,10 @@ device-headless:
 # one and for macOS $(MIN_MACOS), linked statically. -Wl,-w hides the
 # linker's notes about the assembler objects, which are harmless.
 MIN_MACOS      = 13.0
+# GO_TAGS adds build tags to the macOS host (desk_test_screen: a measurement
+# build that may accept viewers of the real screen without asking; never a
+# release, which refuses it).
+GO_TAGS       ?=
 MACOS_LIBS     = $(DIST)/.macos-libs
 MACOS_CLANG    = $$(xcrun -f clang)
 clang_arch     = $(if $(filter amd64,$(1)),x86_64,arm64)
@@ -140,7 +144,7 @@ $(DEVICE_OUT)/darwin-%/go-link-desk: FORCE
 		PKG_CONFIG_LIBDIR=$(MACOS_LIBS)/$*/lib/pkgconfig \
 		CGO_CFLAGS="-O2 -mmacosx-version-min=$(MIN_MACOS)" \
 		CGO_LDFLAGS="-mmacosx-version-min=$(MIN_MACOS) -Wl,-w" \
-		go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" \
+		go build -trimpath -tags "$(GO_TAGS)" -ldflags "-s -w -X main.version=$(VERSION)" \
 		-o $(DEVICE_OUT)/darwin-$*/go-link-desk ./cmd/desk
 	@scripts/check-deps.sh darwin $(DEVICE_OUT)/darwin-$*/go-link-desk
 
@@ -151,6 +155,7 @@ device-darwin-%: $(DEVICE_OUT)/darwin-%/go-link-desk
 
 # The release app: both architectures in one binary (lipo).
 device-darwin-universal: $(DEVICE_OUT)/darwin-amd64/go-link-desk $(DEVICE_OUT)/darwin-arm64/go-link-desk
+	@if echo "$(GO_TAGS)" | grep -q desk_test_screen; then echo "$(RED)✗ a release never has desk_test_screen$(NC)"; exit 1; fi
 	@mkdir -p $(DEVICE_OUT)/darwin-universal
 	lipo -create -output $(DEVICE_OUT)/darwin-universal/go-link-desk $(DEVICE_OUT)/darwin-amd64/go-link-desk $(DEVICE_OUT)/darwin-arm64/go-link-desk
 	@$(DEVICE_DIR)/build/macos/make-app.sh $(DEVICE_OUT)/darwin-universal/go-link-desk \

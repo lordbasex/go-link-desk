@@ -133,3 +133,17 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .stream-info-row dt { color: var(--color-text-muted); }
 .stream-info-row dd { margin: 0; }
 .stream-info-panel p { margin: 8px 0 0; }
+
+/* ---------- session tools ---------- */
+.stage-tools { flex-wrap: wrap; justify-content: flex-end; }
+.stage-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-2); white-space: nowrap; cursor: pointer; }
+.stage-banner { margin: 0; padding: 10px 14px; background: var(--tint-accent-bg); border-bottom: 1px solid var(--tint-accent-border); color: var(--color-text-2); font-size: 13px; }
+.stage-screen.view-original { overflow: auto; display: flex; }
+.stage-screen.view-original .screen { flex: none; margin: auto; object-fit: none; }
+.stage-screen.view-stretch .screen { object-fit: fill; }
+/* The host's pointer, drawn from its shape over the picture. */
+.remote-cursor { position: absolute; left: 0; top: 0; display: none; pointer-events: none; will-change: transform; image-rendering: auto; }
+.stream-info-panel .button-small { margin-top: 10px; }
+@media (max-width: 760px) {
+  .stage-check, .stage-tools .select { display: none; }
+}

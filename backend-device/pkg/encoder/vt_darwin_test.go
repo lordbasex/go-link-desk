@@ -17,7 +17,9 @@ func TestVideoToolbox(t *testing.T) {
 	const w, h, n = 1920, 1080, 60
 	var mu sync.Mutex
 	var units [][]byte
-	enc, err := NewH264(Config{Width: w, Height: h, FPS: 60, BitrateKbps: 8000, GOPFrames: 600}, func(au []byte) {
+	var pts []time.Duration
+	enc, err := NewH264(Config{Width: w, Height: h, FPS: 60, BitrateKbps: 8000, GOPFrames: 600}, func(au []byte, at time.Duration) {
+		pts = append(pts, at)
 		mu.Lock()
 		units = append(units, au)
 		mu.Unlock()
@@ -61,5 +63,13 @@ func TestVideoToolbox(t *testing.T) {
 	}
 	if keys < 1 {
 		t.Error("the keyframe asked for at frame 40 never came")
+	}
+	for i := 1; i < len(pts); i++ {
+		if pts[i] <= pts[i-1] {
+			t.Fatalf("frame %d at %v after %v", i, pts[i], pts[i-1])
+		}
+	}
+	if d := pts[1] - pts[0] - time.Second/60; d < -time.Millisecond || d > time.Millisecond {
+		t.Errorf("frames %v apart, want 1/60 s", pts[1]-pts[0])
 	}
 }

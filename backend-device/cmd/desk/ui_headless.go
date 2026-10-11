@@ -4,10 +4,12 @@
 
 package main
 
-// runUI waits until the host stops: this build has no window, so the code
-// is read from the log.
+import "github.com/lordbasex/go-link-desk/backend-device/pkg/mainloop"
+
+// runUI serves the main thread until the host stops: this build has no
+// window, so the code is read from the log.
 func runUI(o uiOptions) {
-	<-o.ctx.Done()
+	mainloop.Run(o.ctx)
 }
 
 // guiBuilt: this build has no window, so it always runs headless.

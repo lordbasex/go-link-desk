@@ -31,10 +31,15 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Its declared `name` and browser are shown as declared, never as verified, and the dialog says so.
 - Input it sends is limited by the permissions granted, and stops when they are revoked.
 
+### The screen
+
+- The screen is recorded only during a session: the capture starts with the first viewer and stops with the last, and macOS shows its recording indicator meanwhile.
+- The latency beacon a viewer can flip is a small square drawn for four seconds in a corner of the screen; it lets clicks through and carries no information.
+
 ### A host without anyone in front of it
 
 - A host without a window (headless, or a build without the GUI) has nobody to ask, so it turns every knock down. Unattended access, in phase 6, is the only way in without a person accepting.
-- `--test-auto-accept` exists for the end-to-end tests. The host refuses it unless the source is the test card, and logs a warning when it is on.
+- `--test-auto-accept` exists for the end-to-end tests. The host refuses it unless the source is the test card, and logs a warning when it is on. Only a measurement build (`-tags desk_test_screen`, never a release: its target refuses the tag) takes it with the real screen.
 
 ### A stolen linked-browser token
 

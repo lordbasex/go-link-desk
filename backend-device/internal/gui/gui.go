@@ -21,6 +21,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/trayicon"
 )
 
@@ -38,7 +39,9 @@ type Options struct {
 	// SetConsent hands the window's connection requests to the session
 	// (nil: the session keeps its own, the tests' auto-accept).
 	SetConsent func(services.Consent)
-	WebURL     string // where viewers type the code
+	// Permissions replaces the system's checks (tests).
+	Permissions *PermissionChecks
+	WebURL      string // where viewers type the code
 	// Language is the window's language (en, es, pt or "" for the
 	// computer's).
 	Language string
@@ -62,6 +65,8 @@ type ui struct {
 	trayLive bool   // the tray shows the red icon
 	current  string // the code on screen, without spaces
 	panel    *sessionPanel
+	perms    *permissionsBox // nil where the system asks for nothing
+	copied   *time.Timer     // puts "Copy" back on the button
 }
 
 // Run shows the window and the tray icon and blocks until the host stops.
@@ -74,6 +79,11 @@ func Run(opts Options) {
 	if opts.SetConsent != nil {
 		opts.SetConsent(u) // the request window asks from now on
 		defer opts.SetConsent(nil)
+	}
+	stopPerms := make(chan struct{})
+	defer close(stopPerms)
+	if u.perms != nil {
+		go u.perms.watch(stopPerms)
 	}
 	opts.Status.OnChange(func(st models.Status) {
 		fyne.Do(func() { u.render(st) })
@@ -95,6 +105,12 @@ func Run(opts Options) {
 	if opts.Quit != nil {
 		opts.Quit()
 	}
+}
+
+// PermissionChecks stand in for the system's permission checks (tests).
+type PermissionChecks struct {
+	Granted func(permission.Kind) bool
+	Request func(permission.Kind) bool
 }
 
 // ignoreAfterStop swallows the panic of a Fyne call that raced with the
@@ -136,7 +152,7 @@ func newUI(a fyne.App, opts Options) *ui {
 	hint.Wrapping = fyne.TextWrapWord
 	version := widget.NewLabelWithStyle("v"+strings.TrimPrefix(opts.Version, "v"), fyne.TextAlignTrailing, fyne.TextStyle{})
 
-	u.win.SetContent(container.NewPadded(container.NewVBox(
+	items := []fyne.CanvasObject{
 		title,
 		u.code,
 		u.link,
@@ -144,9 +160,18 @@ func newUI(a fyne.App, opts Options) *ui {
 		widget.NewSeparator(),
 		hint,
 		u.state,
-		version,
-	)))
-	u.win.Resize(fyne.NewSize(420, 360))
+	}
+	if permission.Needed || opts.Permissions != nil {
+		granted, request := permission.Granted, permission.Request
+		if opts.Permissions != nil {
+			granted, request = opts.Permissions.Granted, opts.Permissions.Request
+		}
+		u.perms = u.newPermissionsBox(granted, request)
+		items = append(items, widget.NewSeparator(), u.perms.box)
+	}
+	items = append(items, version)
+	u.win.SetContent(container.NewPadded(container.NewVBox(items...)))
+	u.win.Resize(fyne.NewSize(460, 360))
 	u.panel = u.newSessionPanel()
 	return u
 }
@@ -231,10 +256,12 @@ func (u *ui) copyCode() {
 	}
 	u.app.Clipboard().SetContent(services.FormatCode(u.current))
 	u.copyBtn.SetText(L("Copied"))
-	go func() {
-		time.Sleep(1500 * time.Millisecond)
+	if u.copied != nil {
+		u.copied.Stop()
+	}
+	u.copied = time.AfterFunc(1500*time.Millisecond, func() {
 		fyne.Do(func() { u.copyBtn.SetText(L("Copy")) })
-	}()
+	})
 }
 
 // setupTray adds the tray icon and its menu. Closing the window only

@@ -130,7 +130,7 @@ type viewerCalls struct {
 	last    []byte
 }
 
-func (f *fakeViewers) AddViewer(peerID string) error {
+func (f *fakeViewers) AddViewer(peerID string, _ []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.added = append(f.added, peerID)

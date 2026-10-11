@@ -1,14 +1,11 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useCallback, useId, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { MAX_NAME, formatCode, parseInvite, type InviteTarget, type SignalClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
-import { ExpandIcon, HangUpIcon } from "../components/Icons";
-import { StreamInfo } from "../components/StreamInfo";
-import { useFullscreen } from "../components/useFullscreen";
-import { isOver, type Session, type SessionView } from "../session/session";
+import { LiveSession } from "../session/LiveSession";
+import { isOver, type CursorState, type SessionView } from "../session/session";
 import { useSession } from "../session/useSession";
-import { useStreamStats } from "../session/useStreamStats";
 
 const NAME_KEY = "go-link-desk.name";
 
@@ -43,7 +40,11 @@ export function SessionPage({ createClient }: { createClient?: () => SignalClien
 function SessionWith({ target, createClient }: { target: InviteTarget; createClient?: () => SignalClient }) {
   const [name, setName] = useState(savedName);
   const [attempt, setAttempt] = useState(0);
-  const { view, session } = useSession({ target, name, attempt, createClient });
+  const cursorFn = useRef<((c: CursorState) => void) | null>(null);
+  const registerCursor = useCallback((fn: ((c: CursorState) => void) | null) => {
+    cursorFn.current = fn;
+  }, []);
+  const { view, session } = useSession({ target, name, attempt, createClient, onCursor: (c) => cursorFn.current?.(c) });
   const shown = "code" in target ? formatCode(target.code) : target.invite;
   const start = () => {
     saveName(name.trim());
@@ -66,7 +67,7 @@ function SessionWith({ target, createClient }: { target: InviteTarget; createCli
     );
   }
   if (isOver(s)) return <Over view={view} onRetry={start} />;
-  return <Live view={view} session={session} />;
+  return <LiveSession view={view} session={session} registerCursor={registerCursor} />;
 }
 
 function NameForm({ code, name, setName, onSubmit }: { code: string; name: string; setName: (v: string) => void; onSubmit: () => void }) {
@@ -138,49 +139,5 @@ function Over({ view, onRetry }: { view: SessionView; onRetry: () => void }) {
         </Link>
       </div>
     </section>
-  );
-}
-
-function Live({ view, session }: { view: SessionView; session: Session | null }) {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const fullscreen = useFullscreen(stageRef);
-  const live = view.status.kind === "live" || view.status.kind === "reconnecting";
-  const stats = useStreamStats(session?.hostStream ?? null, live);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || v.srcObject === view.video) return;
-    v.srcObject = view.video;
-    // Muted video autoplays everywhere; sound arrives in a later version.
-    void Promise.resolve(v.play()).catch(() => undefined);
-  }, [view.video]);
-
-  const hostName = view.host?.name || t.session.title;
-  const notice = view.status.kind === "connecting" ? t.session.connecting : view.status.kind === "reconnecting" ? t.session.reconnecting : null;
-  return (
-    <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
-      <div className="stage-bar">
-        <span className="stage-title">{t.session.screenOf.replace("{name}", hostName)}</span>
-        <div className="stage-tools">
-          <StreamInfo stats={stats} sent={view.sent} />
-          <button type="button" className="icon-button" aria-label={t.session.fullscreen} title={t.session.fullscreen} onClick={fullscreen.toggle}>
-            <ExpandIcon />
-          </button>
-          <button type="button" className="button button-danger" onClick={() => session?.hangUp()}>
-            <HangUpIcon />
-            {t.session.disconnect}
-          </button>
-        </div>
-      </div>
-      <div className="stage-screen">
-        <video ref={videoRef} className="screen" autoPlay muted playsInline aria-label={t.session.screenOf.replace("{name}", hostName)} />
-        {notice && (
-          <p className="stage-notice" role="status">
-            {notice}
-          </p>
-        )}
-      </div>
-    </div>
   );
 }

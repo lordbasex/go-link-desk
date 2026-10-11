@@ -74,3 +74,16 @@ test("a host with nobody to ask turns the viewer down", async ({ page }) => {
   // And the page offers to try again or use another code.
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
 });
+
+test("the session details measure the latency with the beacon", async ({ page }) => {
+  await knock(page, "accept", "Latency");
+  await expect.poll(() => framesDecoded(page), { timeout: 20_000 }).toBeGreaterThan(0);
+  // The test card draws the beacon itself: the whole path but the screen capture.
+  await page.getByRole("button", { name: "Measure latency" }).click();
+  const cell = page.locator(".stream-info-row", { hasText: "Screen latency" }).locator("dd");
+  await expect(cell).toHaveText(/^\d+ ms$/, { timeout: 30_000 });
+  const ms = Number((await cell.textContent())!.replace(/\D/g, ""));
+  expect(ms).toBeLessThan(1000);
+  await expect(page.locator(".stream-info-row", { hasText: "Codec" }).locator("dd")).toHaveText(/^(H\.264|VP8)$/);
+  await page.getByRole("button", { name: "Disconnect" }).click();
+});

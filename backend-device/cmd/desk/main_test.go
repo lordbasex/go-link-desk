@@ -22,6 +22,9 @@ func TestParseFlags(t *testing.T) {
 }
 
 func TestAutoAcceptOnlyWithTheTestCard(t *testing.T) {
+	if allowAutoAcceptScreen {
+		t.Skip("a measurement build (desk_test_screen)")
+	}
 	// Skipping consent must never show anyone a real screen.
 	if _, err := parseFlags([]string{"--test-auto-accept"}); err == nil {
 		t.Fatal("auto-accept with the screen was allowed")

@@ -26,7 +26,41 @@ export interface HostSent {
   height: number;
   kbps: number;
   codec: string;
+  /** What the encoder aims at, and what the congestion control estimates the path carries (0: no estimate yet). */
+  targetKbps: number;
+  estimateKbps: number;
 }
+
+/** One of the host's screens. */
+export interface HostDisplay {
+  id: number;
+  name: string;
+  width: number;
+  height: number;
+  pointsWidth: number;
+  pointsHeight: number;
+  primary: boolean;
+}
+
+/** The host's pointer image (cursor). Sizes in points; hot spot in the image's pixels. */
+export interface CursorShape {
+  url: string;
+  hotX: number;
+  hotY: number;
+  width: number;
+  height: number;
+  pixels: number;
+}
+
+/** Where the host's pointer is, over the display shown (0..1). */
+export interface CursorState {
+  x: number;
+  y: number;
+  visible: boolean;
+  shape: CursorShape | null;
+}
+
+export type Preset = "speed" | "balanced" | "quality";
 
 /** Where a session is, from the knock to its end. */
 export type SessionStatus =
@@ -47,6 +81,10 @@ export interface SessionView {
   host: HostInfo | null;
   sent: HostSent | null;
   video: MediaStream | null;
+  displays: HostDisplay[];
+  display: number;
+  /** Something about the host's picture ("no_screen_permission", "capture_failed"). */
+  notice: string | null;
 }
 
 export interface SessionOptions {
@@ -55,6 +93,8 @@ export interface SessionOptions {
   name: string;
   browser: string;
   onChange: (view: SessionView) => void;
+  /** The host's pointer, 60 times a second while it moves: kept out of onChange so the page does not re-render for it. */
+  onCursor?: (c: CursorState) => void;
   /** Injectable for tests. */
   RTCPeerConnectionImpl?: typeof RTCPeerConnection;
 }
@@ -71,7 +111,9 @@ export function isOver(s: SessionStatus): boolean {
  * connection) is how a viewer leaves the room.
  */
 export class Session {
-  private view: SessionView = { status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null };
+  private view: SessionView = { status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, displays: [], display: 0, notice: null };
+  private cursor: CursorState = { x: 0, y: 0, visible: false, shape: null };
+  private shapes = new Map<string, CursorShape>();
   private stream: HostStream | null = null;
   private offLeft: (() => void) | null = null;
   private stopped = false;
@@ -151,19 +193,72 @@ export class Session {
     this.hangUp();
   }
 
+  /** Tells the host the size the picture is shown at, in device pixels. */
+  setVideoWant(width: number, height: number): void {
+    this.stream?.sendControl({ type: "video_want", width: Math.round(width), height: Math.round(height) });
+  }
+
+  /** Picks the preset, and whether to send the display's native pixels. */
+  setQuality(preset: Preset, retina: boolean): void {
+    this.stream?.sendControl({ type: "quality", preset, retina });
+  }
+
+  /** Shows another of the host's displays. */
+  selectDisplay(id: number): void {
+    this.stream?.sendControl({ type: "display_select", id });
+  }
+
+  /** Draws the pointer into the picture (true) or here, from its shape and position (false). */
+  setCursorInVideo(inVideo: boolean): void {
+    this.stream?.sendControl({ type: "cursor_mode", in_video: inVideo });
+    if (inVideo) this.opts.onCursor?.({ ...this.cursor, visible: false });
+  }
+
+  /** Flips the latency beacon: odd turns it white, even black. */
+  flipBeacon(seq: number): void {
+    this.stream?.sendControl({ type: "beacon", seq: seq & 0xffff });
+  }
+
   private onControl(msg: unknown): void {
     const m = msg as { type?: unknown; host?: unknown; reason?: unknown } & Record<string, unknown>;
+    const n = (k: string) => (typeof m[k] === "number" && Number.isFinite(m[k]) ? (m[k] as number) : 0);
     switch (m.type) {
       case "welcome": {
         const h = (typeof m.host === "object" && m.host !== null ? m.host : {}) as Record<string, unknown>;
         this.set({ host: { name: String(h.name ?? "").slice(0, 64), os: String(h.os ?? "").slice(0, 16) } });
         break;
       }
-      case "stream_stats": {
-        const n = (k: string) => (typeof m[k] === "number" && Number.isFinite(m[k]) ? (m[k] as number) : 0);
-        this.set({ sent: { fps: n("fps"), width: n("width"), height: n("height"), kbps: n("kbps"), codec: String(m.codec ?? "").slice(0, 16) } });
+      case "stream_stats":
+        this.set({
+          sent: {
+            fps: n("fps"), width: n("width"), height: n("height"), kbps: n("kbps"), codec: String(m.codec ?? "").slice(0, 16),
+            targetKbps: n("target_kbps"), estimateKbps: n("estimate_kbps"),
+          },
+        });
+        break;
+      case "displays":
+        this.set({ displays: parseDisplays(m.displays), display: n("current"), notice: this.view.notice });
+        break;
+      case "notice":
+        this.set({ notice: String(m.code ?? "").slice(0, 40) || null });
+        break;
+      case "cursor": {
+        const id = String(m.id ?? "").slice(0, 32);
+        let shape = this.shapes.get(id);
+        if (!shape && typeof m.png === "string" && m.png.length < 400_000 && this.shapes.size < 64) {
+          shape = { url: `data:image/png;base64,${m.png}`, hotX: n("hot_x"), hotY: n("hot_y"), width: n("width"), height: n("height"), pixels: n("pixels") };
+          this.shapes.set(id, shape);
+        }
+        if (shape) {
+          this.cursor = { ...this.cursor, shape };
+          this.opts.onCursor?.(this.cursor);
+        }
         break;
       }
+      case "cursor_pos":
+        this.cursor = { ...this.cursor, x: n("x"), y: n("y"), visible: m.visible === true };
+        this.opts.onCursor?.(this.cursor);
+        break;
       case "session_end":
         this.finish({ kind: "ended", reason: endReason(m.reason) });
         break;
@@ -184,4 +279,16 @@ export class Session {
     this.opts.client.close();
     this.set({ status, video: null });
   }
+}
+
+/** Reads the host's displays message (bounded: a host has a handful). */
+export function parseDisplays(v: unknown): HostDisplay[] {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 16).map((d: Record<string, unknown>) => {
+    const n = (k: string) => (typeof d[k] === "number" && Number.isFinite(d[k]) ? (d[k] as number) : 0);
+    return {
+      id: n("id"), name: String(d.name ?? "").slice(0, 64), width: n("width"), height: n("height"),
+      pointsWidth: n("points_width"), pointsHeight: n("points_height"), primary: d.primary === true,
+    };
+  });
 }

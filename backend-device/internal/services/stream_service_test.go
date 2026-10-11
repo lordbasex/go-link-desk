@@ -60,7 +60,7 @@ func TestAnICERestartOffersNewCredentialsThenGivesUp(t *testing.T) {
 	s.SetSender(snd)
 	closed := make(chan string, 1)
 	s.OnClosed(func(peer, reason string) { closed <- peer + ":" + reason })
-	if err := s.AddViewer("P"); err != nil {
+	if err := s.AddViewer("P", nil); err != nil {
 		t.Fatal(err)
 	}
 	defer s.RemoveViewer("P")

@@ -23,7 +23,7 @@ type SessionMeta struct {
 
 // Viewers is what the session needs from the stream.
 type Viewers interface {
-	AddViewer(peerID string) error
+	AddViewer(peerID string, codecs []string) error
 	HandleSignal(from string, payload json.RawMessage) error
 	// Hangup sends a last control message and closes the connection.
 	Hangup(peerID string, last []byte)
@@ -256,7 +256,7 @@ func (s *SessionService) knock(peer string, k models.Knock) {
 	g.state, g.cancel = guestKnocking, cancel
 	consent := s.consent
 	s.mu.Unlock()
-	s.log.Info("viewer knocks", "peer_id", peer, "name", k.Name, "browser", k.Browser)
+	s.log.Info("viewer knocks", "peer_id", peer, "name", k.Name, "browser", k.Browser, "codecs", k.Codecs)
 	go func() {
 		defer cancel()
 		perm, err := consent.Ask(ctx, ConsentRequest{PeerID: peer, Knock: k})
@@ -300,7 +300,7 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 	}{"accepted", perm})
 	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm})
 	s.log.Info("session started", "peer_id", peer, "name", k.Name)
-	if err := s.viewers.AddViewer(peer); err != nil {
+	if err := s.viewers.AddViewer(peer, k.Codecs); err != nil {
 		s.log.Error("cannot start the stream", "peer_id", peer, "err", err)
 		s.End(models.EndNetwork)
 	}

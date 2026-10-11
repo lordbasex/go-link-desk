@@ -4,6 +4,20 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (screen, phase 2)
+
+- **The real screen on macOS:** ScreenCaptureKit hands each changed frame to the system's H.264 encoder (VideoToolbox, on the hardware) without a copy, at up to 60 frames per second. Nothing is captured while nobody watches, and a still screen sends nothing but a few sharpening frames.
+- **Presets** Speed, Balanced and Quality, all up to 60 frames per second, and **Original resolution (Retina)**. The picture follows the viewer's window; Quality sends the display's own pixels.
+- **Several displays:** the viewer picks one and the picture switches without reconnecting.
+- **The pointer** travels as its shape and position and the browser draws it, sharp at any size; or, as an option, it is drawn into the picture.
+- **Bandwidth estimation** (Google Congestion Control, TWCC): the encoder follows what the path carries, and a short bandwidth lowers the frame rate and the size. Lost packets are resent.
+- **Latency measured from end to end** with a beacon: on an Intel Mac on the LAN, 30 to 47 ms from the host's screen to the viewer's at 1080p and 58 frames per second.
+- **Permissions:** the host's window shows Screen Recording and Accessibility, with a button that asks for them. Without Screen Recording, the viewer sees the test card and is told why.
+- **On the website:** display, quality, view (Fit, Original, Stretch), Retina and remote-cursor options; session details with the target bitrate, the estimated bandwidth, resent packets and the screen latency, with a Measure button.
+- **H.264 tuning:** Constrained High with the low-latency rate control (5 dB sharper text than Baseline on an M1 for a tenth more bits), falling back without it where the encoder refuses it.
+- **Headless hosts on macOS** serve the main thread's event loop, which ScreenCaptureKit needs.
+- **Measurement builds** (`GO_TAGS=desk_test_screen`) for testing the real screen without a person to accept; never a release.
+
 ### Added (sessions)
 
 - **A session from end to end, with the test card:** the viewer types the code, says its name and knocks; the person at the computer gets a connection request (the declared name and browser, what the viewer will be able to do, 60 seconds to answer, and the first time a warning about phone scams) and accepts or rejects. Only an accepted viewer gets a WebRTC offer: the video (VP8) and a `control` channel with the host's name, round trips, what the host sends and what the browser receives.

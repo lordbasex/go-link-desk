@@ -2,13 +2,15 @@
 import { useEffect, useRef, useState } from "react";
 import { SignalClient, browserLabel, resolveSignalUrl, type InviteTarget } from "@go-link-desk/shared";
 import { DEFAULT_SIGNAL_URL } from "../config";
-import { Session, type SessionView } from "./session";
+import { Session, type CursorState, type SessionView } from "./session";
 
 export interface UseSessionOptions {
   target: InviteTarget;
   name: string;
   /** Bumped to start a visit (Connect, Try again); 0 starts nothing. */
   attempt: number;
+  /** The host's pointer moves (kept off React's renders). */
+  onCursor?: (c: CursorState) => void;
   /** Injectable for tests. */
   createClient?: () => SignalClient;
 }
@@ -26,11 +28,13 @@ function safeStorage(): Storage | undefined {
  * own that closes with it. Returns the visit's view and the Session (to
  * hang up and read statistics).
  */
-export function useSession({ target, name, attempt, createClient }: UseSessionOptions): { view: SessionView | null; session: Session | null } {
+export function useSession({ target, name, attempt, onCursor, createClient }: UseSessionOptions): { view: SessionView | null; session: Session | null } {
   const [view, setView] = useState<SessionView | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const nameRef = useRef(name);
   nameRef.current = name;
+  const cursorRef = useRef(onCursor);
+  cursorRef.current = onCursor;
   const key = "invite" in target ? `i:${target.invite}` : `c:${target.code}`;
 
   useEffect(() => {
@@ -42,6 +46,7 @@ export function useSession({ target, name, attempt, createClient }: UseSessionOp
       name: nameRef.current,
       browser: browserLabel(navigator.userAgent),
       onChange: setView,
+      onCursor: (c) => cursorRef.current?.(c),
     });
     setSession(s);
     setView(s.current);

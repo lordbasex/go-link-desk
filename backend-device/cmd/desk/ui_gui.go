@@ -4,13 +4,16 @@
 
 package main
 
-import "github.com/lordbasex/go-link-desk/backend-device/internal/gui"
+import (
+	"github.com/lordbasex/go-link-desk/backend-device/internal/gui"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/mainloop"
+)
 
 // runUI shows the window and tray icon, unless the host runs headless. It
 // blocks until the host stops.
 func runUI(o uiOptions) {
 	if o.headless {
-		<-o.ctx.Done()
+		mainloop.Run(o.ctx)
 		return
 	}
 	gui.Run(gui.Options{

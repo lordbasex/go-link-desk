@@ -6,7 +6,7 @@ Every file that came from [go-link](https://github.com/lordbasex/go-link), with 
 - **adapted:** go-link's file with changes, listed. A fix in go-link needs a look.
 - **rewritten:** a new file at the same path; only the mechanism or the pattern came from go-link.
 
-Files not listed here are go-link Desk's own.
+Files not listed here are go-link Desk's own: in phase 2, among others, `pkg/{capture,cursor,beacon,permission,mainloop}`, `internal/services/{video,screen_source,congestion}.go` and the session page's `LiveSession.tsx` and `latency.ts`.
 
 ## Host (`backend-device/`)
 
@@ -18,11 +18,13 @@ The same path in both repositories unless noted.
 | `pkg/signalclient/{client,envelope,client_test}.go` | verbatim | |
 | `pkg/ids/*`, `pkg/instancelock/*`, `pkg/jsonkeys/*`, `pkg/sysinfo/*` | verbatim | |
 | `pkg/watermark/*` | verbatim | |
-| `pkg/encoder/{vp8,vp8_test,opus,opus_test,vt_darwin,vt_other}.go` | verbatim | |
+| `pkg/encoder/{vp8_test,opus,opus_test}.go` | verbatim | |
+| `pkg/encoder/vp8.go` | adapted | `Config` gains the H.264 tuning (`Baseline`, `NoLowLatency`, `MaxQP`). |
+| `pkg/encoder/{vt_darwin,vt_other}.go` | adapted | Pixel buffers in without a copy, presentation times out, Constrained High and the low-latency rate control (without it where refused), bitrate changes while encoding, whether it runs on hardware. |
 | `pkg/encoder/h264.go` | rewritten | VideoToolbox only, called directly: no ffmpeg subprocess, no `kind` argument, `HasH264`. go-link's x264/ffmpeg path, `FFmpegPath` and `ProbeH264` are gone. |
-| `pkg/encoder/vt_darwin_test.go` | adapted | `NewH264` without the encoder kind. |
+| `pkg/encoder/vt_darwin_test.go` | adapted | `NewH264` without the encoder kind; checks the presentation times. |
 | `pkg/testpattern/{tone,tone_test}.go` | verbatim | |
-| `pkg/testpattern/pattern.go`, `pattern_test.go` | adapted | No gamepad: the bottom box shows the frame rate, and a crosshair shows the remote pointer (`Controls{PointerOn, PointerX, PointerY, Pressed, FPS}`). No dependency on `pkg/input`. |
+| `pkg/testpattern/pattern.go`, `pattern_test.go` | adapted | No gamepad: the bottom box shows the frame rate, and a crosshair shows the remote pointer (`Controls{PointerOn, PointerX, PointerY, Pressed, FPS}`). No dependency on `pkg/input`. The latency beacon in the top-left corner. |
 | `internal/models/config.go` | adapted | `App = "go-link-desk"`, `DefaultWebURL = https://desk.go-link.org`; no ROM, room, thumbnail, panel, picture or video-quality fields. |
 | `internal/models/status.go` | adapted | No library, ROM or game-room types; `SessionStatus` (room, code, invite, viewers) replaces `RoomStatus`. The code and invite are never serialized. |
 | `internal/repositories/config_file.go` | adapted | `<config dir>/go-link-desk/device.json`; no migration from go-link's former name. |
@@ -41,7 +43,7 @@ The same path in both repositories unless noted.
 | `internal/services/update_service.go`, `_test.go` | adapted | Checks `lordbasex/go-link-desk` releases; user agent `go-link-desk/<version>`. |
 | `internal/services/session_service.go` | rewritten | Desk's own; the room-and-invite pattern, the guest bookkeeping and the PIN-gate style of signal payloads of go-link's `internal/services/test_room_service.go`. |
 | `internal/services/stream_service.go` | adapted | From go-link's `internal/services/stream_service.go`: `NewWebRTCAPI`, the offer and candidate handling, `announcedCandidates`, `logPath`, pings, `sendText` and `HandleSignal` as they were. No seats, voices, HUD, gamepads, linked-browser kind, files, recordings, H.264 subprocess or video tiers. Each viewer has its own track and VP8 encoder (per-viewer keyframes); new: ICE restart, `Hangup`, `welcome` with the host's name, `stream_stats` per viewer, `client_report` driving the playout ladder, control messages routed to `internal/controllers`. |
-| `internal/services/testcard_source.go` | adapted | No tone (audio is phase 4), no pause; rests while nobody watches. |
+| `internal/services/testcard_source.go` | adapted | No tone (audio is phase 4), no pause; rests while nobody watches; frames with presentation times. |
 | `internal/services/announce_test.go` | verbatim | |
 | `test/stream_test.go` | adapted | go-link's Pion browser (`browserPeer`, `relay`, `multiRelay`, `waitFor`, `waitForMsg`); Desk's own cases (welcome, stream_stats, round trip, routing, hang-up, a track per viewer). |
 | `internal/gui/i18n.go` | adapted | `GO_LINK_DESK_LANG` instead of `GO_LINK_LANG`. |
@@ -103,9 +105,10 @@ Planned in phase 0, moved because nothing uses them yet:
 
 | go-link file | Phase |
 |---|---|
-| `internal/services/{video_tiers,stream_telemetry,encode_load,quality_ladder}.go` | 2 (sizes, quality and congestion control come with the screen) |
+| `internal/services/{stream_telemetry,encode_load}.go` | 8 (session telemetry, with the history) |
 | `internal/services/history_service.go` | 6 (session history, with the host's settings) |
 | `internal/services/{upload_service,download_service}.go` | 5 (files) |
 | `internal/services/{recorder,recording_service}.go` | 8 (recording) |
-| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 2 and 4 (the host's QR, screenshots with the tools menu) |
+| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 4 (screenshots with the tools menu) and 6 (the host's QR) |
+| `internal/services/{video_tiers,quality_ladder}.go` | not taken: one viewer at a time and Google Congestion Control replace go-link's size tiers and loss ladder |
 | `frontend/apps/web/src/components/ui/{PageHero,Skeleton,useInfiniteList}` | 6 (my computers) |

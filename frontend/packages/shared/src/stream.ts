@@ -58,6 +58,33 @@ export function endReason(v: unknown): EndReason {
 /** Limits of the knock's fields, as the host cuts them. */
 export const MAX_NAME = 40;
 
+/**
+ * The video codecs this browser decodes, as the knock names them:
+ * "h264-high" (Constrained High, profile 640c), "h264" (Baseline) and
+ * "vp8". The host sends H.264 from its system encoder when it can.
+ */
+export function videoCodecs(caps: RTCRtpCapabilities | null = receiverCapabilities()): string[] {
+  const out = new Set<string>();
+  for (const c of caps?.codecs ?? []) {
+    const mime = c.mimeType.toLowerCase();
+    if (mime === "video/vp8") out.add("vp8");
+    if (mime !== "video/h264") continue;
+    const profile = /profile-level-id=([0-9a-f]{4})/i.exec(c.sdpFmtpLine ?? "")?.[1]?.toLowerCase() ?? "";
+    if (profile === "640c" || profile === "6400") out.add("h264-high");
+    if (profile.startsWith("42")) out.add("h264");
+  }
+  if (out.size === 0) out.add("vp8");
+  return [...out];
+}
+
+function receiverCapabilities(): RTCRtpCapabilities | null {
+  try {
+    return globalThis.RTCRtpReceiver?.getCapabilities?.("video") ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** "video/H264" -> "H.264", "video/VP8" -> "VP8". */
 export function codecName(mime: string): string {
   const name = mime.replace(/^video\//i, "");
@@ -89,6 +116,9 @@ export interface StreamStats {
 
 export interface StreamWindow {
   videoLossPct: number;
+  /** Retransmissions asked for (NACK) and received, in the window. */
+  nacks: number;
+  retransmitted: number;
   freezeMs: number;
   freezes: number;
   dropped: number;
@@ -144,12 +174,15 @@ export class HostStream {
     backlog.forEach(accept);
   }
 
-  /** Asks to come in, with the name and browser the host will show. */
-  knock(name: string, browser: string): void {
+  /**
+   * Asks to come in, with the name and browser the host will show, and
+   * the video codecs this browser takes (the host picks the session's).
+   */
+  knock(name: string, browser: string, codecs: string[] = videoCodecs()): void {
     this.opts.client.send({
       type: "signal",
       to: this.opts.hostPeerId,
-      payload: { kind: "knock", name: name.trim().slice(0, MAX_NAME), ua: browser },
+      payload: { kind: "knock", name: name.trim().slice(0, MAX_NAME), ua: browser, codecs },
     });
   }
 
@@ -231,7 +264,7 @@ export class HostStream {
       });
     if (selected && typeof selected.currentRoundTripTime === "number") result.rttMs = Math.round(selected.currentRoundTripTime * 1000);
     // Totals of the inbound video, for the window since the last call.
-    const totals: Record<string, number> = { lost: 0, recv: 0, freezes: 0, freezeS: 0, dropped: 0, bytes: 0, jitter: 0 };
+    const totals: Record<string, number> = { lost: 0, recv: 0, freezes: 0, freezeS: 0, dropped: 0, bytes: 0, jitter: 0, nacks: 0, rtx: 0 };
     report.forEach((s: Record<string, unknown>) => {
       if (s.type !== "inbound-rtp" || s.kind !== "video") return;
       const n = (k: string) => (typeof s[k] === "number" ? (s[k] as number) : 0);
@@ -241,6 +274,8 @@ export class HostStream {
       totals.freezeS! += n("totalFreezesDuration");
       totals.dropped! += n("framesDropped");
       totals.bytes! += n("bytesReceived");
+      totals.nacks! += n("nackCount");
+      totals.rtx! += n("retransmittedPacketsReceived");
       totals.jitter = Math.max(totals.jitter!, n("jitter"));
     });
     const now = Date.now();
@@ -252,6 +287,8 @@ export class HostStream {
       const seconds = (now - this.windowAt) / 1000;
       result.window = {
         videoLossPct: lost + recv > 0 ? Math.round((lost / (lost + recv)) * 1000) / 10 : 0,
+        nacks: d("nacks"),
+        retransmitted: d("rtx"),
         freezeMs: Math.round(d("freezeS") * 1000),
         freezes: d("freezes"),
         dropped: d("dropped"),

@@ -44,6 +44,9 @@ const (
 type Knock struct {
 	Name    string `json:"name"`
 	Browser string `json:"ua"`
+	// Codecs are the video codecs the browser takes ("h264-high",
+	// "h264", "vp8"), to pick the session's.
+	Codecs []string `json:"codecs,omitempty"`
 }
 
 // Limits of the declared fields, in characters.
@@ -57,7 +60,13 @@ const (
 // that could pass for the dialog's own text (no line breaks, no control
 // or format characters).
 func (k Knock) Clean() Knock {
-	return Knock{Name: cleanText(k.Name, MaxKnockName), Browser: cleanText(k.Browser, MaxKnockBrowser)}
+	var codecs []string
+	for _, c := range k.Codecs {
+		if len(codecs) < 8 && len(c) <= 16 {
+			codecs = append(codecs, c)
+		}
+	}
+	return Knock{Name: cleanText(k.Name, MaxKnockName), Browser: cleanText(k.Browser, MaxKnockBrowser), Codecs: codecs}
 }
 
 func cleanText(s string, max int) string {
