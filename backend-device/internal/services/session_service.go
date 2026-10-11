@@ -27,6 +27,8 @@ type Viewers interface {
 	HandleSignal(from string, payload json.RawMessage) error
 	// Hangup sends a last control message and closes the connection.
 	Hangup(peerID string, last []byte)
+	// SendControl sends a message on the viewer's control channel.
+	SendControl(peerID string, msg []byte) bool
 	RemoveViewer(peerID string)
 	CloseAll()
 }
@@ -80,6 +82,8 @@ type SessionService struct {
 	gen     int // bumps on every (re)connect, so a late room_opened is dropped
 	guests  map[string]*guest
 	active  string // the viewer in session
+	perm    models.Permissions
+	onPerm  func(peer string, p models.Permissions)
 }
 
 var _ signalclient.Handler = (*SessionService)(nil)
@@ -292,6 +296,7 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 	perm.View = true // a session always shows the screen
 	g.state = guestAccepted
 	s.active = peer
+	s.perm = perm
 	s.mu.Unlock()
 
 	s.signal(peer, struct {
@@ -299,7 +304,8 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 		Permissions models.Permissions `json:"permissions"`
 	}{"accepted", perm})
 	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm})
-	s.log.Info("session started", "peer_id", peer, "name", k.Name)
+	s.log.Info("session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
+	s.permissionsChanged(peer, perm)
 	if err := s.viewers.AddViewer(peer, k.Codecs); err != nil {
 		s.log.Error("cannot start the stream", "peer_id", peer, "err", err)
 		s.End(models.EndNetwork)
@@ -409,6 +415,7 @@ func (s *SessionService) release(peer string) bool {
 }
 
 func (s *SessionService) ended(peer, reason string) {
+	s.permissionsChanged(peer, models.Permissions{})
 	s.status.SetActive(nil)
 	s.log.Info("session ended", "peer_id", peer, "reason", reason)
 }
@@ -432,6 +439,50 @@ func (s *SessionService) OnDisconnect(error) {
 		s.ended(active, models.EndSignal)
 	}
 	s.status.SetSession(nil)
+}
+
+// OnPermissions is told what the viewer in session may do: when the
+// session starts, when the person at the host changes it, and (nothing)
+// when it ends.
+func (s *SessionService) OnPermissions(fn func(peer string, p models.Permissions)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onPerm = fn
+}
+
+func (s *SessionService) permissionsChanged(peer string, p models.Permissions) {
+	s.mu.Lock()
+	fn := s.onPerm
+	s.mu.Unlock()
+	if fn != nil {
+		fn(peer, p)
+	}
+}
+
+// SetPermissions changes what the viewer in session may do, from the
+// session panel; the viewer is told at once (control "permissions").
+func (s *SessionService) SetPermissions(p models.Permissions) {
+	p.View = true
+	s.mu.Lock()
+	peer := s.active
+	if peer == "" || p == s.perm {
+		s.mu.Unlock()
+		return
+	}
+	s.perm = p
+	s.mu.Unlock()
+	msg, _ := json.Marshal(struct {
+		Type        string             `json:"type"`
+		Permissions models.Permissions `json:"permissions"`
+	}{"permissions", p})
+	s.viewers.SendControl(peer, msg)
+	if a := s.status.Snapshot().Session; a != nil && a.Active != nil && a.Active.PeerID == peer {
+		next := *a.Active
+		next.Permissions = p
+		s.status.SetActive(&next)
+	}
+	s.log.Info("permissions changed", "peer_id", peer, "control", p.Control)
+	s.permissionsChanged(peer, p)
 }
 
 // FormatCode groups a 9-digit code as people read it: "915 355 636".

@@ -5,6 +5,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -122,12 +123,13 @@ type fakeViewers struct {
 
 // viewerCalls is what fakeViewers recorded.
 type viewerCalls struct {
-	added   []string
-	signals []string
-	hungUp  []string
-	removed []string
-	closed  int
-	last    []byte
+	controls []string
+	added    []string
+	signals  []string
+	hungUp   []string
+	removed  []string
+	closed   int
+	last     []byte
 }
 
 func (f *fakeViewers) AddViewer(peerID string, _ []string) error {
@@ -151,6 +153,13 @@ func (f *fakeViewers) Hangup(peerID string, last []byte) {
 	f.last = last
 }
 
+func (f *fakeViewers) SendControl(peerID string, msg []byte) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.controls = append(f.controls, peerID+":"+string(msg))
+	return true
+}
+
 func (f *fakeViewers) RemoveViewer(peerID string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -166,7 +175,7 @@ func (f *fakeViewers) CloseAll() {
 func (f *fakeViewers) snapshot() viewerCalls {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return viewerCalls{added: slices.Clone(f.added), signals: slices.Clone(f.signals), hungUp: slices.Clone(f.hungUp), removed: slices.Clone(f.removed), closed: f.closed, last: f.last}
+	return viewerCalls{controls: slices.Clone(f.controls), added: slices.Clone(f.added), signals: slices.Clone(f.signals), hungUp: slices.Clone(f.hungUp), removed: slices.Clone(f.removed), closed: f.closed, last: f.last}
 }
 
 // openRoom brings a session to an open room "R" with a code.
@@ -440,5 +449,47 @@ func TestKnockCleaning(t *testing.T) {
 	k := models.Knock{Name: strings.Repeat("é", 100), Browser: "a\tb\x00c"}.Clean()
 	if utf8.RuneCountInString(k.Name) != models.MaxKnockName || k.Browser != "a bc" {
 		t.Fatalf("clean %q %q", k.Name, k.Browser)
+	}
+}
+
+func TestPermissionsFollowTheSession(t *testing.T) {
+	s, st, snd, v := openRoom(t)
+	c := newAskedConsent() // answers with Control
+	s.SetConsent(c)
+	var mu sync.Mutex
+	var seen []string
+	s.OnPermissions(func(peer string, p models.Permissions) {
+		mu.Lock()
+		seen = append(seen, fmt.Sprintf("%s:%v", peer, p.Control))
+		mu.Unlock()
+	})
+	perms := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(seen)
+	}
+	join(s, "P")
+	signalFrom(s, "P", `{"kind":"knock","name":"Ana"}`)
+	c.request(t)
+	c.answers <- nil
+	reply(t, snd, "P")
+	if got := perms(); len(got) != 1 || got[0] != "P:true" {
+		t.Fatalf("permissions %v", got)
+	}
+	// The person at the host takes control away: the viewer is told.
+	s.SetPermissions(models.Permissions{View: true})
+	if got := perms(); len(got) != 2 || got[1] != "P:false" {
+		t.Fatalf("permissions %v", got)
+	}
+	if c := v.snapshot().controls; len(c) != 1 || !strings.Contains(c[0], `"type":"permissions"`) || !strings.Contains(c[0], `"control":false`) {
+		t.Fatalf("control %v", c)
+	}
+	if a := st.Snapshot().Session.Active; a == nil || a.Permissions.Control {
+		t.Fatalf("active %+v", a)
+	}
+	// The end of the session takes everything.
+	s.End(models.EndHost)
+	if got := perms(); len(got) != 3 || got[2] != "P:false" {
+		t.Fatalf("permissions %v", got)
 	}
 }

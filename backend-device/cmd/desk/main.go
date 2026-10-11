@@ -31,6 +31,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/beacon"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
@@ -57,6 +58,9 @@ type flags struct {
 	// autoAccept lets every viewer in without asking: end-to-end tests
 	// only, and only with the test card.
 	autoAccept bool
+	// inputLog writes the viewers' input to the log instead of injecting
+	// it, and lets them control: end-to-end tests only.
+	inputLog bool
 }
 
 func parseFlags(args []string) (flags, error) {
@@ -70,6 +74,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.source, "source", "screen", "what sessions show: screen, or testpattern (diagnostics, CI)")
 	fs.BoolVar(&f.version, "version", false, "print the version and exit")
 	fs.BoolVar(&f.autoAccept, "test-auto-accept", false, "accept every viewer without asking (automated tests only; needs --source testpattern)")
+	fs.BoolVar(&f.inputLog, "test-input-log", false, "let accepted viewers control, but write their input to the log instead of injecting it (automated tests only; needs --test-auto-accept)")
 	if err := fs.Parse(args); err != nil {
 		return f, err
 	}
@@ -80,6 +85,9 @@ func parseFlags(args []string) (flags, error) {
 	// show anyone a real screen.
 	if f.autoAccept && f.source != "testpattern" && !allowAutoAcceptScreen {
 		return f, errors.New("--test-auto-accept needs --source testpattern")
+	}
+	if f.inputLog && !f.autoAccept {
+		return f, errors.New("--test-input-log needs --test-auto-accept")
 	}
 	return f, nil
 }
@@ -171,7 +179,34 @@ func run(args []string) error {
 	if f.autoAccept {
 		logger.Warn("every viewer is accepted without asking (--test-auto-accept): for automated tests only")
 		session.SetConsent(services.AutoAccept)
+		// With control: the tests that log the input, and measurement
+		// builds on a test machine.
+		if f.inputLog || (allowAutoAcceptScreen && f.source == "screen") {
+			session.SetConsent(services.AutoAcceptControl)
+		}
 	}
+	var injector inject.Injector = inject.New()
+	if f.inputLog {
+		injector = services.LogInjector{Log: logger}
+	}
+	input := services.NewInputService(injector, stream.Displays, logger)
+	stream.OnInput(func(peer, channel string, data []byte) {
+		if channel == "pointer" {
+			input.HandlePointer(peer, data)
+		} else {
+			input.HandleInput(peer, data)
+		}
+	})
+	// A viewer whose connection stops answering may never send its
+	// releases: let go of everything it held.
+	stream.OnStall(input.Release)
+	session.OnPermissions(func(peer string, p models.Permissions) {
+		input.Allow(peer, p.Control)
+		if p.Control && !input.Trusted() {
+			logger.Warn("the viewer may control, but this app may not move the mouse or type yet: allow it in System Settings › Privacy & Security › Accessibility")
+			stream.Notice(services.NoticeNoAccessibility)
+		}
+	})
 	control := controllers.NewControl(logger)
 	controllers.SessionRoutes(control, session)
 	stream.OnControl(control.Dispatch)
@@ -218,9 +253,10 @@ func run(args []string) error {
 		endSession: func() {
 			session.End(models.EndHost)
 		},
-		webURL:   web,
-		language: cfg.Language,
-		logger:   logger,
+		setPermissions: session.SetPermissions,
+		webURL:         web,
+		language:       cfg.Language,
+		logger:         logger,
 	})
 	logger.Info("shutting down")
 	cancel()

@@ -21,6 +21,15 @@ func TestParseFlags(t *testing.T) {
 	}
 }
 
+func TestInputLogOnlyWithAutoAccept(t *testing.T) {
+	if _, err := parseFlags([]string{"--test-input-log", "--source", "testpattern"}); err == nil {
+		t.Fatal("logging input without auto-accept was allowed")
+	}
+	if f, err := parseFlags([]string{"--test-input-log", "--test-auto-accept", "--source", "testpattern"}); err != nil || !f.inputLog {
+		t.Fatalf("%+v %v", f, err)
+	}
+}
+
 func TestAutoAcceptOnlyWithTheTestCard(t *testing.T) {
 	if allowAutoAcceptScreen {
 		t.Skip("a measurement build (desk_test_screen)")

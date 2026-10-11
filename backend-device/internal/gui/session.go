@@ -22,6 +22,8 @@ type sessionPanel struct {
 	browser    *widget.Label
 	since      *widget.Label
 	perms      *widget.Label
+	control    *widget.Check
+	setting    bool // render is updating the check, not the person
 	disconnect *widget.Button
 	shown      bool
 }
@@ -34,6 +36,12 @@ func (u *ui) newSessionPanel() *sessionPanel {
 	p.browser = widget.NewLabel("")
 	p.since = widget.NewLabel("")
 	p.perms = widget.NewLabel("")
+	p.control = widget.NewCheck(L("Use your mouse and keyboard"), func(on bool) {
+		if p.setting || u.opts.SetPermissions == nil {
+			return
+		}
+		u.opts.SetPermissions(models.Permissions{View: true, Control: on})
+	})
 	p.disconnect = widget.NewButtonWithIcon(L("Disconnect"), theme.LogoutIcon(), func() {
 		p.disconnect.Disable()
 		if u.opts.EndSession != nil {
@@ -41,7 +49,7 @@ func (u *ui) newSessionPanel() *sessionPanel {
 		}
 	})
 	p.disconnect.Importance = widget.DangerImportance
-	p.win.SetContent(container.NewPadded(container.NewVBox(p.who, p.browser, p.since, p.perms, p.disconnect)))
+	p.win.SetContent(container.NewPadded(container.NewVBox(p.who, p.browser, p.since, p.perms, p.control, p.disconnect)))
 	p.win.Resize(fyne.NewSize(320, 0))
 	p.win.SetFixedSize(true)
 	// The panel goes away with the session, not before.
@@ -65,8 +73,10 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	p.who.SetText(Lf("%s is viewing your screen", name))
 	p.browser.SetText(a.Browser)
 	p.since.SetText(Lf("Since %s", a.Since.Local().Format("15:04")))
-	text := L("Can:") + " " + L("See your screen")
-	p.perms.SetText(text)
+	p.perms.SetText(L("Can:") + " " + L("See your screen"))
+	p.setting = true
+	p.control.SetChecked(a.Permissions.Control)
+	p.setting = false
 	if p.shown {
 		return
 	}

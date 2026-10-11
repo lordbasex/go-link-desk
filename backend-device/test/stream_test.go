@@ -161,7 +161,19 @@ func TestASessionStreamsToTheBrowser(t *testing.T) {
 	msgs := make(chan ctrlMsg, 50)
 	controls := make(chan *webrtc.DataChannel, 1)
 	b.pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		if dc.Label() != "control" {
+		switch dc.Label() {
+		case "control":
+		case "pointer":
+			if dc.Ordered() || dc.MaxRetransmits() == nil || *dc.MaxRetransmits() != 0 {
+				t.Error("the pointer channel must be unordered, without retransmits")
+			}
+			return
+		case "input":
+			if !dc.Ordered() || dc.MaxRetransmits() != nil {
+				t.Error("the input channel must be ordered and reliable")
+			}
+			return
+		default:
 			t.Errorf("unexpected channel %q", dc.Label())
 			return
 		}

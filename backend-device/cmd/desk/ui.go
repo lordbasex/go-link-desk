@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 )
 
@@ -18,6 +19,8 @@ type uiOptions struct {
 	newCode  func()
 	// endSession disconnects the viewer in session.
 	endSession func()
+	// setPermissions changes what the viewer in session may do.
+	setPermissions func(models.Permissions)
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)

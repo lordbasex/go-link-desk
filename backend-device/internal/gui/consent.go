@@ -33,6 +33,7 @@ type request struct {
 	browser   *widget.Label
 	warning   *widget.Label
 	countdown *widget.Label
+	control   *widget.Check // let the viewer use the mouse and keyboard
 	deadline  time.Time
 
 	once   sync.Once
@@ -62,7 +63,9 @@ func (u *ui) Ask(ctx context.Context, req services.ConsentRequest) (models.Permi
 			if err != nil {
 				return models.Permissions{}, err
 			}
-			return models.ViewOnly, nil
+			perm := models.ViewOnly
+			fyne.DoAndWait(func() { perm.Control = r.control.Checked })
+			return perm, nil
 		case <-ctx.Done():
 			fyne.Do(func() {
 				if r != nil {
@@ -100,10 +103,13 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	note.Wrapping = fyne.TextWrapWord
 	note.Importance = widget.LowImportance
 	perms := widget.NewLabel(L("If you accept, they will be able to:") + "\n  • " + L("See your screen"))
+	// Off by default: the least, unless the person at the computer says
+	// so (a scammer on the phone needs this box ticked).
+	r.control = widget.NewCheck(L("Use your mouse and keyboard"), nil)
 	r.countdown = widget.NewLabel("")
 	r.countdown.Importance = widget.LowImportance
 
-	items := []fyne.CanvasObject{r.who, r.browser, note, widget.NewSeparator(), perms}
+	items := []fyne.CanvasObject{r.who, r.browser, note, widget.NewSeparator(), perms, r.control}
 	// The first time, the warning about the phone scam: whoever calls and
 	// asks for this is not who they say.
 	if !u.app.Preferences().Bool(scamWarningKey) {

@@ -50,3 +50,10 @@ var NobodyToAsk = ConsentFunc(func(context.Context, ConsentRequest) (models.Perm
 var AutoAccept = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
 	return models.ViewOnly, nil
 })
+
+// AutoAcceptControl lets every viewer in with the mouse and keyboard:
+// measurement builds and the end-to-end tests that log the input instead
+// of injecting it (--test-input-log).
+var AutoAcceptControl = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
+	return models.Permissions{View: true, Control: true}, nil
+})
