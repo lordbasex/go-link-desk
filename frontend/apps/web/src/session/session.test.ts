@@ -214,6 +214,10 @@ describe("Linked computers", () => {
 
     control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, challenge.nonce!) });
     expect(sent).toEqual([{ type: "auth", link_id: device.linkId, token: device.token }]);
+    // The password is asked only once the computer took the token.
+    control({ type: "password_required" });
+    expect(s.current.status.kind).toBe("waiting");
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
 
     control({ type: "password_required" });
     expect(s.current.status).toEqual({ kind: "password", error: null, left: 0, checking: false });
@@ -227,6 +231,38 @@ describe("Linked computers", () => {
     client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, control: true } } });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("connecting"));
     expect(s.current.permissions?.control).toBe(true);
+  });
+
+  it("never give the password to, nor take a screen from, a computer that skipped its proof", async () => {
+    const client = new FakeClient();
+    const { s, sent, control, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    spy();
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+    control({ type: "password_required" });
+    expect(s.current.status.kind).toBe("waiting");
+    s.sendPassword("secret");
+    expect(sent).toEqual([]);
+    // An acceptance without the proof lets nothing in.
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, control: true } } });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(s.current.status.kind).toBe("waiting");
+    expect(s.current.permissions).toBeNull();
+  });
+
+  it("wait for auth_ok when the acceptance overtakes it", async () => {
+    const client = new FakeClient();
+    const { s, control, queued, spy } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
+    client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, files: true } } });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(s.current.status.kind).toBe("waiting");
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+    expect(s.current.status.kind).toBe("connecting");
+    expect(s.current.permissions?.files).toBe(true);
   });
 
   it("send nothing to a computer that cannot prove itself", async () => {

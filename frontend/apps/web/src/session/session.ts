@@ -196,6 +196,16 @@ export class Session {
   private connected = false;
   /** The nonce the host must prove it knows the link with (reach). */
   private nonce = "";
+  /**
+   * Reach: the host proved it holds this browser's link (auth_proof), and
+   * then took the token (auth_ok). Until both, nothing it says counts: a
+   * fake host or signaling server must never get the password, nor show a
+   * screen of its own as if it were the computer.
+   */
+  private proven = false;
+  private authed = false;
+  /** Reach: an acceptance that came (over signalhub) before auth_ok (over the connection). */
+  private early: Permissions | null = null;
 
   constructor(private readonly opts: SessionOptions) {}
 
@@ -251,10 +261,14 @@ export class Session {
           this.finish({ kind: "rejected", reason: d.reason });
           return;
         }
-        // A linked browser is let in on a connection already up.
-        this.set({ status: { kind: this.connected ? "live" : "connecting" }, permissions: d.permissions });
-        // Accepted with the pairing code: now ask for the link's token.
-        if (door.kind === "claim") this.stream?.sendControl({ type: "auth" });
+        // A linked computer lets the browser in only once it proved itself
+        // and took the token; its acceptance may overtake auth_ok (they
+        // travel different ways), so it waits for it.
+        if (door.kind === "reach" && !this.authed) {
+          this.early = d.permissions;
+          return;
+        }
+        this.admitted(d.permissions);
       },
       onTrack: (video) => this.set({ video }),
       onAudio: (audio) => this.set({ audio }),
@@ -286,6 +300,13 @@ export class Session {
       this.nonce = randomNonce();
       this.stream.sendControl({ type: "auth_challenge", link_id: door.device.linkId, nonce: this.nonce });
     }
+  }
+
+  /** The host let this viewer in: a linked browser on a connection already up. */
+  private admitted(permissions: Permissions): void {
+    this.set({ status: { kind: this.connected ? "live" : "connecting" }, permissions });
+    // Accepted with the pairing code: now ask for the link's token.
+    if (this.opts.door.kind === "claim") this.stream?.sendControl({ type: "auth" });
   }
 
   /** Sends the unattended password the computer asked for. */
@@ -468,11 +489,18 @@ export class Session {
           return;
         }
         this.nonce = "";
+        this.proven = true;
         this.stream?.sendControl({ type: "auth", link_id: door.device.linkId, token: door.device.token });
         break;
       case "auth_ok": {
         const ok = parseAuthOk(m);
         if (door.kind === "claim" && ok?.token) this.opts.onLinked?.({ deviceId: ok.device_id, linkId: ok.link_id, token: ok.token });
+        if (door.kind === "reach" && this.proven && ok?.link_id === door.device.linkId) {
+          this.authed = true;
+          const early = this.early;
+          this.early = null;
+          if (early) this.admitted(early);
+        }
         break;
       }
       case "auth_failed":
@@ -482,7 +510,8 @@ export class Session {
         this.finish({ kind: "unlinked" });
         break;
       case "password_required":
-        if (door.kind === "reach") this.set({ status: { kind: "password", error: null, left: 0, checking: false } });
+        // Only a computer that proved itself and took the token may ask.
+        if (door.kind === "reach" && this.authed) this.set({ status: { kind: "password", error: null, left: 0, checking: false } });
         break;
       case "password_result": {
         if (this.view.status.kind !== "password") return;
