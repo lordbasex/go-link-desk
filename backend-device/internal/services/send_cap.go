@@ -15,9 +15,10 @@ import (
 // (libwebrtc's "application limited" state); sendCap does that for each
 // viewer, and adds the loss its browser reports (client_report).
 //
-// The cap starts at capStartKbps, grows by capGrowth a second while the
-// encoder fills most of it and nothing is lost, and drops at once to what
-// got through when the viewer reports heavy loss.
+// The cap starts at capStartKbps, grows by capGrowth a second while
+// nothing is lost (up to capStartKbps on its own, beyond it only while the
+// encoder fills most of it), and drops at once to what got through when
+// the viewer reports heavy loss over enough data, by half at most.
 const (
 	capStartKbps  = 2500
 	capGrowth     = 1.15 // per second: 2.5 to 20 Mbps in about 15 s
@@ -29,6 +30,9 @@ const (
 	capSentWindow = 2 * time.Second
 	capGrowEvery  = time.Second
 	capDropMargin = 0.85
+	// capNoisyKbps: under it, a loss figure is a few packets\' and moves
+	// nothing.
+	capNoisyKbps = 250
 )
 
 type sentSample struct {
@@ -90,8 +94,8 @@ func (c *sendCap) update(now time.Time) int {
 		loss = c.loss
 	}
 	switch {
-	case loss >= capHeavyLoss && sent > 0:
-		through := sent * (1 - loss/100) * capDropMargin
+	case loss >= capHeavyLoss && sent >= capNoisyKbps:
+		through := max(sent*(1-loss/100)*capDropMargin, c.kbps/2)
 		if through < c.kbps {
 			c.kbps = through
 			c.droppedAt = now
@@ -99,8 +103,11 @@ func (c *sendCap) update(now time.Time) int {
 		c.lossAt = time.Time{} // one report, one drop
 	case loss >= capSomeLoss:
 		// hold
-	case sent >= 0 && sent >= c.kbps*capBusy && now.Sub(c.grewAt) >= capGrowEvery && now.Sub(c.droppedAt) >= capAfterDrop:
+	case sent >= 0 && (sent >= c.kbps*capBusy || c.kbps < capStartKbps) && now.Sub(c.grewAt) >= capGrowEvery && now.Sub(c.droppedAt) >= capAfterDrop:
 		c.kbps *= capGrowth
+		if sent < c.kbps*capBusy {
+			c.kbps = min(c.kbps, capStartKbps) // no proof of more than the start
+		}
 		c.grewAt = now
 	}
 	c.kbps = max(c.kbps, float64(minKbps))
