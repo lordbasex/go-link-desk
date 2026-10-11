@@ -147,3 +147,18 @@ App Store Connect has the app **go-link Desk** (bundle id `org.go-link.desk.ios`
 - **Amigos** (external): anyone with the public link, up to 100 people. Each build is submitted to Beta App Review, and once it is approved the link installs it through the TestFlight app.
 
 The beta's description is in English, Spanish and Portuguese. The privacy policy is https://desk.go-link.org/privacy.
+
+### The App Store
+
+The App Store page has these parts:
+
+- **Texts:** `appstore/metadata.json` holds the subtitle, keywords, promotional text and description in English, Spanish and Portuguese. They are uploaded with `asc.py`.
+- **Screenshots:** `scripts/screenshots.py VERSION_ID DIR` uploads them, replacing what is there. They are taken in the Simulator (iPhone 17 Pro Max and iPad Pro 13", in the three languages) against a test host, so this machine's name never shows:
+
+  ```bash
+  desk --headless --source testpattern --test-auto-accept --test-name "Studio Mac"
+  ```
+- **Category:** Utilities, then Productivity.
+- **Age rating:** the chat with the person at the computer is its only item.
+- **Price and countries:** free, in every country.
+- **App Privacy:** "Data Not Collected". Apple only takes it in App Store Connect's website.

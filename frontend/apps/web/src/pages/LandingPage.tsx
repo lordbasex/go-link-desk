@@ -17,6 +17,11 @@ export function LandingPage() {
             {t.landing.devices}
           </Link>
         </div>
+        <p className="get-apps muted">
+          <a href="https://github.com/lordbasex/go-link-desk/releases/latest">{t.landing.downloadMac}</a>
+          {" · "}
+          {t.landing.iosSoon}
+        </p>
       </section>
       <ol className="steps">
         {t.landing.steps.map((s) => (

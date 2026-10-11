@@ -14,6 +14,8 @@ export const pt: Messages = {
     text: "O outro computador abre o go-link Desk e mostra um código. Digite-o aqui para ver e controlar a tela. Nada para instalar deste lado.",
     connect: "Conectar",
     devices: "Meus computadores",
+    downloadMac: "Baixar o go-link Desk para macOS",
+    iosSoon: "iPhone e iPad: em breve na App Store",
     steps: [
       { title: "1. Abra o go-link Desk", text: "No computador a controlar. Não precisa de instalador." },
       { title: "2. Leia o código", text: "Nove dígitos, na janela dele." },
