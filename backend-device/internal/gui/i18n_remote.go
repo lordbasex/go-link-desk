@@ -13,6 +13,18 @@ func init() {
 		}
 	}
 	add("es", map[string]string{
+		"The port is a number from 1024 to 65535 (0 or empty: a random one).": "El puerto es un número de 1024 a 65535 (0 o vacío: uno al azar).",
+		"%s is not an IP address.": "%s no es una dirección IP.",
+		"This computer's address":  "Dirección de esta computadora",
+		"UDP port":                 "Puerto UDP",
+		"Random":                   "Al azar",
+		"Every connection on one port, to open it in a router.": "Todas las conexiones por un solo puerto, para abrirlo en un router.",
+		"Announced address": "Dirección anunciada",
+		"Where viewers reach that port through the router: its address on their network. Several, with commas.":                 "Donde los visores llegan a ese puerto a través del router: su dirección en la red de ellos. Varias, separadas por comas.",
+		"In the router, forward UDP port %d to %s.":                                                                             "En el router, abrí el puerto UDP %d hacia %s.",
+		"The port and address are used when go-link Desk opens again.":                                                          "El puerto y la dirección se usan cuando go-link Desk se vuelve a abrir.",
+		"Direct connection (advanced)":                                                                                          "Conexión directa (avanzado)",
+		"For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay.": "Para una computadora detrás de un segundo router: sin esto, los visores de la otra red pasan por un relay, que suma demora.",
 		"Theme":           "Tema",
 		"Light":           "Claro",
 		"Like the system": "Como el sistema",
@@ -169,6 +181,18 @@ func init() {
 		"Connecting to other computers": "Conexión a otras computadoras",
 	})
 	add("pt", map[string]string{
+		"The port is a number from 1024 to 65535 (0 or empty: a random one).": "A porta é um número de 1024 a 65535 (0 ou vazio: uma aleatória).",
+		"%s is not an IP address.": "%s não é um endereço IP.",
+		"This computer's address":  "Endereço deste computador",
+		"UDP port":                 "Porta UDP",
+		"Random":                   "Aleatória",
+		"Every connection on one port, to open it in a router.": "Todas as conexões por uma só porta, para abri-la num roteador.",
+		"Announced address": "Endereço anunciado",
+		"Where viewers reach that port through the router: its address on their network. Several, with commas.":                 "Onde os visualizadores chegam a essa porta pelo roteador: o endereço dele na rede deles. Vários, separados por vírgulas.",
+		"In the router, forward UDP port %d to %s.":                                                                             "No roteador, encaminhe a porta UDP %d para %s.",
+		"The port and address are used when go-link Desk opens again.":                                                          "A porta e o endereço são usados quando o go-link Desk abrir de novo.",
+		"Direct connection (advanced)":                                                                                          "Conexão direta (avançado)",
+		"For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay.": "Para um computador atrás de um segundo roteador: sem isso, os visualizadores da outra rede passam por um relay, que soma atraso.",
 		"Theme":           "Tema",
 		"Light":           "Claro",
 		"Like the system": "Como o sistema",

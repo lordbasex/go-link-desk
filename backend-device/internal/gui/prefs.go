@@ -7,6 +7,7 @@ package gui
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -30,7 +31,12 @@ type prefsState struct {
 	open      bool   // shown at least once: keep it up to date
 	passErr   string // the last password refused
 	serverErr string // the last server address refused
-	last      string // the last pages sent, to send only changes
+	netErr    string // the last port or address refused
+	// start is the configuration this run started with: what a change of
+	// server or port needs a new start for is told against it.
+	start    models.Config
+	startSet bool
+	last     string // the last pages sent, to send only changes
 }
 
 // showPrefs brings the native Settings up.
@@ -97,6 +103,7 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
 		}},
 		u.serverSection(cfg),
+		u.directSection(cfg),
 		{Title: L("Interface"), Footer: L("The new language shows the next time go-link Desk opens."), Rows: []remoteview.PrefRow{
 			{ID: "language", Kind: "select", Label: L("Language"), Value: cfg.Language, Options: langs},
 		}},
@@ -266,6 +273,34 @@ func (u *ui) setting(arg string) {
 		}
 		u.prefs.serverErr = ""
 		update(func(c *models.Config) { c.WebURL = v })
+	case id == "udp_port":
+		v := strings.TrimSpace(value)
+		port := 0
+		if v != "" {
+			p, err := strconv.Atoi(v)
+			if err != nil || (p != 0 && (p < 1024 || p > 65535)) {
+				u.prefs.netErr = L("The port is a number from 1024 to 65535 (0 or empty: a random one).")
+				u.prefs.last = ""
+				u.refreshPrefs()
+				return
+			}
+			port = p
+		}
+		u.prefs.netErr = ""
+		update(func(c *models.Config) { c.UDPPort = port })
+	case id == "announce_ips":
+		var ips []string
+		for _, f := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+			if net.ParseIP(f) == nil {
+				u.prefs.netErr = Lf("%s is not an IP address.", f)
+				u.prefs.last = ""
+				u.refreshPrefs()
+				return
+			}
+			ips = append(ips, f)
+		}
+		u.prefs.netErr = ""
+		update(func(c *models.Config) { c.AnnounceIPs = ips })
 	case id == "server_default":
 		u.prefs.serverErr = ""
 		update(func(c *models.Config) { c.SignalURL, c.WebURL = "", "" })
@@ -390,4 +425,51 @@ func (u *ui) serverSection(cfg models.Config) remoteview.PrefSection {
 		rows = append(rows, remoteview.PrefRow{ID: "server_default", Kind: "button", Label: L("Go back to go-link's server"), Button: L("Use go-link's")})
 	}
 	return remoteview.PrefSection{Title: L("Server"), Footer: L("This computer, the computers it connects to and their browsers must all use the same server."), Rows: rows}
+}
+
+// directSection is the advanced part of the network: one UDP port for
+// every connection, and the addresses where viewers reach it through a
+// router that forwards it (a computer behind a second router, which
+// browsers on the first one cannot reach on their own).
+func (u *ui) directSection(cfg models.Config) remoteview.PrefSection {
+	local := localIPs()
+	port := ""
+	if cfg.UDPPort > 0 {
+		port = strconv.Itoa(cfg.UDPPort)
+	}
+	rows := []remoteview.PrefRow{
+		{Kind: "info", Label: L("This computer's address"), Value: strings.Join(local, ", ")},
+		{ID: "udp_port", Kind: "text", Label: L("UDP port"), Value: port, Placeholder: L("Random"),
+			Detail: L("Every connection on one port, to open it in a router.")},
+		{ID: "announce_ips", Kind: "text", Label: L("Announced address"), Value: strings.Join(cfg.AnnounceIPs, ", "), Placeholder: "192.168.1.20",
+			Detail: L("Where viewers reach that port through the router: its address on their network. Several, with commas.")},
+	}
+	if u.prefs.netErr != "" {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: u.prefs.netErr, Tint: "danger"})
+	}
+	if cfg.UDPPort > 0 && len(local) > 0 {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: Lf("In the router, forward UDP port %d to %s.", cfg.UDPPort, local[0])})
+	}
+	if u.prefs.startSet && (cfg.UDPPort != u.prefs.start.UDPPort || strings.Join(cfg.AnnounceIPs, ",") != strings.Join(u.prefs.start.AnnounceIPs, ",")) {
+		rows = append(rows, remoteview.PrefRow{ID: "relaunch", Kind: "button", Label: L("The port and address are used when go-link Desk opens again."), Button: L("Open again now")})
+	}
+	return remoteview.PrefSection{Title: L("Direct connection (advanced)"),
+		Footer: L("For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay."), Rows: rows}
+}
+
+// localIPs are this computer's IPv4 addresses on its networks.
+func localIPs() []string {
+	var out []string
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	for _, a := range addrs {
+		n, ok := a.(*net.IPNet)
+		if !ok || n.IP.IsLoopback() || n.IP.To4() == nil || n.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, n.IP.String())
+	}
+	return out
 }

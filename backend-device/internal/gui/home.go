@@ -72,6 +72,7 @@ func (u *ui) openMain() {
 	u.native = true
 	if u.opts.Settings != nil {
 		cfg := u.opts.Settings.Get()
+		u.prefs.start, u.prefs.startSet = cfg, true
 		remoteview.SetDockIcon(appIcon(cfg.AppIcon))
 		remoteview.SetTheme(themeOf(cfg.Theme))
 	}
