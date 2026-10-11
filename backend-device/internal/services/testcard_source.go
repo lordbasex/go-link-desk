@@ -21,6 +21,7 @@ func (t *TestCardSource) Run(ctx context.Context, sink MediaSink) error {
 	interval := time.Second / time.Duration(t.FPS)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	start := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -30,6 +31,7 @@ func (t *TestCardSource) Run(ctx context.Context, sink MediaSink) error {
 		if !sink.Watching() {
 			continue
 		}
-		sink.VideoFrame(pattern.Frame(time.Now(), sink.Controls()), t.Width, t.Height, interval)
+		now := time.Now()
+		sink.VideoFrame(Frame{I420: pattern.Frame(now, sink.Controls()), Width: t.Width, Height: t.Height, PTS: now.Sub(start)})
 	}
 }

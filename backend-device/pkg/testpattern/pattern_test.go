@@ -57,3 +57,12 @@ func TestCardEncodes(t *testing.T) {
 		t.Fatalf("encode: %v %v %d", err, key, len(data))
 	}
 }
+
+func TestTheBeaconFlips(t *testing.T) {
+	p := New(640, 480)
+	off := p.Frame(time.Unix(0, 0), Controls{})[0]
+	on := p.Frame(time.Unix(0, 0), Controls{Beacon: true})[0]
+	if off > 30 || on < 200 {
+		t.Fatalf("beacon luma off %d, on %d", off, on)
+	}
+}

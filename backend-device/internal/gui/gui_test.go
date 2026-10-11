@@ -20,6 +20,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
 )
 
 func TestTheWindowShowsTheSessionCode(t *testing.T) {
@@ -42,6 +43,7 @@ func TestTheWindowShowsTheSessionCode(t *testing.T) {
 		t.Fatalf("link %q", u.link.Text)
 	}
 	u.copyCode()
+	u.copied.Stop() // the test ends before the button would change back
 	if got := a.Clipboard().Content(); got != "915 355 636" {
 		t.Fatalf("clipboard %q", got)
 	}
@@ -181,5 +183,29 @@ func TestTheSessionShowsItselfUntilItEnds(t *testing.T) {
 	u.render(st.Snapshot())
 	if u.panel.shown {
 		t.Fatal("the panel outlived the session")
+	}
+}
+
+func TestThePermissionsShowAndAsk(t *testing.T) {
+	a := test.NewTempApp(t)
+	st := services.NewStatusService("d", "1.0.0", "ws://x")
+	allowed := map[permission.Kind]bool{permission.Accessibility: true}
+	var asked []permission.Kind
+	u := newUI(a, Options{Status: st, Language: "en", Permissions: &PermissionChecks{
+		Granted: func(k permission.Kind) bool { return allowed[k] },
+		Request: func(k permission.Kind) bool { asked = append(asked, k); return false },
+	}})
+	screen, access := u.perms.rows[0], u.perms.rows[1]
+	if screen.state.Text != "Not allowed" || screen.button.Hidden || access.state.Text != "Allowed" || !access.button.Hidden {
+		t.Fatalf("screen %q (button hidden %v), accessibility %q", screen.state.Text, screen.button.Hidden, access.state.Text)
+	}
+	test.Tap(screen.button)
+	if len(asked) != 1 || asked[0] != permission.ScreenRecording || u.perms.restart.Hidden {
+		t.Fatalf("asked %v, restart hint hidden %v", asked, u.perms.restart.Hidden)
+	}
+	allowed[permission.ScreenRecording] = true
+	u.perms.refresh()
+	if screen.state.Text != "Allowed" || !u.perms.restart.Hidden {
+		t.Fatal("the grant did not show")
 	}
 }

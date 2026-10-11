@@ -181,7 +181,7 @@ func TestASessionStreamsToTheBrowser(t *testing.T) {
 	})
 
 	stream.SetSender(relay{b})
-	if err := stream.AddViewer("viewer"); err != nil {
+	if err := stream.AddViewer("viewer", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -250,7 +250,7 @@ func TestEveryViewerHasItsOwnTrack(t *testing.T) {
 				ids <- p.id + ":" + track.ID()
 			}
 		})
-		if err := stream.AddViewer(p.id); err != nil {
+		if err := stream.AddViewer(p.id, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

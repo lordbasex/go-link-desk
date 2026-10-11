@@ -29,6 +29,8 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/repositories"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/beacon"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
@@ -76,7 +78,7 @@ func parseFlags(args []string) (flags, error) {
 	}
 	// Sessions need consent: skipping it is only for tests, which never
 	// show anyone a real screen.
-	if f.autoAccept && f.source != "testpattern" {
+	if f.autoAccept && f.source != "testpattern" && !allowAutoAcceptScreen {
 		return f, errors.New("--test-auto-accept needs --source testpattern")
 	}
 	return f, nil
@@ -139,9 +141,13 @@ func run(args []string) error {
 	pairing := services.NewPairingService(services.PairingConfig{DeviceID: cfg.DeviceID, DeviceSecret: cfg.DeviceSecret, Logger: logger}, status, ice)
 	opener := services.NewRoomOpener()
 	meta := services.SessionMeta{Name: hostName(), OS: runtime.GOOS}
+	source := "test-pattern"
 	if f.source == "screen" {
-		// Screen capture arrives with the next version of the host.
-		logger.Warn("screen capture is not in this version yet: sessions show the test card")
+		if capture.Supported {
+			source = "screen"
+		} else {
+			logger.Warn("screen capture is not available on this system yet: sessions show the test card")
+		}
 	}
 	api, err := services.NewWebRTCAPI(cfg.UDPPort, false)
 	if err != nil {
@@ -149,10 +155,17 @@ func run(args []string) error {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs,
-		Welcome: meta, Source: "test-pattern", Logger: logger,
+		Welcome: meta, Source: source, Logger: logger,
 	}, ice)
 	if err != nil {
 		return err
+	}
+	if source == "screen" {
+		stream.SetSource(&services.ScreenSource{Fallback: &services.TestCardSource{Width: 960, Height: 720, FPS: 30}, Log: logger})
+		stream.OnBeacon(func(on bool, d capture.Display) { beacon.Set(on, d.X, d.Y) })
+		if !capture.HasAccess() {
+			logger.Warn("this app may not record the screen yet: allow it in System Settings › Privacy & Security › Screen Recording")
+		}
 	}
 	session := services.NewSessionService(opener, status, meta, stream, logger)
 	if f.autoAccept {

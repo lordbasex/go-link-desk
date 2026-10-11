@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,9 +21,10 @@ import (
 	"github.com/pion/interceptor"
 	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v4"
-	"github.com/pion/webrtc/v4/pkg/media"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/cursor"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/encoder"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/testpattern"
@@ -83,15 +85,39 @@ func NewWebRTCAPI(udpPort int, includeLoopback bool) (*webrtc.API, error) {
 	if err := me.RegisterDefaultCodecs(); err != nil {
 		return nil, err
 	}
+	// H.264 Constrained High, what the system encoder sends (video.go).
+	feedback := []webrtc.RTCPFeedback{{Type: "goog-remb"}, {Type: "ccm", Parameter: "fir"}, {Type: "nack"}, {Type: "nack", Parameter: "pli"}}
+	if err := me.RegisterCodec(webrtc.RTPCodecParameters{RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264, ClockRate: 90000, SDPFmtpLine: h264HighFmtp, RTCPFeedback: feedback}, PayloadType: 114}, webrtc.RTPCodecTypeVideo); err != nil {
+		return nil, err
+	}
+	if err := me.RegisterCodec(webrtc.RTPCodecParameters{RTPCodecCapability: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeRTX, ClockRate: 90000, SDPFmtpLine: "apt=114"}, PayloadType: 115}, webrtc.RTPCodecTypeVideo); err != nil {
+		return nil, err
+	}
 	if err := me.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: playoutDelayURI}, webrtc.RTPCodecTypeVideo); err != nil {
 		return nil, err
 	}
+	// Interceptors in the order they sit from the network out (the first
+	// one added is the closest to it).
 	reg := &interceptor.Registry{}
-	// First, so it sits closest to the network (sim_loss.go; tests only).
+	// The simulated loss (sim_loss.go; tests only), closest to the network.
 	if pct := simLossFromEnv(); pct > 0 {
 		reg.Add(&simLossFactory{pct: pct})
 	}
+	// Pion's defaults: retransmissions (NACK), reports, statistics.
 	if err := webrtc.RegisterDefaultInterceptors(me, reg); err != nil {
+		return nil, err
+	}
+	// The bandwidth estimate (congestion.go), farther from the network
+	// than the retransmissions: those go out on their own SSRC (RTX),
+	// which the estimator's writer does not know and would drop.
+	bwe, err := newCongestionControl()
+	if err != nil {
+		return nil, err
+	}
+	reg.Add(bwe)
+	// Transport-wide sequence numbers, stamped before the estimator sees
+	// each packet; the browser's feedback on them feeds the estimate.
+	if err := webrtc.ConfigureTWCCHeaderExtensionSender(me, reg); err != nil {
 		return nil, err
 	}
 	reg.Add(playoutDelays)
@@ -120,10 +146,15 @@ type viewer struct {
 	pc      *webrtc.PeerConnection
 	control *webrtc.DataChannel
 	video   *webrtc.TrackLocalStaticSample
+	codec   string        // CodecH264High, CodecH264 or CodecVP8
+	out     *sampleWriter // its track, with the frames and bytes sent
 	// keyframe asks this viewer's encoder for a keyframe: a new viewer, a
 	// Picture Loss Indication from its browser, or a connection back.
 	keyframe atomic.Bool
-	playout  playoutLadder // under mu
+	// kbps is the bitrate its encoder should use: the preset's ceiling,
+	// or less when the bandwidth estimate says so.
+	kbps    atomic.Int64
+	playout playoutLadder // under mu
 
 	mu        sync.Mutex
 	remoteSet bool
@@ -131,33 +162,28 @@ type viewer struct {
 	restarts  int         // ICE restarts since the connection was last up
 	restart   *time.Timer // a pending restart while disconnected
 	closed    bool
-}
-
-// viewerEnc is one viewer's encoder, owned by the source goroutine.
-type viewerEnc struct {
-	vp8          *encoder.VP8
-	w, h, kbps   int
-	sent, bytes  int // in the current one-second window
-	fps, kbpsOut float64
+	cursors   map[string]bool // pointer images this viewer already has
 }
 
 // StreamService sends the session's video to its viewer over WebRTC, with
 // a "control" DataChannel (reliable, ordered, JSON) for everything else.
-// Each viewer has its own track and encoder, so a keyframe one viewer
-// needs never costs the others anything.
+// Each viewer has its own track and encoder (H.264 from the system's
+// encoder, or VP8), so a keyframe one viewer needs never costs the others
+// anything. Frames only come when the picture changes.
 type StreamService struct {
-	cfg  StreamConfig
-	log  *slog.Logger
-	ice  *ICEStore
-	api  *webrtc.API
-	kbps atomic.Int64
+	cfg StreamConfig
+	log *slog.Logger
+	ice *ICEStore
+	api *webrtc.API
 	// sendErrAt is when a control message that could not be sent was last
 	// logged (unix nanoseconds); see sendText.
 	sendErrAt atomic.Int64
 
-	// Owned by the source goroutine (Run).
-	encs   map[string]*viewerEnc
-	window time.Time
+	// Owned by the source goroutine (Run): the encoders, and the bitrate
+	// each one was last given.
+	encs     map[string]videoEncoder
+	encKbps  map[string]int
+	encRetry map[string]time.Time // an encoder that failed is tried again then
 
 	mu        sync.Mutex
 	sender    Sender
@@ -167,9 +193,17 @@ type StreamService struct {
 	pingSeq   uint64
 	rtt       map[string]int // the last round trip per viewer, ms
 	stats     map[string]streamStats
+	sizes     map[string][2]int // each viewer's picture size
+	want      VideoWant         // the latest viewer's wishes
+	display   uint32            // the display chosen (0: the main one)
+	displays  []screencap.Display
+	beacon    uint16 // the latency beacon's state, flipped by the viewer
+	rung      int    // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	changed   chan struct{}
 	onControl func(peerID, kind string, data []byte)
 	onClosed  func(peerID, reason string)
 	onStats   func(models.StreamStatus)
+	onBeacon  func(on bool, d screencap.Display)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -196,19 +230,22 @@ func NewStreamService(cfg StreamConfig, ice *ICEStore) (*StreamService, error) {
 			return nil, err
 		}
 	}
-	s := &StreamService{
-		cfg:     cfg,
-		log:     cfg.Logger,
-		ice:     ice,
-		api:     api,
-		encs:    make(map[string]*viewerEnc),
-		viewers: make(map[string]*viewer),
-		pings:   make(map[uint64]time.Time),
-		rtt:     make(map[string]int),
-		stats:   make(map[string]streamStats),
-	}
-	s.kbps.Store(int64(cfg.BitrateKbps))
-	return s, nil
+	return &StreamService{
+		cfg:      cfg,
+		log:      cfg.Logger,
+		ice:      ice,
+		api:      api,
+		encs:     make(map[string]videoEncoder),
+		encKbps:  make(map[string]int),
+		encRetry: make(map[string]time.Time),
+		viewers:  make(map[string]*viewer),
+		pings:    make(map[uint64]time.Time),
+		rtt:      make(map[string]int),
+		stats:    make(map[string]streamStats),
+		sizes:    make(map[string][2]int),
+		want:     VideoWant{Preset: PresetBalanced},
+		changed:  make(chan struct{}, 1),
+	}, nil
 }
 
 // SetSender wires the signaling client.
@@ -219,7 +256,7 @@ func (s *StreamService) SetSender(sender Sender) {
 }
 
 // OnControl receives every control message from a viewer other than the
-// stream's own (pong, client_report): kind is its "type".
+// stream's own: kind is its "type".
 func (s *StreamService) OnControl(fn func(peerID, kind string, data []byte)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -242,26 +279,34 @@ func (s *StreamService) OnStats(fn func(models.StreamStatus)) {
 	s.onStats = fn
 }
 
-// SetBitrate changes the target bitrate; each encoder starts again with
-// it on its next frame (with a keyframe).
-func (s *StreamService) SetBitrate(kbps int) {
-	if kbps > 0 {
-		s.kbps.Store(int64(kbps))
-	}
-}
-
-// Bitrate is the target bitrate in kbps.
-func (s *StreamService) Bitrate() int { return int(s.kbps.Load()) }
-
-// MediaSink receives raw media from a MediaSource.
+// MediaSink receives the picture from a MediaSource. Its methods are
+// called from the source's goroutine.
 type MediaSink interface {
-	// VideoFrame takes a packed I420 frame of w x h shown for dur.
-	VideoFrame(i420 []byte, w, h int, dur time.Duration)
+	// VideoFrame encodes one frame for every viewer.
+	VideoFrame(f Frame)
 	// Controls is what the test card shows about the stream.
 	Controls() testpattern.Controls
-	// Watching reports whether anyone receives the frames: a source can
-	// rest while nobody does.
+	// Watching reports whether anyone receives the frames: a source rests
+	// (and the screen capture stops) while nobody does.
 	Watching() bool
+	// Capture is what a screen source should capture now; Changed is
+	// signalled when that changes.
+	Capture() CaptureRequest
+	Changed() <-chan struct{}
+	// NeedsKeyframe reports whether a viewer waits for a keyframe, which a
+	// still screen would never send: the source sends its last frame again.
+	NeedsKeyframe() bool
+	// Notice tells the viewers something about the source (no permission
+	// to record the screen, back to the test card).
+	Notice(code string)
+}
+
+// CaptureRequest is the screen capture the viewers need.
+type CaptureRequest struct {
+	Display       screencap.Display
+	Width, Height int
+	FPS           int
+	ShowCursor    bool
 }
 
 // MediaSource produces the picture: the test card, or the screen.
@@ -277,25 +322,24 @@ func (s *StreamService) SetSource(src MediaSource) {
 	s.source = src
 }
 
-// Run streams the source until ctx ends, and pings viewers and tells them
-// what is sent every two seconds.
+// Run streams the source until ctx ends; every half second it follows
+// each viewer's bandwidth estimate, and every two seconds it pings the
+// viewers and tells them what is sent.
 func (s *StreamService) Run(ctx context.Context) error {
-	defer func() {
-		for id, e := range s.encs {
-			e.vp8.Close()
-			delete(s.encs, id)
-		}
-	}()
+	defer s.closeEncoders(nil)
 	go func() {
-		t := time.NewTicker(2 * time.Second)
+		t := time.NewTicker(500 * time.Millisecond)
 		defer t.Stop()
-		for {
+		for n := 1; ; n++ {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				s.pingAll()
-				s.sendStreamStats()
+				s.followBandwidth()
+				if n%4 == 0 {
+					s.pingAll()
+					s.sendStreamStats(2 * time.Second)
+				}
 			}
 		}
 	}()
@@ -305,12 +349,24 @@ func (s *StreamService) Run(ctx context.Context) error {
 	if src == nil {
 		src = &TestCardSource{Width: s.cfg.Width, Height: s.cfg.Height, FPS: s.cfg.FPS}
 	}
-	s.window = time.Now()
 	err := src.Run(ctx, s)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	return err
+}
+
+// closeEncoders closes the encoders of viewers not in keep (all, for nil).
+// Only the source's goroutine calls it.
+func (s *StreamService) closeEncoders(keep map[string]*viewer) {
+	for id, e := range s.encs {
+		if _, ok := keep[id]; !ok {
+			e.close()
+			delete(s.encs, id)
+			delete(s.encKbps, id)
+			delete(s.encRetry, id)
+		}
+	}
 }
 
 // Watching reports whether any viewer is connected. Like VideoFrame, it
@@ -320,95 +376,226 @@ func (s *StreamService) Watching() bool {
 	if s.ViewerCount() > 0 {
 		return true
 	}
-	for id, e := range s.encs {
-		e.vp8.Close()
-		delete(s.encs, id)
-	}
+	s.closeEncoders(nil)
 	return false
 }
 
-// Controls is what the test card shows: the frames per second sent to
-// the first viewer.
+// Controls is what the test card shows: the frames per second sent, and
+// the latency beacon.
 func (s *StreamService) Controls() testpattern.Controls {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c := testpattern.Controls{}
+	c := testpattern.Controls{Beacon: s.beacon%2 == 1}
 	for _, st := range s.stats {
 		c.FPS = max(c.FPS, st.FPS)
 	}
 	return c
 }
 
+// Changed is signalled when the capture the viewers need changes.
+func (s *StreamService) Changed() <-chan struct{} { return s.changed }
+
+func (s *StreamService) signalChanged() {
+	select {
+	case s.changed <- struct{}{}:
+	default:
+	}
+}
+
+// NeedsKeyframe reports whether a viewer waits for a keyframe.
+func (s *StreamService) NeedsKeyframe() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, v := range s.viewers {
+		if v.keyframe.Load() {
+			return true
+		}
+	}
+	return false
+}
+
+// Capture is the screen capture the viewers need: the chosen display,
+// sized for the viewer's window and preset, at the preset's frame rate,
+// both lowered when the bandwidth is short (bandwidthLadder).
+func (s *StreamService) Capture() CaptureRequest {
+	s.mu.Lock()
+	want, id, rung := s.want, s.display, s.rung
+	displays := s.displays
+	s.mu.Unlock()
+	if len(displays) == 0 {
+		displays = s.refreshDisplays()
+	}
+	d := pickDisplay(displays, id)
+	w, h := captureSize(d, want)
+	fps := presetLimits[ParsePreset(string(want.Preset))].fps
+	if rung < len(bandwidthLadder) {
+		r := bandwidthLadder[rung]
+		fps = min(fps, r.fps)
+		if r.maxWidth > 0 && w > r.maxWidth {
+			h = (r.maxWidth * h / w) &^ 1
+			w = r.maxWidth
+		}
+	}
+	return CaptureRequest{Display: d, Width: w, Height: h, FPS: fps, ShowCursor: want.CursorInVideo}
+}
+
+// pickDisplay finds a display by id, else the main one.
+func pickDisplay(ds []screencap.Display, id uint32) screencap.Display {
+	for _, d := range ds {
+		if d.ID == id {
+			return d
+		}
+	}
+	for _, d := range ds {
+		if d.Primary {
+			return d
+		}
+	}
+	if len(ds) > 0 {
+		return ds[0]
+	}
+	return screencap.Display{Width: 1920, Height: 1080, PointsWidth: 1920, PointsHeight: 1080}
+}
+
+// refreshDisplays lists the screens again (none where there is no
+// capture).
+func (s *StreamService) refreshDisplays() []screencap.Display {
+	if !screencap.Supported || s.cfg.Source != "screen" {
+		return nil
+	}
+	ds, err := screencap.Displays()
+	if err != nil {
+		s.log.Warn("cannot list the displays", "err", err)
+		return nil
+	}
+	s.mu.Lock()
+	s.displays = ds
+	s.mu.Unlock()
+	return ds
+}
+
+// Notice tells every viewer something about the source.
+func (s *StreamService) Notice(code string) {
+	b, _ := json.Marshal(struct {
+		Type string `json:"type"`
+		Code string `json:"code"`
+	}{"notice", code})
+	s.mu.Lock()
+	ids := slices.Collect(maps.Keys(s.viewers))
+	s.mu.Unlock()
+	for _, id := range ids {
+		s.SendControl(id, b)
+	}
+}
+
 // VideoFrame encodes one frame for every viewer and sends it. Encoders
 // follow the frame size; nothing is encoded while nobody watches.
-func (s *StreamService) VideoFrame(i420 []byte, w, h int, dur time.Duration) {
+func (s *StreamService) VideoFrame(f Frame) {
 	s.mu.Lock()
-	viewers := slices.Collect(maps.Values(s.viewers))
+	viewers := maps.Clone(s.viewers)
 	s.mu.Unlock()
-	// Encoders of viewers that left are closed here, by their owner.
-	for id, e := range s.encs {
-		if !slices.ContainsFunc(viewers, func(v *viewer) bool { return v.id == id }) {
-			e.vp8.Close()
-			delete(s.encs, id)
-		}
-	}
-	if elapsed := time.Since(s.window); elapsed >= time.Second {
-		s.countWindow(elapsed)
-	}
-	kbps := s.Bitrate()
+	s.closeEncoders(viewers) // of viewers that left
 	for _, v := range viewers {
 		e := s.encs[v.id]
-		if e == nil || e.w != w || e.h != h || e.kbps != kbps {
-			if e != nil {
-				e.vp8.Close()
+		if e != nil {
+			if w, h := e.size(); w != f.Width || h != f.Height {
+				e.close()
+				e = nil
 			}
-			fps := max(int(time.Second/dur), 1)
-			enc, err := encoder.NewVP8(encoder.Config{Width: w, Height: h, FPS: fps, BitrateKbps: kbps})
-			if err != nil {
-				s.log.Error("video encoder", "err", err)
+		}
+		if e == nil {
+			if time.Now().Before(s.encRetry[v.id]) {
+				continue // it failed a moment ago: not on every frame
+			}
+			var err error
+			if e, err = s.newEncoder(v, f.Width, f.Height); err != nil {
+				s.log.Error("video encoder", "peer_id", v.id, "codec", v.codec, "size", fmt.Sprintf("%dx%d", f.Width, f.Height), "err", err)
 				delete(s.encs, v.id)
+				s.encRetry[v.id] = time.Now().Add(2 * time.Second)
 				continue
 			}
-			resized := e == nil || e.w != w || e.h != h
-			e = &viewerEnc{vp8: enc, w: w, h: h, kbps: kbps}
+			delete(s.encRetry, v.id)
 			s.encs[v.id] = e
+			s.encKbps[v.id] = int(v.kbps.Load())
+			s.mu.Lock()
+			s.sizes[v.id] = [2]int{f.Width, f.Height}
+			s.mu.Unlock()
 			v.keyframe.Store(true)
-			if resized {
-				s.log.Info("video encoder", "peer_id", v.id, "codec", "vp8", "size", fmt.Sprintf("%dx%d", w, h), "kbps", kbps)
+		}
+		if kbps := int(v.kbps.Load()); kbps != s.encKbps[v.id] {
+			e.setBitrate(kbps)
+			s.encKbps[v.id] = kbps
+		}
+		if err := e.encode(f, v.keyframe.Swap(false)); err != nil {
+			s.log.Debug("encode failed", "peer_id", v.id, "err", err)
+		}
+	}
+}
+
+// newEncoder starts a viewer's encoder for its codec.
+func (s *StreamService) newEncoder(v *viewer, w, h int) (videoEncoder, error) {
+	fps := presetLimits[ParsePreset(string(s.wantNow().Preset))].fps
+	kbps := int(v.kbps.Load())
+	var e videoEncoder
+	var err error
+	if v.codec == CodecVP8 {
+		e, err = newVP8Encoder(w, h, fps, kbps, v.out)
+	} else {
+		var h264 *h264Encoder
+		h264, err = newH264Encoder(w, h, fps, kbps, v.codec == CodecH264, v.out)
+		if err == nil {
+			hw, known := h264.enc.Hardware()
+			if known && !hw {
+				s.log.Warn("H.264 runs on the software encoder: this computer has no hardware one", "peer_id", v.id)
 			}
 		}
-		data, _, err := e.vp8.Encode(i420, v.keyframe.Swap(false))
-		if err != nil {
-			s.log.Error("encode failed", "err", err)
-			continue
+		e = h264
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("video encoder", "peer_id", v.id, "codec", v.codec, "size", fmt.Sprintf("%dx%d", w, h), "kbps", kbps)
+	return e, nil
+}
+
+func (s *StreamService) wantNow() VideoWant {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.want
+}
+
+// followBandwidth sets each viewer's bitrate: the preset's ceiling, or 90%
+// of its connection's estimate when that is lower; and moves the session
+// on the bandwidth ladder by the worst estimate, which changes the
+// capture.
+func (s *StreamService) followBandwidth() {
+	s.mu.Lock()
+	ceiling := presetLimits[ParsePreset(string(s.want.Preset))].kbps
+	worst := 0
+	for _, v := range s.viewers {
+		kbps := ceiling
+		if est := estimateKbps(v.pc); est > 0 {
+			kbps = max(min(kbps, est*9/10), minKbps)
+			if worst == 0 || est < worst {
+				worst = est
+			}
 		}
-		if len(data) == 0 {
-			continue // the rate control dropped this frame
-		}
-		if err := v.video.WriteSample(media.Sample{Data: data, Duration: dur}); err != nil && !errors.Is(err, errClosedPipe) {
-			s.log.Debug("write sample", "err", err)
-		}
-		e.sent++
-		e.bytes += len(data)
+		v.kbps.Store(int64(kbps)) // the encoder takes it with the next frame
+	}
+	if len(s.viewers) == 0 {
+		s.rung = len(bandwidthLadder)
+	}
+	before := s.rung
+	s.rung = ladderRung(worst, s.rung)
+	after := s.rung
+	s.mu.Unlock()
+	if after != before {
+		s.log.Info("bandwidth", "estimate_kbps", worst, "rung", after)
+		s.signalChanged()
 	}
 }
 
 var errClosedPipe = errors.New("io: read/write on closed pipe")
-
-// countWindow closes a one-second window of each encoder's output.
-func (s *StreamService) countWindow(elapsed time.Duration) {
-	s.window = time.Now()
-	stats := make(map[string]streamStats, len(s.encs))
-	for id, e := range s.encs {
-		e.fps = float64(e.sent) / elapsed.Seconds()
-		e.kbpsOut = float64(e.bytes) * 8 / 1000 / elapsed.Seconds()
-		e.sent, e.bytes = 0, 0
-		stats[id] = streamStats{Type: "stream_stats", FPS: round1(e.fps), Width: e.w, Height: e.h, Kbps: round1(e.kbpsOut), Codec: "VP8"}
-	}
-	s.mu.Lock()
-	s.stats = stats
-	s.mu.Unlock()
-}
 
 func round1(f float64) float64 { return float64(int(f*10+0.5)) / 10 }
 
@@ -421,6 +608,12 @@ type streamStats struct {
 	Height int     `json:"height"`
 	Kbps   float64 `json:"kbps"`
 	Codec  string  `json:"codec"`
+	// TargetKbps is the bitrate the encoder aims at: the preset's
+	// ceiling, or the bandwidth estimate when lower.
+	TargetKbps int `json:"target_kbps"`
+	// EstimateKbps is what the congestion control thinks the path carries
+	// (0: no estimate yet).
+	EstimateKbps int `json:"estimate_kbps"`
 }
 
 // Stats is what is being streamed now (zero while nobody watches).
@@ -439,22 +632,32 @@ func (s *StreamService) Stats() models.StreamStatus {
 	return out
 }
 
-// sendStreamStats tells each viewer what it is being sent, and the host's
-// own listener what is sent overall.
-func (s *StreamService) sendStreamStats() {
+// sendStreamStats closes a window of what each viewer was sent, tells each
+// viewer, and the host's own listener what is sent overall. A still
+// screen sends nothing, and says so.
+func (s *StreamService) sendStreamStats(window time.Duration) {
 	type target struct {
 		dc  *webrtc.DataChannel
 		msg []byte
 	}
 	s.mu.Lock()
 	var targets []target
+	stats := make(map[string]streamStats, len(s.viewers))
 	for id, v := range s.viewers {
-		st, ok := s.stats[id]
-		if ok && v.control != nil && v.control.ReadyState() == webrtc.DataChannelStateOpen {
+		frames, bytes := v.out.counts()
+		st := streamStats{
+			Type: "stream_stats", FPS: round1(float64(frames) / window.Seconds()),
+			Kbps: round1(float64(bytes) * 8 / 1000 / window.Seconds()), Codec: codecLabel(v.codec),
+			TargetKbps: int(v.kbps.Load()), EstimateKbps: estimateKbps(v.pc),
+		}
+		st.Width, st.Height = s.sizes[id][0], s.sizes[id][1]
+		stats[id] = st
+		if v.control != nil && v.control.ReadyState() == webrtc.DataChannelStateOpen {
 			msg, _ := json.Marshal(st)
 			targets = append(targets, target{v.control, msg})
 		}
 	}
+	s.stats = stats
 	fn := s.onStats
 	s.mu.Unlock()
 	for _, t := range targets {
@@ -490,8 +693,10 @@ func (s *StreamService) sendSignal(to string, sig RTCSignal) {
 }
 
 // AddViewer opens a peer connection to an accepted viewer and sends it an
-// offer: its own video track and the control channel.
-func (s *StreamService) AddViewer(peerID string) error {
+// offer: its own video track and the control channel. codecs are the
+// video codecs its browser said it takes (the knock); the session uses
+// H.264 from the system's encoder when it can, else VP8.
+func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 	pc, err := s.api.NewPeerConnection(webrtc.Configuration{ICEServers: s.iceServers()})
 	if err != nil {
 		return err
@@ -500,12 +705,14 @@ func (s *StreamService) AddViewer(peerID string) error {
 		_ = pc.Close()
 		return err
 	}
-	v := &viewer{id: peerID, pc: pc}
-	video, err := newVideoTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000})
+	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.HasH264)}
+	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
+	video, err := newVideoTrack(trackCodec(v.codec))
 	if err != nil {
 		return fail(err)
 	}
 	v.video = video
+	v.out = &sampleWriter{track: video}
 	rtpSender, err := pc.AddTrack(video)
 	if err != nil {
 		return fail(err)
@@ -545,6 +752,7 @@ func (s *StreamService) AddViewer(peerID string) error {
 			Source string      `json:"source"`
 		}{"welcome", s.cfg.Welcome, s.cfg.Source})
 		s.sendText(control, welcome)
+		s.sendDisplays(v)
 	})
 	control.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if msg.IsString && len(msg.Data) <= maxControlMessage {
@@ -752,6 +960,8 @@ func (s *StreamService) handleControl(v *viewer, data []byte) {
 		s.mu.Unlock()
 	case "client_report":
 		s.noteClientReport(v, data)
+	case "video_want", "quality", "display_select", "cursor_mode", "beacon":
+		s.handleVideoControl(v, msg.Type, data)
 	default:
 		s.mu.Lock()
 		fn := s.onControl
@@ -760,6 +970,152 @@ func (s *StreamService) handleControl(v *viewer, data []byte) {
 			fn(v.id, msg.Type, data)
 		}
 	}
+}
+
+// handleVideoControl applies a viewer's wishes about the picture: the size
+// it shows it at, the preset and Retina, the display, where the pointer is
+// drawn, and the latency beacon.
+func (s *StreamService) handleVideoControl(v *viewer, kind string, data []byte) {
+	var m struct {
+		Width   int    `json:"width"`
+		Height  int    `json:"height"`
+		Preset  string `json:"preset"`
+		Retina  bool   `json:"retina"`
+		ID      uint32 `json:"id"`
+		InVideo bool   `json:"in_video"`
+		Seq     uint16 `json:"seq"`
+	}
+	if json.Unmarshal(data, &m) != nil {
+		return
+	}
+	s.mu.Lock()
+	before, display := s.want, s.display
+	switch kind {
+	case "video_want":
+		// The size the viewer shows the picture at, in device pixels:
+		// bounded, so a viewer cannot ask for absurd sizes.
+		s.want.Width, s.want.Height = min(max(m.Width, 0), 16384), min(max(m.Height, 0), 16384)
+	case "quality":
+		s.want.Preset, s.want.Retina = ParsePreset(m.Preset), m.Retina
+	case "cursor_mode":
+		s.want.CursorInVideo = m.InVideo
+	case "display_select":
+		s.display = m.ID
+	case "beacon":
+		s.beacon = m.Seq
+	}
+	changed := s.want != before || s.display != display
+	presetChanged := s.want.Preset != before.Preset
+	s.mu.Unlock()
+	if kind == "beacon" {
+		s.mu.Lock()
+		fn := s.onBeacon
+		s.mu.Unlock()
+		if fn != nil {
+			fn(m.Seq%2 == 1, s.Capture().Display)
+		}
+		return
+	}
+	if presetChanged {
+		s.followBandwidth()
+	}
+	if kind == "display_select" && s.display != display {
+		for _, viewer := range s.viewerList() {
+			viewer.keyframe.Store(true)
+			s.sendDisplays(viewer)
+		}
+	}
+	if changed {
+		s.log.Info("video wish", "peer_id", v.id, "kind", kind, "want", fmt.Sprintf("%+v", s.wantNow()))
+		s.signalChanged()
+	}
+}
+
+// CursorMoved tells the viewers where the host's pointer is, normalized
+// over the display they see, unless they see it drawn in the picture.
+func (s *StreamService) CursorMoved(x, y float64, visible bool) {
+	if s.wantNow().CursorInVideo {
+		return
+	}
+	b, _ := json.Marshal(struct {
+		Type    string  `json:"type"`
+		X       float64 `json:"x"`
+		Y       float64 `json:"y"`
+		Visible bool    `json:"visible"`
+	}{"cursor_pos", x, y, visible})
+	for _, v := range s.viewerList() {
+		s.SendControl(v.id, b)
+	}
+}
+
+// CursorShape tells the viewers what the pointer looks like. Each viewer
+// gets an image once; after that its id is enough.
+func (s *StreamService) CursorShape(c cursor.Shape) {
+	type msg struct {
+		Type   string `json:"type"`
+		ID     string `json:"id"`
+		PNG    string `json:"png,omitempty"` // base64
+		HotX   int    `json:"hot_x"`
+		HotY   int    `json:"hot_y"`
+		Width  int    `json:"width"` // in points: the size it shows at
+		Height int    `json:"height"`
+		Pixels int    `json:"pixels"` // the image's width in pixels
+	}
+	full, _ := json.Marshal(msg{"cursor", c.ID, base64.StdEncoding.EncodeToString(c.PNG), c.HotX, c.HotY, c.PointsWidth, c.PointsHeight, c.Width})
+	short, _ := json.Marshal(msg{"cursor", c.ID, "", c.HotX, c.HotY, c.PointsWidth, c.PointsHeight, c.Width})
+	for _, v := range s.viewerList() {
+		v.mu.Lock()
+		if v.cursors == nil {
+			v.cursors = make(map[string]bool)
+		}
+		seen := v.cursors[c.ID]
+		if !seen && len(v.cursors) < 64 {
+			v.cursors[c.ID] = true
+		}
+		v.mu.Unlock()
+		if seen {
+			s.SendControl(v.id, short)
+		} else {
+			s.SendControl(v.id, full)
+		}
+	}
+}
+
+// OnBeacon is told when the viewer flips the latency beacon: a screen
+// source shows it on the display (the test card draws its own).
+func (s *StreamService) OnBeacon(fn func(on bool, d screencap.Display)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onBeacon = fn
+}
+
+func (s *StreamService) viewerList() []*viewer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Collect(maps.Values(s.viewers))
+}
+
+// sendDisplays tells a viewer the host's displays and which one it sees.
+func (s *StreamService) sendDisplays(v *viewer) {
+	ds := s.refreshDisplays()
+	cur := pickDisplay(ds, s.displayNow())
+	if ds == nil {
+		ds = []screencap.Display{}
+	}
+	b, _ := json.Marshal(struct {
+		Type     string              `json:"type"`
+		Displays []screencap.Display `json:"displays"`
+		Current  uint32              `json:"current"`
+	}{"displays", ds, cur.ID})
+	if v.control != nil && v.control.ReadyState() == webrtc.DataChannelStateOpen {
+		s.sendText(v.control, b)
+	}
+}
+
+func (s *StreamService) displayNow() uint32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.display
 }
 
 // noteClientReport moves the viewer's playout delay from what its browser
@@ -881,6 +1237,7 @@ func (s *StreamService) RemoveViewer(peerID string) {
 	delete(s.viewers, peerID)
 	delete(s.stats, peerID)
 	delete(s.rtt, peerID)
+	delete(s.sizes, peerID)
 	empty := len(s.viewers) == 0
 	fn := s.onStats
 	s.mu.Unlock()
@@ -888,6 +1245,7 @@ func (s *StreamService) RemoveViewer(peerID string) {
 		return
 	}
 	v.close()
+	forgetEstimate(v.pc)
 	if empty && fn != nil {
 		fn(models.StreamStatus{})
 	}

@@ -33,7 +33,6 @@ func (u *ui) newSessionPanel() *sessionPanel {
 	p.who.Wrapping = fyne.TextWrapWord
 	p.browser = widget.NewLabel("")
 	p.since = widget.NewLabel("")
-	p.since.Importance = widget.LowImportance
 	p.perms = widget.NewLabel("")
 	p.disconnect = widget.NewButtonWithIcon(L("Disconnect"), theme.LogoutIcon(), func() {
 		p.disconnect.Disable()
