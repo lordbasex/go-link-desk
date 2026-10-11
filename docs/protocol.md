@@ -27,7 +27,7 @@ Status of each part: **implemented** (in this repository and tested), **from go-
 All of these travel in signalhub's opaque `signal.payload`, with the same pattern as go-link's PIN gate (`pin_required` / `pin_result`).
 
 ```
-viewer → host   {"kind":"knock","name":"Ana","ua":"Chrome 141 on macOS"}
+viewer → host   {"kind":"knock","name":"Ana","ua":"Chrome 141 on macOS","codecs":["h264-high","h264","vp8"]}
 host   → viewer {"kind":"accepted","permissions":{"view":true,"control":false,"audio":false,"clipboard":false,"files":false}}
 host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"|"unavailable"}
 host   → viewer {"kind":"offer","sdp":"…"}                    (only after accepted; again for an ICE restart)
@@ -40,6 +40,7 @@ both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
 - **One knock per guest.** A guest that was turned down, or whose session ended, is ignored until it leaves signalhub's session; to try again it joins again (signalhub limits `join` to 5 a minute per IP).
 - The host never sends an offer, and ignores every offer, answer or candidate, from a viewer that was not accepted. A viewer never sends an offer.
 - `name` (up to 40 characters) and `ua` (up to 60) are what the viewer declares. The host keeps printable characters only, without line breaks or control and format characters, and shows them as declared, never as verified.
+- `codecs` are the video codecs the browser decodes (`RTCRtpReceiver.getCapabilities`): `h264-high` (Constrained High, profile `640c`), `h264` (Constrained Baseline) and `vp8`. The host sends H.264 from the system's encoder when it has one and the browser takes it, High when it can; otherwise VP8. Without the field, VP8.
 - `view` is always granted; the other permissions are part of the message from the start and are granted in the phases that use them.
 - The host leaving signalhub (`peer_left` from the host) ends the session for the viewer. The viewer leaving signalhub (`peer_left` to the host) ends it for the host.
 - **ICE restart.** When the connection is `disconnected` for 3 seconds, or `failed`, the host offers again with new ICE credentials over signalhub, up to 3 times in a row; after that the session ends with `network`. The viewer answers every offer on the same connection, applying signals strictly in order (a new candidate must never pass its offer).
@@ -85,14 +86,39 @@ The host creates them, as in go-link. `control` is implemented; the others come 
 | Message | Direction | Content |
 |---|---|---|
 | `welcome` | host → viewer | `{host: {name, os}, source}` when the channel opens; `source` is `test-pattern` or `screen`. |
+| `displays` | host → viewer | `{displays: [{id, name, width, height, points_width, points_height, primary}], current}`: the host's screens (pixels, and points: the desktop's coordinates) and the one shown. Sent when the channel opens and after every `display_select`. Empty for the test card. |
 | `ping` / `pong` | host → viewer → host | `{id}` every 2 s; the round trip over the peer-to-peer path. |
-| `stream_stats` | host → viewer | `{fps, width, height, kbps, codec}` every 2 s: what the host sends this viewer, to compare with what arrives. |
+| `stream_stats` | host → viewer | Every 2 s: `{fps, width, height, kbps, codec, target_kbps, estimate_kbps}`: what the host sent this viewer in the last window (a still screen sends nothing, and says so), the bitrate its encoder aims at, and what the congestion control estimates the path carries. |
 | `client_report` | viewer → host | `{metrics: {freeze_ms, video_loss_pct, jitter_ms, hidden}}` every 2 s. The host moves the viewer's playout delay with it (go-link's `playout_delay.go`). |
+| `video_want` | viewer → host | `{width, height}`: the size the viewer shows the picture at, in device pixels (on resize, debounced). |
+| `quality` | viewer → host | `{preset: "speed" \| "balanced" \| "quality", retina}`. See *Video* below. |
+| `display_select` | viewer → host | `{id}`: show another display. Same track, no renegotiation; a keyframe follows. |
+| `cursor_mode` | viewer → host | `{in_video}`: draw the pointer into the picture (`true`) instead of sending it. |
+| `cursor` | host → viewer | `{id, png, hot_x, hot_y, width, height, pixels}`: the pointer's image (PNG in base64, up to twice its size in points), its hot spot in the image's pixels, its size on screen in points, and the image's width in pixels. A viewer gets each image once; after that `png` is left out and the `id` is enough. |
+| `cursor_pos` | host → viewer | `{x, y, visible}`: where the pointer is, 0..1 over the display shown; up to 60 a second, only when it moves. |
+| `beacon` | viewer → host | `{seq}`: the latency beacon, white for an odd `seq`, black for an even one. See *Latency* below. |
+| `notice` | host → viewer | `{code}`: `no_screen_permission` (the host may not record its screen: the viewer sees the test card) or `capture_failed`. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
-Later phases add `video_want`, `displays`, `display_select`, `cursor`, `clipboard`, `chat` and `permissions`. A message type nobody handles is dropped. A message is at most 64 KiB.
+Later phases add `clipboard`, `chat` and `permissions`. A message type nobody handles is dropped. A message is at most 64 KiB.
 
-Two input channels, because a lost pointer move does not matter but a lost click or key does: go-link sends everything on one unreliable channel, which is fine for a gamepad that repeats its state and wrong for a keyboard (stuck keys).
+### Video
+
+- **The picture's size.** The display's size in points (its pixels with **Retina**), at most the preset's width, and no larger than the viewer's window (`video_want`). A window less than a tenth smaller than the picture gets the picture as it is: shrinking text by a few pixels blurs all of it. **Quality** always sends the display's own pixels, whatever the window.
+
+  | Preset | Width | Frames per second | Bitrate ceiling |
+  |---|---|---|---|
+  | Speed | 1280 | 60 | 4 Mbps |
+  | Balanced (default) | 1920 | 60 | 10 Mbps |
+  | Quality | the display's pixels | 60 | 20 Mbps |
+
+- **Only when it changes.** ScreenCaptureKit hands over a frame when the picture changes; a still screen sends nothing. A few moments after it stops, the host sends the last frame again (four times, 0.4 s apart) so the encoder sharpens what it left blurry while it moved, and again for a viewer that needs a keyframe.
+- **The bandwidth.** Google Congestion Control on the host, from the browser's transport-wide feedback (TWCC), estimates what each viewer's path carries; the encoder aims at 90% of it, under the preset's ceiling. Under 2.5 Mbps the session drops to 30 frames per second, under 1.5 to 1280 pixels wide, under 800 kbps to 960 at 20, under 400 to 640 at 15; it climbs back a rung once the estimate is a third above it.
+- **Losses** are resent (NACK, RTX); a viewer that still cannot decode asks for a keyframe (PLI), which only its own encoder makes.
+
+### Latency
+
+The viewer flips the beacon and times, with `requestVideoFrameCallback`, how long until the top-left corner of its video turns white (or black): capture, encoder, network, decoder and display. Half the control channel's round trip (the flip's own trip) is taken out, and the median of seven flips is shown. On the screen, the host shows a 32-point square in the top-left corner of the display shown, above everything and letting clicks through, for four seconds after the last flip; the test card draws it itself.
 
 ## 5. Input packets (proposed, phase 3)
 

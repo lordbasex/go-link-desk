@@ -11,7 +11,7 @@ The computer you control runs a small portable app. Whoever controls it only nee
 
 </div>
 
-> Work in progress: sessions work end to end with a test card; the real screen, mouse and keyboard arrive next. See [CHANGELOG.md](CHANGELOG.md).
+> Work in progress: the viewer sees the host's real screen (macOS); mouse and keyboard arrive next. See [CHANGELOG.md](CHANGELOG.md).
 
 ## How it works
 
