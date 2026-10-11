@@ -23,6 +23,8 @@ type uiOptions struct {
 	setPermissions func(models.Permissions)
 	// chat is the session's chat.
 	chat *services.ChatService
+	// call is the session's video call.
+	call *services.CallService
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)
