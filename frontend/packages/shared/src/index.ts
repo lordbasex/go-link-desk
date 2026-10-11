@@ -10,3 +10,4 @@ export * from "./stream";
 export * from "./browser-label";
 export * from "./input";
 export * from "./clipboard";
+export * from "./files";

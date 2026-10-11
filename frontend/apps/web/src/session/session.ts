@@ -2,6 +2,7 @@
 import {
   APP,
   ClipboardAssembler,
+  FilesClient,
   HostStream,
   ServerError,
   SignalError,
@@ -148,6 +149,7 @@ export class Session {
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
+  private filesClient: FilesClient | null = null;
   private cursor: CursorState = { x: 0, y: 0, visible: false, shape: null };
   private shapes = new Map<string, CursorShape>();
   private stream: HostStream | null = null;
@@ -205,6 +207,10 @@ export class Session {
       },
       onTrack: (video) => this.set({ video }),
       onAudio: (audio) => this.set({ audio }),
+      onFilesChannel: (ch) => {
+        this.filesClient?.close();
+        this.filesClient = new FilesClient(ch as unknown as ConstructorParameters<typeof FilesClient>[0]);
+      },
       onCallTrack: (kind, stream) => this.set(kind === "video" ? { callVideo: stream } : { callAudio: stream }),
       onState: (s) => {
         if (isOver(this.view.status) || this.view.status.kind === "waiting") return;
@@ -287,6 +293,11 @@ export class Session {
     void this.stream?.setCallMedia(null, null);
     this.stream?.sendControl({ type: "call_end" });
     this.set({ call: { state: "ended", hostVideo: false, hostAudio: false } });
+  }
+
+  /** The host's files (with the files permission), once the channel is open. */
+  get files(): FilesClient | null {
+    return this.view.permissions?.files ? this.filesClient : null;
   }
 
   /** Writes to the person at the host. */
