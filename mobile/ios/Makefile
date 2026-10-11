@@ -27,7 +27,7 @@ BUILD ?= $(or $(VERSION_CODE),1).$(shell date +%y%m%d%H%M)
 # The connected iPhone or iPad (the first one paired), for install-device.
 DEVICE ?= $(shell xcrun devicectl list devices 2>/dev/null | grep 'available (paired)' | grep -m1 -E 'iPhone|iPad' | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}')
 
-.PHONY: help project test-core build-sim device-build install-device testflight clean
+.PHONY: help project test-core build-sim device-build install-device testflight testflight-status clean
 
 help: ## This list
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-13s %s\n", $$1, $$2}'
@@ -68,7 +68,11 @@ testflight: project ## Archive, sign and upload a build to App Store Connect / T
 		'</dict></plist>' > build/ExportOptions.plist
 	xcodebuild -exportArchive -archivePath build/GoLinkDesk.xcarchive -exportPath build/export \
 		-exportOptionsPlist build/ExportOptions.plist $(ASC_AUTH)
-	@echo "uploaded build $(BUILD): App Store Connect processes it in a few minutes, then it shows in TestFlight"
+	@echo "uploaded build $(BUILD): App Store Connect checks it now (make testflight-status)"
+
+testflight-status: ## What App Store Connect said about the latest uploads (source env.sh first)
+	@python3 scripts/asc.py GET "/v1/apps/$$(python3 scripts/asc.py GET '/v1/apps?filter[bundleId]=org.go-link.desk.ios' | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"][0]["id"])')/buildUploads?limit=3" \
+		| python3 -c 'import json,sys;[print(u["attributes"]["cfBundleVersion"], u["attributes"]["state"]["state"], *[e["code"]+": "+e["description"] for e in u["attributes"]["state"]["errors"]]) for u in json.load(sys.stdin)["data"]]' 
 
 clean: ## Remove build output and the generated project
 	rm -rf build GoLinkDesk.xcodeproj

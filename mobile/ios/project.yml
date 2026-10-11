@@ -51,6 +51,10 @@ targets:
         # ProMotion: the picture may be shown at up to 120 Hz.
         CADisableMinimumFrameDurationOnPhone: true
         ITSAppUsesNonExemptEncryption: false
+        # libwebrtc can open the camera and the microphone (for calls), so
+        # Apple asks for these; this app never turns them on.
+        NSCameraUsageDescription: go-link Desk does not use the camera. The WebRTC library it includes could, for video calls, which this version does not have.
+        NSMicrophoneUsageDescription: go-link Desk does not use the microphone. The WebRTC library it includes could, for calls, which this version does not have.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.go-link.desk.ios
