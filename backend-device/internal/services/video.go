@@ -213,6 +213,8 @@ type sampleWriter struct {
 	have   bool
 	frames int // since the last count (for stream_stats)
 	bytes  int
+	// cap counts what is sent, to bound the bitrate by it (nil: none).
+	cap *sendCap
 }
 
 // write sends one frame. A sample's duration moves the next one's RTP
@@ -230,6 +232,9 @@ func (w *sampleWriter) write(data []byte, pts time.Duration) {
 	}
 	w.frames++
 	w.bytes += len(data)
+	if w.cap != nil {
+		w.cap.sent(len(data))
+	}
 }
 
 // counts reads and resets the frames and bytes sent.
