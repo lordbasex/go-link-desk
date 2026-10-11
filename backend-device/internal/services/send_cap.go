@@ -15,13 +15,14 @@ import (
 // (libwebrtc's "application limited" state); sendCap does that for each
 // viewer, and adds the loss its browser reports (client_report).
 //
-// The cap starts at capStartKbps, grows by capGrowth a second while
+// The cap starts at capStartKbps (above the ladder's last rung, so a
+// good path starts at the preset's full size and frame rate), grows by capGrowth a second while
 // nothing is lost (up to capStartKbps on its own, beyond it only while the
 // encoder fills most of it), and drops at once to what got through when
 // the viewer reports heavy loss over enough data, by half at most.
 const (
-	capStartKbps  = 2500
-	capGrowth     = 1.15 // per second: 2.5 to 20 Mbps in about 15 s
+	capStartKbps  = 4000
+	capGrowth     = 1.15 // per second: 4 to 20 Mbps in about 12 s
 	capBusy       = 0.6  // the encoder fills at least this much of the cap to grow it
 	capHeavyLoss  = 10.0 // % lost: drop to what got through
 	capSomeLoss   = 3.0  // % lost: hold
