@@ -73,6 +73,15 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - An unattended session is a session like any other: the red tray icon, the floating panel (which says it is unattended) and **Disconnect** are there for its whole length.
 - The browser keeps its links, recent sessions and a small thumbnail of each computer's screen in its own `localStorage`; nothing of it goes to a server. Whoever uses that browser profile can use its links, as with any saved login: Forget removes one there, and Revoke on the host removes it for good.
 
+### The app as a viewer
+
+- It trusts a linked computer exactly as the browser does: the computer proves its link first, the token goes only after the proof, and a password request or an acceptance before `auth_ok` counts for nothing. Whoever cannot prove it is the linked computer gets nothing, and the session says so.
+- Its links (with their tokens), recent sessions and thumbnails are in `remotes.json`, mode 0600, next to `device.json`; nothing of it goes to a server. Forget removes a link here; Revoke on the other computer removes it for good.
+- This computer's clipboard goes to the other one only when the viewer presses Cmd+V there (with the clipboard permission); what the other computer copies lands here only with that permission.
+- Files from the other computer land in Downloads under a name without folders, control characters or leading dots, never over an existing file; the other computer may only list its own home folder (its rules).
+- Connecting to this computer's own code is refused.
+- A signaling server chosen in Settings must be `wss://` outside this computer: Settings warns about `ws://`, which is not encrypted. The media and control stay end-to-end encrypted (DTLS) whatever the server.
+
 ### A session left open
 
 - Settings can end a session after 5 minutes to an hour without input from the viewer (`idle`), and lock the screen when any session ends.

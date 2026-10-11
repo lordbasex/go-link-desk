@@ -4,6 +4,18 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (the app as a viewer, phase 6b)
+
+- **go-link Desk connects to other computers too,** in one window: Home has the address bar (a 9-digit session code, or a pairing code to link the computer for unattended access), and each session opens in a tab, or in a window of its own (Settings).
+- **The same protocol as the website,** so the other computer needs nothing new: the knock, the consent, the permissions, the link, with the computer's proof before the token, and the unattended password.
+- **The picture is H.264 drawn by the system** (decoded on the hardware, no copy through Go), with the computer's pointer, and the mouse, keyboard and wheel while it may be controlled: keys by position, shortcuts to the other computer, Cmd+V pasting this computer's clipboard there.
+- **In the session's toolbar:** displays, picture preset (Speed, Balanced, Quality, Retina), special keys (switch apps, Spotlight, force quit, lock screen, screenshot; Ctrl+Alt+Del and the Windows key for other systems), type the clipboard, chat, files (browse and download, send with a button or by dropping files on the picture), sound, details and full screen.
+- **Home:** this computer's code in a panel of the brand's color (clicking the code or its link copies it), My computers (the linked ones, with favorites), the recent sessions, as cards with a picture of the screen, a list or a detailed list.
+- **Settings, native on macOS, in pages:** General (state, appearance: dark, light or the system's theme, the app icon and the menu bar icon in color or dark; the signaling server and website, for a person's own signalhub; language; open at login), Sessions, Unattended access and Permissions.
+- **A new icon:** a screen with a pointer, with depth in the Dock (amber, or graphite with amber), flat in the menu bar.
+- **`--connect`** opens sessions at start; **`--test-viewer`** runs only the viewer, without a window (end-to-end tests only).
+- **End-to-end tests:** the app's viewer joins with a code and gets the picture; links with the pairing code, is refused with a wrong password and comes back with the right one.
+
 ### Added (unattended access and my computers, phase 6)
 
 - **Unattended access** (Settings, off by default): a browser linked once with the computer's linking code comes back from My computers without a code and without anyone accepting, also after the computer restarts. Linking asks the person at the computer, and the permissions they tick are the link's.
