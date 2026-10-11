@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
-import { ChatIcon, ExpandIcon, HangUpIcon, SoundIcon } from "../components/Icons";
+import { CameraIcon, ChatIcon, ExpandIcon, HangUpIcon, SoundIcon } from "../components/Icons";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
 import { Select } from "../components/ui/Select";
 import { useFullscreen } from "../components/useFullscreen";
+import { CallPanel } from "./CallPanel";
 import { ChatPanel } from "./ChatPanel";
 import { HostClipboard } from "./hostClipboard";
 import { InputCapture } from "./input";
@@ -98,6 +99,8 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
   // The browser refused to start the sound without a click (autoplay).
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const closeCall = useCallback(() => setCallOpen(false), []);
   const [readChat, setReadChat] = useState(0);
   const [clipboardWaiting, setClipboardWaiting] = useState(false);
   const hostClipboard = useRef<HostClipboard | null>(null);
@@ -401,6 +404,19 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
               <SoundIcon off={prefs.muted} />
             </button>
           )}
+          {typeof navigator.mediaDevices?.getUserMedia === "function" && (
+            <button
+              type="button"
+              className={`icon-button${callOpen ? " is-on" : ""}`}
+              aria-pressed={callOpen}
+              aria-label={t.call.start}
+              title={t.call.start}
+              disabled={callOpen}
+              onClick={() => setCallOpen(true)}
+            >
+              <CameraIcon />
+            </button>
+          )}
           <button
             type="button"
             className={`icon-button chat-button${chatOpen ? " is-on" : ""}`}
@@ -488,6 +504,7 @@ export function LiveSession({ view, session, registerCursor }: { view: SessionVi
         {/* Where the keyboard goes while this viewer controls: it keeps nothing. */}
         <textarea ref={keysRef} className="key-sink" aria-label={t.keys.sink} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} />
         {typing && <TypeText onSend={(text) => { captureRef.current?.typeText(text); setTyping(false); keysRef.current?.focus({ preventScroll: true }); }} onClose={() => setTyping(false)} />}
+        {callOpen && session && <CallPanel view={view} session={session} onClose={closeCall} />}
         {chatOpen && (
           <ChatPanel
             lines={view.chat}

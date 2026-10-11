@@ -140,6 +140,8 @@ export interface HostStreamOptions {
   onTrack?: (stream: MediaStream) => void;
   /** The computer's sound (silent until the viewer may hear it). */
   onAudio?: (stream: MediaStream) => void;
+  /** The host's camera and microphone in a video call (silent until a call is on). */
+  onCallTrack?: (kind: "video" | "audio", stream: MediaStream) => void;
   onState?: (state: StreamState) => void;
   /** Control messages other than ping. */
   onControl?: (message: unknown) => void;
@@ -165,8 +167,38 @@ export class HostStream {
   // the offer it belongs to (with ICE restarts, it would belong to the new
   // credentials and fail against the old ones).
   private queue: Promise<void> = Promise.resolve();
+  // What this viewer sends in a video call: the senders of the host's
+  // receive-only lines, and the tracks on them (null: nothing).
+  private callSenders: { video?: RTCRtpSender; audio?: RTCRtpSender } = {};
+  private callTracks: { video: MediaStreamTrack | null; audio: MediaStreamTrack | null } = { video: null, audio: null };
 
   constructor(private readonly opts: HostStreamOptions) {}
+
+  /** Sends this viewer's camera and microphone in a call (null stops one); no new negotiation. */
+  async setCallMedia(video: MediaStreamTrack | null, audio: MediaStreamTrack | null): Promise<void> {
+    this.callTracks = { video, audio };
+    await this.applyCallMedia();
+  }
+
+  private async applyCallMedia(): Promise<void> {
+    const { video, audio } = this.callSenders;
+    await Promise.all([
+      video?.replaceTrack(this.callTracks.video).catch(() => undefined),
+      audio?.replaceTrack(this.callTracks.audio).catch(() => undefined),
+    ]);
+    // A face needs little: keep the camera light next to the screen.
+    if (video && this.callTracks.video) {
+      try {
+        const p = video.getParameters();
+        if (p.encodings?.[0]) {
+          p.encodings[0].maxBitrate = CALL_CAMERA_BPS;
+          await video.setParameters(p);
+        }
+      } catch {
+        // not every browser lets the parameters change: its default then
+      }
+    }
+  }
 
   /**
    * Starts listening to the host. backlog holds signals that arrived
@@ -353,8 +385,11 @@ export class HostStream {
       if (ev.candidate) this.sendSignal({ kind: "candidate", candidate: ev.candidate.toJSON() });
     };
     pc.ontrack = (ev) => {
-      if (ev.track.kind === "video") this.opts.onTrack?.(new MediaStream([ev.track]));
-      else if (ev.track.kind === "audio") this.opts.onAudio?.(new MediaStream([ev.track]));
+      const stream = new MediaStream([ev.track]);
+      const kind = ev.track.kind === "video" ? "video" : "audio";
+      if (ev.streams[0]?.id === CALL_STREAM_ID) this.opts.onCallTrack?.(kind, stream);
+      else if (kind === "video") this.opts.onTrack?.(stream);
+      else this.opts.onAudio?.(stream);
     };
     pc.ondatachannel = (ev) => {
       const ch = ev.channel;
@@ -399,6 +434,26 @@ export class HostStream {
     return pc;
   }
 
+  /**
+   * The host's receive-only lines are where this viewer's camera and
+   * microphone go in a call: they are answered send-only, with no track
+   * until a call starts, so a call needs no new negotiation.
+   */
+  private takeCallLines(pc: RTCPeerConnection, sdp: string): void {
+    const mids = recvonlyMids(sdp);
+    for (const tr of pc.getTransceivers()) {
+      if (tr.mid === null || !mids.has(tr.mid)) continue;
+      try {
+        tr.direction = "sendonly";
+      } catch {
+        continue;
+      }
+      const kind = tr.receiver.track.kind === "video" ? "video" : "audio";
+      this.callSenders[kind] = tr.sender;
+    }
+    if (this.callTracks.video || this.callTracks.audio) void this.applyCallMedia();
+  }
+
   private async handleSignal(payload: unknown): Promise<void> {
     if (this.closed) return;
     const decision = parseDecision(payload);
@@ -412,6 +467,7 @@ export class HostStream {
       try {
         const pc = this.ensurePeerConnection();
         await pc.setRemoteDescription({ type: "offer", sdp: sig.sdp });
+        this.takeCallLines(pc, sig.sdp);
         for (const c of this.pending.splice(0)) await pc.addIceCandidate(c).catch(() => undefined);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -426,4 +482,19 @@ export class HostStream {
       else if (this.pending.length < 50) this.pending.push(sig.candidate);
     }
   }
+}
+
+/** The stream id of a call's tracks (the host's callStreamID). */
+export const CALL_STREAM_ID = "go-link-desk-call";
+/** The most a viewer's camera sends in a call, bits per second. */
+export const CALL_CAMERA_BPS = 600_000;
+
+/** The mids of an SDP's media sections marked receive-only. */
+export function recvonlyMids(sdp: string): Set<string> {
+  const out = new Set<string>();
+  for (const section of sdp.split(/\r?\nm=/).slice(1)) {
+    const id = /^a=mid:(\S+)/m.exec(section)?.[1];
+    if (id && /^a=recvonly\r?$/m.test(section)) out.add(id);
+  }
+  return out;
 }

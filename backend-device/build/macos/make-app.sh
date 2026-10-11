@@ -4,7 +4,8 @@
 # Wraps a built host binary (one architecture or universal) in
 # go-link-desk.app: Info.plist, the icon and the signature. Ad hoc
 # signature by default; with a Developer ID, the hardened runtime and its
-# entitlements (none beyond the runtime itself).
+# entitlements (the camera and the microphone, for video calls; no code
+# exceptions).
 #
 # macOS ties Screen Recording and Accessibility permissions to the app's
 # signature and bundle ID: an ad hoc signature changes with every build, so

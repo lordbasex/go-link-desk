@@ -40,6 +40,11 @@ type Options struct {
 	SetPermissions func(models.Permissions)
 	// Chat is the session's chat, shown in the session panel (nil: none).
 	Chat *services.ChatService
+	// Call is the session's video call: its window (nil: none).
+	Call *services.CallService
+	// AskCalls hands the window's "wants a video call" question to the
+	// call (false: the call keeps its own, the tests' auto-accept).
+	AskCalls bool
 	// SetConsent hands the window's connection requests to the session
 	// (nil: the session keeps its own, the tests' auto-accept).
 	SetConsent func(services.Consent)
@@ -71,6 +76,7 @@ type ui struct {
 	panel    *sessionPanel
 	perms    *permissionsBox // nil where the system asks for nothing
 	copied   *time.Timer     // puts "Copy" back on the button
+	call     *callWindow     // nil without a call
 }
 
 // Run shows the window and the tray icon and blocks until the host stops.
@@ -83,6 +89,16 @@ func Run(opts Options) {
 	if opts.SetConsent != nil {
 		opts.SetConsent(u) // the request window asks from now on
 		defer opts.SetConsent(nil)
+	}
+	if opts.Call != nil {
+		u.call = u.newCallWindow(opts.Call)
+		if opts.AskCalls {
+			opts.Call.SetConsent(u)
+			defer opts.Call.SetConsent(nil)
+		}
+		opts.Call.OnStatus(func(st services.CallStatus) {
+			fyne.Do(func() { u.call.render(st) })
+		})
 	}
 	stopPerms := make(chan struct{})
 	defer close(stopPerms)

@@ -24,6 +24,11 @@
 	<string>13.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<!-- Shown by macOS the first time a video call turns them on. -->
+	<key>NSCameraUsageDescription</key>
+	<string>go-link Desk shows your camera to the person you are in a video call with, only during a call you accept.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>go-link Desk sends your voice to the person you are in a video call with, only during a call you accept.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

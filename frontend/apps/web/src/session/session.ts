@@ -72,6 +72,14 @@ export interface ChatLine {
   at: number; // ms since the epoch
 }
 
+/** A video call with the person at the host. */
+export interface CallState {
+  state: "idle" | "ringing" | "active" | "declined" | "ended";
+  /** The person at the host has their camera and microphone on. */
+  hostVideo: boolean;
+  hostAudio: boolean;
+}
+
 /** The most characters of a chat message (the host's MaxChat). */
 export const MAX_CHAT = 2000;
 /** The chat lines a session keeps. */
@@ -101,6 +109,10 @@ export interface SessionView {
   /** What was copied on the host, newest first by id. */
   hostClipboard: { id: number; text: string } | null;
   chat: ChatLine[];
+  call: CallState;
+  /** The host's camera and microphone in a call. */
+  callVideo: MediaStream | null;
+  callAudio: MediaStream | null;
   displays: HostDisplay[];
   display: number;
   /** Something about the host's picture ("no_screen_permission", "capture_failed"). */
@@ -132,7 +144,7 @@ export function isOver(s: SessionStatus): boolean {
  */
 export class Session {
   private view: SessionView = {
-    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], displays: [], display: 0, notice: null,
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null,
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
@@ -193,6 +205,7 @@ export class Session {
       },
       onTrack: (video) => this.set({ video }),
       onAudio: (audio) => this.set({ audio }),
+      onCallTrack: (kind, stream) => this.set(kind === "video" ? { callVideo: stream } : { callAudio: stream }),
       onState: (s) => {
         if (isOver(this.view.status) || this.view.status.kind === "waiting") return;
         if (s === "connected") this.set({ status: { kind: "live" } });
@@ -255,6 +268,25 @@ export class Session {
     if (!pieces) return false;
     for (const p of pieces) this.stream?.sendControl(p);
     return true;
+  }
+
+  /** Asks the person at the host for a video call, saying what this side sends. */
+  requestCall(video: boolean, audio: boolean): void {
+    this.set({ call: { state: "ringing", hostVideo: false, hostAudio: false } });
+    this.stream?.sendControl({ type: "call_request", video, audio });
+  }
+
+  /** Sends this viewer's camera and microphone (null or disabled: off), and tells the host. */
+  async setCallMedia(video: MediaStreamTrack | null, audio: MediaStreamTrack | null): Promise<void> {
+    await this.stream?.setCallMedia(video, audio);
+    this.stream?.sendControl({ type: "call_media", video: !!video && video.enabled, audio: !!audio && audio.enabled });
+  }
+
+  /** Hangs up the call. */
+  endCall(): void {
+    void this.stream?.setCallMedia(null, null);
+    this.stream?.sendControl({ type: "call_end" });
+    this.set({ call: { state: "ended", hostVideo: false, hostAudio: false } });
   }
 
   /** Writes to the person at the host. */
@@ -324,6 +356,13 @@ export class Session {
         if (text !== null && this.view.permissions?.clipboard) this.set({ hostClipboard: { id: (this.view.hostClipboard?.id ?? 0) + 1, text } });
         break;
       }
+      case "call_state": {
+        const states = ["idle", "ringing", "active", "declined", "ended"] as const;
+        const state = states.find((s) => s === m.state);
+        if (state) this.set({ call: { state, hostVideo: m.host_video === true, hostAudio: m.host_audio === true } });
+        if (state === "declined" || state === "ended") void this.stream?.setCallMedia(null, null);
+        break;
+      }
       case "chat": {
         const text = typeof m.text === "string" ? m.text.slice(0, MAX_CHAT) : "";
         if (text) this.addChat({ fromHost: true, text, at: Date.now() });
@@ -347,7 +386,7 @@ export class Session {
     this.offLeft = null;
     this.stream?.close();
     this.opts.client.close();
-    this.set({ status, video: null, audio: null });
+    this.set({ status, video: null, audio: null, callVideo: null, callAudio: null, call: { state: "idle", hostVideo: false, hostAudio: false } });
   }
 }
 

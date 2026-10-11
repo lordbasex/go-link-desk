@@ -30,6 +30,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/repositories"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/beacon"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/camera"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/clipboard"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
@@ -214,14 +215,30 @@ func run(args []string) error {
 	}
 	clip := services.NewClipboardService(board, stream.SendControl, input.Paste, logger)
 	chat := services.NewChatService(stream.SendControl, logger)
+	// The video call: the computer's camera and microphone with the real
+	// screen, a test card and a tone with the test card.
+	var callMedia services.CallMedia = services.SystemCallMedia{}
+	if source != "screen" || !camera.Supported {
+		callMedia = services.TestCallMedia{Log: logger}
+	}
+	call := services.NewCallService(stream, callMedia, logger)
+	if f.autoAccept {
+		call.SetConsent(services.AutoAcceptCall)
+	}
 	session.OnPermissions(func(peer string, p models.Permissions) {
 		input.Allow(peer, p.Control)
 		stream.SetAudio(peer, p.Audio)
 		clip.Allow(peer, p.Clipboard && shareClipboard)
 		if p.View {
 			chat.SetPeer(peer)
+			name := ""
+			if st := status.Snapshot(); st.Session != nil && st.Session.Active != nil {
+				name = st.Session.Active.Name
+			}
+			call.SetPeer(peer, name)
 		} else {
 			chat.SetPeer("")
+			call.SetPeer("", "")
 		}
 		if p.Control && !input.Trusted() {
 			logger.Warn("the viewer may control, but this app may not move the mouse or type yet: allow it in System Settings › Privacy & Security › Accessibility")
@@ -232,6 +249,9 @@ func run(args []string) error {
 	controllers.SessionRoutes(control, session)
 	control.Handle("clipboard", clip.Handle)
 	control.Handle("chat", chat.Handle)
+	for _, kind := range []string{"call_request", "call_media", "call_end"} {
+		control.Handle(kind, func(peer string, data []byte) { call.HandleControl(peer, kind, data) })
+	}
 	stream.OnControl(control.Dispatch)
 	stream.OnClosed(session.StreamClosed)
 	stream.OnStats(status.SetStream)
@@ -278,6 +298,7 @@ func run(args []string) error {
 		},
 		setPermissions: session.SetPermissions,
 		chat:           chat,
+		call:           call,
 		webURL:         web,
 		language:       cfg.Language,
 		logger:         logger,

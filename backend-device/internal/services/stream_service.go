@@ -147,6 +147,7 @@ type viewer struct {
 	control *webrtc.DataChannel
 	video   *webrtc.TrackLocalStaticSample
 	audio   *webrtc.TrackLocalStaticSample
+	call    *callTracks // the video call's media
 	// hears: the viewer may hear the computer's sound (Permissions.Audio).
 	hears atomic.Bool
 	codec string        // CodecH264High, CodecH264 or CodecVP8
@@ -189,28 +190,29 @@ type StreamService struct {
 	encRetry map[string]time.Time // an encoder that failed is tried again then
 	sound    audioPipe
 
-	mu        sync.Mutex
-	sender    Sender
-	viewers   map[string]*viewer
-	source    MediaSource
-	pings     map[uint64]time.Time
-	pingSeq   uint64
-	rtt       map[string]int  // the last round trip per viewer, ms
-	hearing   map[string]bool // the viewers that may hear the sound
-	stats     map[string]streamStats
-	sizes     map[string][2]int // each viewer's picture size
-	want      VideoWant         // the latest viewer's wishes
-	display   uint32            // the display chosen (0: the main one)
-	displays  []screencap.Display
-	beacon    uint16 // the latency beacon's state, flipped by the viewer
-	rung      int    // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
-	changed   chan struct{}
-	onControl func(peerID, kind string, data []byte)
-	onClosed  func(peerID, reason string)
-	onStats   func(models.StreamStatus)
-	onBeacon  func(on bool, d screencap.Display)
-	onInput   func(peerID, channel string, data []byte)
-	onStall   func(peerID string)
+	mu          sync.Mutex
+	sender      Sender
+	viewers     map[string]*viewer
+	source      MediaSource
+	pings       map[uint64]time.Time
+	pingSeq     uint64
+	rtt         map[string]int  // the last round trip per viewer, ms
+	hearing     map[string]bool // the viewers that may hear the sound
+	stats       map[string]streamStats
+	sizes       map[string][2]int // each viewer's picture size
+	want        VideoWant         // the latest viewer's wishes
+	display     uint32            // the display chosen (0: the main one)
+	displays    []screencap.Display
+	beacon      uint16 // the latency beacon's state, flipped by the viewer
+	rung        int    // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	changed     chan struct{}
+	onControl   func(peerID, kind string, data []byte)
+	onClosed    func(peerID, reason string)
+	onStats     func(models.StreamStatus)
+	onBeacon    func(on bool, d screencap.Display)
+	onInput     func(peerID, channel string, data []byte)
+	onStall     func(peerID string)
+	onCallTrack func(peerID string, track *webrtc.TrackRemote)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -818,14 +820,10 @@ func (s *StreamService) AddViewer(peerID string, codecs []string) error {
 	if err != nil {
 		return fail(err)
 	}
-	go func() { // read its RTCP so the interceptors get it
-		buf := make([]byte, 1500)
-		for {
-			if _, _, err := audioSender.Read(buf); err != nil {
-				return
-			}
-		}
-	}()
+	go drainRTCP(audioSender)
+	if err := s.addCallTracks(v); err != nil {
+		return fail(err)
+	}
 	// Read RTCP: a Picture Loss Indication means this viewer cannot decode
 	// and needs a keyframe (only this viewer's encoder makes one).
 	go func() {

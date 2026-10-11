@@ -2,8 +2,15 @@
 <!-- Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com> -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- The hardened runtime with no exceptions: the host loads no library
+<!-- The hardened runtime with no code exceptions: the host loads no library
      that is not part of macOS or linked into its own binary, so it needs
-     no com.apple.security.cs.* entitlement. -->
-<dict/>
+     no com.apple.security.cs.* entitlement. The only two are the devices a
+     video call uses, which the hardened runtime blocks otherwise; macOS
+     still asks the person before the first use. -->
+<dict>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
 </plist>

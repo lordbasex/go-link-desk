@@ -63,6 +63,9 @@ function fakePC(log: string[]) {
       return { type: "answer", sdp: "ans" };
     }
     async setLocalDescription() {}
+    getTransceivers() {
+      return [];
+    }
     close() {
       log.push("close");
     }
@@ -112,5 +115,13 @@ describe("videoCodecs", () => {
     expect(videoCodecs(caps).sort()).toEqual(["h264", "h264-high", "vp8"]);
     expect(videoCodecs({ codecs: [], headerExtensions: [] })).toEqual(["vp8"]);
     expect(videoCodecs(null)).toEqual(["vp8"]);
+  });
+});
+
+describe("recvonlyMids", () => {
+  it("finds the host's receive-only lines, where a call's camera and microphone go", async () => {
+    const { recvonlyMids } = await import("../src/stream");
+    const sdp = ["v=0", "m=video 9 UDP/TLS/RTP/SAVPF 114", "a=mid:0", "a=sendonly", "m=audio 9 UDP/TLS/RTP/SAVPF 111", "a=mid:1", "a=sendonly", "m=video 9 UDP/TLS/RTP/SAVPF 106", "a=mid:4", "a=recvonly", "m=audio 9 UDP/TLS/RTP/SAVPF 111", "a=mid:5", "a=recvonly", "m=application 9 UDP/DTLS/SCTP webrtc-datachannel", "a=mid:6", ""].join("\r\n");
+    expect([...recvonlyMids(sdp)]).toEqual(["4", "5"]);
   });
 });

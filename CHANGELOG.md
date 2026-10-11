@@ -4,6 +4,15 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added (video call, phase 4b)
+
+- **A video call between the viewer and the person at the host,** both ways: the viewer asks from the session's toolbar, the person at the host takes it (choosing camera and microphone) or not, and each side can mute, turn the camera off or hang up.
+- **On the host:** the camera with AVFoundation, the microphone with the system's echo cancellation (AVAudioEngine voice processing), the viewer's camera decoded by VideoToolbox in a call window, and its voice played. No new dependencies.
+- **On the website:** a call panel with the host's camera large and the viewer's own small, using the browser's camera and microphone with echo cancellation.
+- **No new negotiation:** a call's media is in every offer and starts with `replaceTrack`.
+- **macOS:** the camera and audio-input entitlements and their usage texts in Info.plist.
+- **End-to-end test:** a fake camera and microphone in Chromium; the host sees and hears the viewer, the viewer sees the host's test card and hears its tone, and a click on the call's video never reaches the host.
+
 ### Added (sound, clipboard and chat, phase 4)
 
 - **The computer's sound** in the browser: ScreenCaptureKit captures it (without the host's own) and Opus carries it at 96 kbps stereo, only to a viewer allowed to hear it. The page asks for a click if the browser blocks autoplay, and has a mute button. The test card plays its 1 kHz tone.

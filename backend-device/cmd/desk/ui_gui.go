@@ -24,6 +24,8 @@ func runUI(o uiOptions) {
 		EndSession:     o.endSession,
 		SetPermissions: o.setPermissions,
 		Chat:           o.chat,
+		Call:           o.call,
+		AskCalls:       o.setConsent != nil,
 		SetConsent:     o.setConsent,
 		WebURL:         o.webURL,
 		Language:       o.language,

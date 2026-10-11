@@ -100,6 +100,19 @@ browser: pointer, buttons, wheel, keys ──pointer (unordered) / input (reliab
 - **Chat** travels on `control`. The host shows it in the session panel without ever taking the focus (the viewer may be typing into another app); its log records a message's length, never its words.
 - **Tablets and phones.** A finger drives the host's pointer like a touchpad (drag to move, tap to click, two fingers to right-click or scroll), because a finger is too coarse to click where it lands; the host's pointer is drawn. A touchscreen keyboard sends text rather than keys, so what it inserts goes as `text`, and its Backspace and Return as keys.
 
+## Video call
+
+```
+browser camera (H.264) ──► samplebuilder ──► VideoToolbox decoder ──► the call window
+browser microphone (Opus) ──► libopus ──► AVAudioEngine (voice processing) ──► speaker
+host camera (AVFoundation, NV12) ──► VideoToolbox H.264 ──► the viewer's call track
+host microphone ──► AVAudioEngine (echo cancellation) ──► Opus ──► the viewer's call track
+```
+
+- **The other side's voice and the host's microphone share one AVAudioEngine** with voice processing: what the speaker plays is taken out of what the microphone hears (echo cancellation), and the computer's other sound keeps its volume. ScreenCaptureKit leaves the host's own process out, so the viewer never hears its own voice back.
+- **The camera is light:** 640×480 at 24 fps and 600 kbps each way, next to the screen.
+- **Hosts without a camera** (and the end-to-end tests) send the test card and a 440 Hz tone instead.
+
 ## The website
 
 desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts/deploy-web.sh`, `make web-deploy`), with the same Content Security Policy as the build's, HSTS, and a Permissions-Policy that allows the camera, microphone and clipboard only to the site itself. Pages are revalidated on every visit and hashed assets are cached for a year, so a deploy shows at once. The deploy user may only write that bucket and invalidate that distribution.
@@ -162,4 +175,5 @@ The host is one self-contained program: no installer, no administrator rights, n
 - **Control has one checkbox,** "Use your mouse and keyboard": a viewer that may control the mouse but not the keyboard is not a useful permission, and one checkbox reads clearly in a request dialog.
 - **The host applies the modifiers a key comes with** rather than only the ones whose presses it saw: a viewer that held Shift before the page had the focus still types a capital.
 - **Sound, clipboard and control are separate boxes, all unticked:** each is a different risk (hearing a call, reading what was copied, using the computer), and the person at the computer picks each one.
+- **A video call is asked for during the session, not in the connection request:** it is a moment, not a standing permission; the person at the host answers it then, with their camera and microphone as boxes.
 - **Audio comes with its phase.** The test card's 1 kHz tone is not sent yet: audio, its permission and the browser's autoplay unlock arrive together in phase 4.

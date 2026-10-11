@@ -49,10 +49,15 @@ func (p *vp8Payloader) Payload(mtu uint16, payload []byte) [][]byte {
 
 // newVideoTrack makes a video track; VP8 ones use vp8Payloader.
 func newVideoTrack(c webrtc.RTPCodecCapability) (*webrtc.TrackLocalStaticSample, error) {
+	return newVideoTrackID(c, "video", "go-link-desk")
+}
+
+// newVideoTrackID is newVideoTrack with its own track and stream ids.
+func newVideoTrackID(c webrtc.RTPCodecCapability, id, stream string) (*webrtc.TrackLocalStaticSample, error) {
 	if !strings.EqualFold(c.MimeType, webrtc.MimeTypeVP8) {
-		return webrtc.NewTrackLocalStaticSample(c, "video", "go-link-desk")
+		return webrtc.NewTrackLocalStaticSample(c, id, stream)
 	}
-	return webrtc.NewTrackLocalStaticSample(c, "video", "go-link-desk", webrtc.WithPayloader(func(webrtc.RTPCodecCapability) (rtp.Payloader, error) {
+	return webrtc.NewTrackLocalStaticSample(c, id, stream, webrtc.WithPayloader(func(webrtc.RTPCodecCapability) (rtp.Payloader, error) {
 		return &vp8Payloader{}, nil
 	}))
 }

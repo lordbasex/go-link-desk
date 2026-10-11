@@ -21,7 +21,8 @@ export default defineConfig({
     locale: "en-US",
     trace: "retain-on-failure",
     launchOptions: {
-      args: ["--autoplay-policy=no-user-gesture-required", "--mute-audio"],
+      // A fake camera and microphone, allowed without asking, for the video call.
+      args: ["--autoplay-policy=no-user-gesture-required", "--mute-audio", "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
     },
   },
   projects: [{ name: "chromium" }],
