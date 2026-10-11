@@ -350,11 +350,32 @@ func (f *FilesService) abortUpload(peerID string, reason error) {
 
 // ---- browsing and downloads ----
 
+// privateFolders are folders of the home a viewer never sees, besides the
+// hidden ones: macOS keeps keychains, cookies, mail and app data there.
+var privateFolders = map[string]bool{"Library": true}
+
+// private reports whether a path relative to home goes through a hidden
+// file or folder, or a private folder.
+func private(rel string) bool {
+	segs := strings.Split(filepath.ToSlash(rel), "/")
+	for _, seg := range segs {
+		if strings.HasPrefix(seg, ".") && seg != "." {
+			return true
+		}
+	}
+	return len(segs) > 0 && privateFolders[segs[0]]
+}
+
 // resolve maps a path relative to home to the file it names, refusing
-// anything that leaves home (.., absolute paths, symbolic links out).
+// anything that leaves home (.., absolute paths, symbolic links out) or
+// goes through a hidden or private folder, before or after following
+// symbolic links.
 func (f *FilesService) resolve(rel string) (string, error) {
 	if strings.ContainsRune(rel, 0) || filepath.IsAbs(rel) {
 		return "", errors.New("not a path in the home folder")
+	}
+	if private(rel) {
+		return "", errors.New("not found")
 	}
 	p := filepath.Join(f.home, filepath.FromSlash(rel))
 	real, err := filepath.EvalSymlinks(p)
@@ -367,6 +388,9 @@ func (f *FilesService) resolve(rel string) (string, error) {
 	}
 	if real != home && !strings.HasPrefix(real, home+string(filepath.Separator)) {
 		return "", errors.New("not a path in the home folder")
+	}
+	if inside, err := filepath.Rel(home, real); err != nil || private(inside) {
+		return "", errors.New("not found") // a link into a hidden or private folder
 	}
 	return real, nil
 }
@@ -392,8 +416,8 @@ func (f *FilesService) list(peerID string, m filesMsg) {
 	}
 	entries := make([]fileEntry, 0, len(des))
 	for _, d := range des {
-		if strings.HasPrefix(d.Name(), ".") {
-			continue // hidden files stay hidden
+		if strings.HasPrefix(d.Name(), ".") || (dir == f.homeReal() && privateFolders[d.Name()]) {
+			continue // hidden and private ones stay hidden
 		}
 		info, err := d.Info()
 		if err != nil {
@@ -505,4 +529,12 @@ func (f *FilesService) closeDownload(peerID, id string, done bool) {
 func (f *FilesService) Abort(peerID string) {
 	f.abortUpload(peerID, errors.New("connection closed"))
 	f.closeDownload(peerID, "", false)
+}
+
+// homeReal is the home folder with its symbolic links followed.
+func (f *FilesService) homeReal() string {
+	if real, err := filepath.EvalSymlinks(f.home); err == nil {
+		return real
+	}
+	return f.home
 }

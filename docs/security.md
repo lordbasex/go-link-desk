@@ -42,7 +42,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 ### Files
 
 - Files move only with their permission, unticked by default; taking it back stops the transfers.
-- A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and hidden files are not listed.
+- A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and never a hidden file or folder (`.ssh`, `.aws`…) or `~/Library` (keychains, cookies, mail): they are neither listed nor downloadable, also through a symbolic link with a plain name.
 - What a viewer sends lands only in Downloads/go-link Desk, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
 - Every file sent or received is logged with the viewer's id, its name and size.
 

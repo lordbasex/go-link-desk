@@ -120,6 +120,11 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	outside := t.TempDir()
 	_ = os.WriteFile(filepath.Join(outside, "passwd"), []byte("root"), 0o644)
 	_ = os.Symlink(outside, filepath.Join(home, "escape"))
+	_ = os.MkdirAll(filepath.Join(home, ".ssh"), 0o700)
+	_ = os.WriteFile(filepath.Join(home, ".ssh", "id_ed25519"), []byte("key"), 0o600)
+	_ = os.MkdirAll(filepath.Join(home, "Library", "Keychains"), 0o700)
+	_ = os.WriteFile(filepath.Join(home, "Library", "Keychains", "login.keychain-db"), []byte("k"), 0o600)
+	_ = os.Symlink(filepath.Join(home, ".ssh"), filepath.Join(home, "keys")) // a plain name pointing at a hidden folder
 
 	f.Handle("P", true, msg(map[string]any{"type": "list", "id": "l1", "path": ""}))
 	r := w.last()
@@ -130,10 +135,10 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	for _, e := range r["entries"].([]any) {
 		names = append(names, e.(map[string]any)["name"].(string))
 	}
-	if len(names) != 2 || names[0] != "Documents" || names[1] != "escape" {
+	if len(names) != 3 || names[0] != "Documents" || names[1] != "escape" || names[2] != "keys" {
 		t.Fatalf("listing %v (hidden files must not show)", names)
 	}
-	for _, p := range []string{"../", "escape/passwd", "escape", "/etc/passwd"} {
+	for _, p := range []string{"../", "escape/passwd", "escape", "/etc/passwd", ".ssh/id_ed25519", ".ssh", "Documents/../.ssh/id_ed25519", "Library", "Library/Keychains/login.keychain-db", "keys/id_ed25519", "keys"} {
 		f.Handle("P", true, msg(map[string]any{"type": "download", "id": "x", "path": p}))
 		if got := w.last(); got["type"] != "download_error" {
 			t.Fatalf("%q: %v", p, got)
