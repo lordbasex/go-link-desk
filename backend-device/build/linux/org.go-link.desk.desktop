@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=go-link Desk
+GenericName=Remote desktop
+GenericName[es]=Escritorio remoto
+GenericName[pt]=Área de trabalho remota
+Comment=Share your screen or use another computer with a 9-digit code
+Comment[es]=Compartí tu pantalla o usá otra computadora con un código de 9 dígitos
+Comment[pt]=Compartilhe a sua tela ou use outro computador com um código de 9 dígitos
+Exec=go-link-desk
+Icon=org.go-link.desk
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=remote;desktop;support;screen;share;
+StartupWMClass=org.go-link.desk
+StartupNotify=false

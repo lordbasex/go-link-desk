@@ -9,6 +9,7 @@ import (
 	"context"
 	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -113,6 +114,12 @@ type ui struct {
 
 // Run shows the window and the tray icon and blocks until the host stops.
 func Run(opts Options) {
+	// On X11 the windows' class is what ties them to the app's desktop
+	// file (StartupWMClass); GLFW takes it from RESOURCE_NAME, else each
+	// window's title.
+	if os.Getenv("RESOURCE_NAME") == "" {
+		_ = os.Setenv("RESOURCE_NAME", appID)
+	}
 	a := app.NewWithID(appID)
 	icon := trayicon.AppPNG()
 	if opts.Settings != nil {
