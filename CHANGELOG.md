@@ -4,8 +4,14 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-12
+
+go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 and Wayland. Also the new website, Android ready for Google Play, and fixes.
+
 ### Added
 
+- **The Linux release** (`make linux-package-amd64`, also `-arm64`): `go-link-desk-<version>-linux-<arch>.tar.gz` with the host, its menu entry and icons, and `install.sh`, which installs them for the user (no root; `--uninstall` removes them). Needs glibc 2.34 (Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9 or newer). The windows carry the app's ID (`RESOURCE_NAME` on X11, the app ID on Wayland), so the desktop shows the app's icon and name.
+- **The website says Linux is here:** the computer you share is macOS or Linux today (Windows coming), with a Linux download card and footer link, in the three languages.
 - **The Linux host** (phase 7): a Linux desktop shares its screen as a Mac does, in an X11 (Xorg) or a Wayland session, with the same window, consent, session panel and settings. Tested on Ubuntu 24.04 with GNOME (Xorg and Wayland) and KDE Plasma 5.27 (X11 and Wayland): the picture, the pointer, clicks and right clicks, keys by position, typed text (ñ, €, accents, ¿), the clipboard both ways, the sound, keeping the display awake and locking the screen when a session ends.
   - **X11:** the screen (XShm, every monitor with XRandR), the pointer (XFixes), the mouse and keyboard (XTest, with characters the layout lacks), the clipboard (CLIPBOARD).
   - **Wayland, through the desktop's remote desktop portal:** the screen as PipeWire streams, the pointer as their metadata, the mouse and keyboard through the portal (one call at a time: the portal handles them on many threads, which shuffled typed text), typed text by the keys of the desktop's layout with their Shift or AltGr, accented letters by their dead key and anything else through IBus's Unicode entry. The desktop asks the person once (GNOME's dialog); its restore token lets later sessions start without asking, unless the mouse and keyboard were not allowed. The clipboard through the data-control protocol on KDE Plasma, Sway and Hyprland, and through XWayland on GNOME. libpipewire is loaded at run time: a system without it still runs the host.
