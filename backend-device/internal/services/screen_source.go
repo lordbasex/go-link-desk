@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -18,9 +19,13 @@ import (
 const (
 	NoticeNoScreenPermission = "no_screen_permission" // showing the test card instead
 	NoticeCaptureFailed      = "capture_failed"
-	// NoticeWayland: a Linux desktop in a Wayland session, whose screen
-	// cannot be read yet; an Xorg session can.
+	// NoticeWayland: a Linux desktop in a Wayland session without the
+	// remote desktop portal (or PipeWire), whose screen cannot be read; an
+	// Xorg session can.
 	NoticeWayland = "wayland_session"
+	// NoticeShareDenied: the person at the computer did not allow sharing
+	// the screen (a Wayland desktop asks them).
+	NoticeShareDenied = "share_denied"
 )
 
 // When a still screen sends its last frame again: a few times after it
@@ -68,7 +73,7 @@ func (src *ScreenSource) Run(ctx context.Context, sink MediaSink) error {
 		}
 		if !screencap.Supported || !screencap.HasAccess() {
 			if screencap.Problem() == screencap.ProblemWayland {
-				src.Log.Warn("cannot record the screen of a Wayland session; log in with an Xorg session. Showing the test card")
+				src.Log.Warn("cannot record the screen of this Wayland session (no remote desktop portal or PipeWire); log in with an Xorg session. Showing the test card")
 				sink.Notice(NoticeWayland)
 			} else {
 				src.Log.Warn("cannot record the screen: no Screen Recording permission; showing the test card")
@@ -77,7 +82,11 @@ func (src *ScreenSource) Run(ctx context.Context, sink MediaSink) error {
 			src.fallback(ctx, sink)
 			continue
 		}
-		if err := src.capture(ctx, sink); err != nil {
+		if err := src.capture(ctx, sink); errors.Is(err, screencap.ErrDenied) {
+			src.Log.Warn("sharing the screen was not allowed at the computer; showing the test card")
+			sink.Notice(NoticeShareDenied)
+			src.fallback(ctx, sink)
+		} else if err != nil {
 			src.Log.Error("screen capture failed; showing the test card", "err", err)
 			sink.Notice(NoticeCaptureFailed)
 			src.fallback(ctx, sink)

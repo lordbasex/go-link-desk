@@ -65,15 +65,27 @@ import (
 	"image/png"
 	"sync"
 	"unsafe"
+
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/portal"
 )
 
 // Linux reads the pointer of an X11 desktop: XQueryPointer and XFixes, on
-// a display connection of its own.
+// a display connection of its own. A Wayland desktop tells no program
+// where its pointer is: the screen's streams carry it, and the capture
+// leaves it in the portal package.
 
 var mu sync.Mutex
 
-// Position is where the pointer is, in the root window's pixels.
+// Position is where the pointer is, in the root window's pixels (the
+// desktop's, on Wayland; off every display while it is hidden).
 func Position() (x, y float64) {
+	if portal.Wayland() {
+		p := portal.CurrentPointer()
+		if !p.Known || !p.Visible {
+			return -1e6, -1e6
+		}
+		return p.X, p.Y
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	var cx, cy C.int
@@ -90,6 +102,9 @@ var last struct {
 
 // Current is the pointer's image now.
 func Current() (Shape, error) {
+	if portal.Wayland() {
+		return waylandShape()
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	var w, h, hx, hy C.int
@@ -102,16 +117,47 @@ func Current() (Shape, error) {
 	if last.shape.ID != "" && serial == last.serial {
 		return last.shape, nil
 	}
-	img := &image.NRGBA{Pix: C.GoBytes(unsafe.Pointer(pix), w*h*4), Stride: int(w) * 4, Rect: image.Rect(0, 0, int(w), int(h))}
+	s, err := shapeOf(C.GoBytes(unsafe.Pointer(pix), w*h*4), int(w), int(h), int(hx), int(hy))
+	if err != nil {
+		return Shape{}, err
+	}
+	last.serial, last.shape = serial, s
+	return s, nil
+}
+
+var lastWayland struct {
+	serial uint64
+	shape  Shape
+}
+
+func waylandShape() (Shape, error) {
+	p := portal.CurrentPointer()
+	if !p.Shape || len(p.RGBA) == 0 {
+		return Shape{}, errors.New("cursor: no image")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if lastWayland.shape.ID != "" && p.Serial == lastWayland.serial {
+		return lastWayland.shape, nil
+	}
+	s, err := shapeOf(p.RGBA, p.W, p.H, p.HotX, p.HotY)
+	if err != nil {
+		return Shape{}, err
+	}
+	lastWayland.serial, lastWayland.shape = p.Serial, s
+	return s, nil
+}
+
+// shapeOf makes a Shape of a straight RGBA image.
+func shapeOf(rgba []byte, w, h, hx, hy int) (Shape, error) {
+	img := &image.NRGBA{Pix: rgba, Stride: w * 4, Rect: image.Rect(0, 0, w, h)}
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return Shape{}, err
 	}
 	data := buf.Bytes()
 	sum := sha256.Sum256(data)
-	s := Shape{ID: hex.EncodeToString(sum[:8]), PNG: data, HotX: int(hx), HotY: int(hy), Width: int(w), Height: int(h), PointsWidth: int(w), PointsHeight: int(h)}
-	last.serial, last.shape = serial, s
-	return s, nil
+	return Shape{ID: hex.EncodeToString(sum[:8]), PNG: data, HotX: hx, HotY: hy, Width: w, Height: h, PointsWidth: w, PointsHeight: h}, nil
 }
 
 // Supported reports whether this build reads the pointer.

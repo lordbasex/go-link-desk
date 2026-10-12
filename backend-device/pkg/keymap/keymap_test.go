@@ -60,3 +60,45 @@ func TestFromMac(t *testing.T) {
 		t.Error("an unknown key has a keycode")
 	}
 }
+
+// Evdev codes, the ones Linux's input.h gives these keys.
+func TestEvdev(t *testing.T) {
+	for code, want := range map[string]int{
+		"KeyA": 30, "Escape": 1, "Digit1": 2, "Enter": 28, "Space": 57, "F12": 88,
+		"IntlBackslash": 86, "ArrowUp": 103, "ControlRight": 97, "MetaLeft": 125,
+		"NumpadEnter": 96, "F13": 183, "Delete": 111, "Fn": -1,
+	} {
+		k, _ := Lookup(Index(code))
+		if got := k.Evdev(); got != want {
+			t.Errorf("%s: evdev %d, want %d", code, got, want)
+		}
+	}
+	if got := EvdevOfX11(0xff52); got != 103 { // XK_Up
+		t.Errorf("XK_Up: evdev %d, want 103", got)
+	}
+	if got := EvdevOfX11(0x1234567); got != -1 {
+		t.Errorf("unknown keysym: evdev %d, want -1", got)
+	}
+}
+
+// Accented letters split into a dead key and the letter.
+func TestDeadKey(t *testing.T) {
+	for _, c := range []struct {
+		r    rune
+		dead int
+		base rune
+		ok   bool
+	}{
+		{'á', 0xfe51, 'a', true}, {'É', 0xfe51, 'E', true}, {'ü', 0xfe57, 'u', true},
+		{'ç', 0xfe5b, 'c', true}, {'ã', 0xfe53, 'a', true}, {'ñ', 0xfe53, 'n', true},
+		{'ô', 0xfe52, 'o', true}, {'a', 0, 0, false}, {'€', 0, 0, false}, {'¿', 0, 0, false},
+	} {
+		dead, base, ok := DeadKey(c.r)
+		if dead != c.dead || base != c.base || ok != c.ok {
+			t.Errorf("%c: %#x %c %v, want %#x %c %v", c.r, dead, base, ok, c.dead, c.base, c.ok)
+		}
+	}
+	if Keysym('é') != 0xe9 || Keysym('€') != 0x010020ac || Keysym('\n') != 0xff0d {
+		t.Error("keysyms")
+	}
+}

@@ -194,6 +194,15 @@ dk_frame *dk_grab(dk_cap *c, int x, int y, int w, int h, int ow, int oh, int cur
 	c->prev_w = ow;
 	c->prev_h = oh;
 
+	return dk_scale((const uint8_t *)c->img->data, c->img->bytes_per_line, w, h, ow, oh, 0);
+}
+
+// Black bars where the shapes differ; each output pixel averages the
+// source pixels under it.
+dk_frame *dk_scale(const uint8_t *src, int bpl, int w, int h, int ow, int oh, int rgb) {
+	ow &= ~1;
+	oh &= ~1;
+	int ri = rgb ? 0 : 2, bi = rgb ? 2 : 0;
 	dk_frame *f = calloc(1, sizeof *f);
 	f->refs = 1;
 	f->w = ow;
@@ -209,8 +218,6 @@ dk_frame *dk_grab(dk_cap *c, int x, int y, int w, int h, int ow, int oh, int cur
 	int fw = ((int)(w * s)) & ~1, fh = ((int)(h * s)) & ~1;
 	int fx = ((ow - fw) / 2) & ~1, fy = ((oh - fh) / 2) & ~1;
 	if (fw < 2 || fh < 2) return f;
-	const uint8_t *src = (const uint8_t *)c->img->data;
-	int bpl = c->img->bytes_per_line;
 	// Each output pixel averages the source pixels under it (a box filter:
 	// text stays readable when the picture is smaller than the screen).
 	int *x0 = malloc(sizeof(int) * (fw + 1));

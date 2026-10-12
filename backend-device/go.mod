@@ -4,6 +4,7 @@ go 1.26.9
 
 require (
 	fyne.io/fyne/v2 v2.8.1
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
 	github.com/pion/interceptor v0.1.49
@@ -16,6 +17,7 @@ require (
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
+	golang.org/x/text v0.42.0
 	modernc.org/sqlite v1.60.1
 )
 
@@ -36,7 +38,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-text/render v0.2.1 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hack-pad/go-indexeddb v0.3.2 // indirect
 	github.com/hack-pad/safejs v0.1.0 // indirect
@@ -71,7 +72,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

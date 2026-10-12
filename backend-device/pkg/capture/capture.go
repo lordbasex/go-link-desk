@@ -16,6 +16,10 @@ import (
 // no program read the screen without its portal (Linux).
 const ProblemWayland = "wayland"
 
+// ErrDenied: the person at the computer did not allow sharing the screen
+// (a Wayland desktop's portal asks them).
+var ErrDenied = errors.New("capture: sharing the screen was not allowed")
+
 // ErrUnsupported: this system has no screen capture in this build.
 var ErrUnsupported = errors.New("capture: not supported on this system")
 

@@ -17,35 +17,58 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/portal"
 )
 
-// Linux: the screen of an X11 desktop (XShm). A Wayland session lets no
-// program read the screen this way: there HasAccess is false and Problem
-// says why, and sessions show the test card.
+// Linux: the screen of an X11 desktop (XShm), or of a Wayland one through
+// its remote desktop portal and PipeWire (wayland_linux.go). A Wayland
+// desktop without the portal (or without PipeWire) cannot be captured:
+// there HasAccess is false and Problem says why, and sessions show the
+// test card.
 
 // Supported reports whether this build captures the screen.
 const Supported = true
 
 // Problem is why the screen cannot be captured now ("" when it can).
 func Problem() string {
+	if portal.Wayland() {
+		if waylandReady() {
+			return ""
+		}
+		return ProblemWayland
+	}
 	if C.dk_x11_ready() == 0 {
 		return ProblemWayland
 	}
 	return ""
 }
 
-// HasAccess reports whether the screen can be captured: an X11 desktop.
+// HasAccess reports whether the screen can be captured.
 func HasAccess() bool { return Problem() == "" }
 
-// RequestAccess has nothing to ask on Linux.
+// RequestAccess has nothing to ask ahead on Linux (a Wayland desktop asks
+// when the capture starts).
 func RequestAccess() bool { return HasAccess() }
 
 // Displays lists the monitors, the primary one first-class (IDs from 1).
 func Displays() ([]Display, error) {
+	if portal.Wayland() {
+		return waylandDisplays(), nil
+	}
+	ds := x11Displays()
+	if ds == nil {
+		return nil, ErrUnsupported
+	}
+	return ds, nil
+}
+
+// x11Displays are the X server's monitors (XRandR); nil without one.
+func x11Displays() []Display {
 	var mons [16]C.dk_monitor
 	n := int(C.dk_monitors(&mons[0], 16))
-	if n < 0 {
-		return nil, ErrUnsupported
+	if n <= 0 {
+		return nil
 	}
 	out := make([]Display, 0, n)
 	for i := 0; i < n; i++ {
@@ -57,7 +80,7 @@ func Displays() ([]Display, error) {
 			X: int(m.x), Y: int(m.y), Primary: m.primary != 0,
 		})
 	}
-	return out, nil
+	return out
 }
 
 // Stream is a running capture: a goroutine on its own thread that grabs
@@ -79,7 +102,11 @@ func Start(cfg Config, onFrame func(Frame), onErr func(error)) (*Stream, error) 
 	}
 	s := &Stream{cfg: cfg, stop: make(chan struct{}), done: make(chan struct{}), onFrame: onFrame, onErr: onErr}
 	started := make(chan error, 1)
-	go s.run(started)
+	if portal.Wayland() {
+		go s.runWayland(started)
+	} else {
+		go s.run(started)
+	}
 	if err := <-started; err != nil {
 		return nil, err
 	}

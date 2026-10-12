@@ -2,7 +2,8 @@
 
 # Builds the host for Linux (amd64 or arm64) with its C libraries: libvpx
 # and libopus (static) for the encoders, OpenGL, X11 and Wayland for the
-# Fyne window. Debian stable's glibc keeps the binary running on older
+# Fyne window, and PipeWire's headers only (the host loads libpipewire
+# when a Wayland desktop shares its screen). Debian stable's glibc keeps the binary running on older
 # distributions. The target platform runs through buildx (QEMU for the
 # other architecture).
 #
@@ -11,7 +12,7 @@
 FROM golang:1.26-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       pkg-config libvpx-dev libopus-dev libgl1-mesa-dev xorg-dev \
-      libwayland-dev libxkbcommon-dev wayland-protocols && \
+      libwayland-dev libxkbcommon-dev wayland-protocols libpipewire-0.3-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod go.sum ./
