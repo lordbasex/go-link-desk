@@ -23,7 +23,7 @@ test("an accepted viewer sees the host's screen", async ({ page }) => {
   const before = hostLogCount(ended);
   await knock(page, "accept", "E2E viewer");
   await expect(page.getByRole("button", { name: "Disconnect" })).toBeVisible();
-  await expect(page.getByText("Screen of ")).toBeVisible();
+  await expect(page.getByRole("toolbar", { name: /^Screen of / })).toBeVisible();
   await expect.poll(() => framesDecoded(page), { timeout: 20_000 }).toBeGreaterThan(0);
   expect(hostLogged(/msg="session started" .*name="E2E viewer"/)).toBe(true);
 

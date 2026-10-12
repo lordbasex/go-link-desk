@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_THUMB } from "@go-link-desk/shared";
 import { t } from "../i18n";
-import { CameraIcon, ChatIcon, ExpandIcon, FolderIcon, HangUpIcon, SoundIcon } from "../components/Icons";
+import { CameraIcon, ChatIcon, ChevronIcon, CloseIcon, CommandIcon, ExpandIcon, FolderIcon, MonitorIcon, ShrinkIcon, SoundIcon } from "../components/Icons";
+import { BarMenu, MenuItem, MenuSection, MenuSeparator } from "../components/BarMenu";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
-import { Select } from "../components/ui/Select";
 import { useFullscreen } from "../components/useFullscreen";
 import { CallPanel } from "./CallPanel";
 import { ChatPanel } from "./ChatPanel";
@@ -238,6 +238,30 @@ export function LiveSession({
     void Promise.resolve(surface.requestPointerLock({ unadjustedMovement: true })).catch(() => surface.requestPointerLock());
   };
 
+  // The floating toolbar, as the iPhone app's: hidden by hand with its
+  // chevron; in full screen hidden until the pointer comes to the top
+  // (or a finger taps the handle), and kept while one of its menus is open.
+  const [barHidden, setBarHidden] = useState(false);
+  const [peek, setPeek] = useState(false);
+  const [menus, setMenus] = useState(0);
+  const peekTimer = useRef(0);
+  const fsBar = fullscreen.active;
+  const showBar = fsBar ? peek || menus > 0 : !barHidden;
+  const keepPeek = () => {
+    window.clearTimeout(peekTimer.current);
+    setPeek(true);
+  };
+  const dropPeek = () => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => setPeek(false), 900);
+  };
+  const onMenu = (open: boolean) => setMenus((n) => Math.max(0, n + (open ? 1 : -1)));
+  useEffect(() => {
+    setPeek(false);
+    setMenus(0);
+  }, [fsBar]);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+
   const special = (v: string) => {
     const cap = captureRef.current;
     if (!cap) return;
@@ -383,132 +407,165 @@ export function LiveSession({
           : null;
   return (
     <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
-      <div className="stage-bar">
-        <span className="stage-title">{t.session.screenOf.replace("{name}", hostName)}</span>
-        <div className="stage-tools">
-          {view.displays.length > 1 && (
-            <Select<string>
-              className="select-sm"
-              ariaLabel={t.session.display}
-              value={String(view.display)}
-              options={view.displays.map((d, i) => ({ value: String(d.id), label: d.name || t.session.displayN.replace("{n}", String(i + 1)), detail: `${d.width}×${d.height}` }))}
-              onChange={(v) => session?.selectDisplay(Number(v))}
-            />
-          )}
-          <Select<Preset>
-            className="select-sm"
-            ariaLabel={t.session.quality}
-            value={prefs.preset}
-            options={[
-              { value: "quality", label: t.session.presets.quality },
-              { value: "balanced", label: t.session.presets.balanced },
-              { value: "speed", label: t.session.presets.speed },
-            ]}
-            onChange={(preset) => update({ preset })}
-          />
-          <Select<ViewMode>
-            className="select-sm"
-            ariaLabel={t.session.view}
-            value={prefs.view}
-            options={[
-              { value: "fit", label: t.session.views.fit },
-              { value: "original", label: t.session.views.original },
-              { value: "stretch", label: t.session.views.stretch },
-            ]}
-            onChange={(v) => update({ view: v })}
-          />
-          <label className="stage-check">
-            <input type="checkbox" checked={prefs.retina} onChange={(e) => update({ retina: e.target.checked })} />
-            {t.session.retina}
-          </label>
-          <label className="stage-check">
-            <input type="checkbox" checked={prefs.cursorInVideo} onChange={(e) => update({ cursorInVideo: e.target.checked })} />
-            {t.session.cursorInVideo}
-          </label>
-          {control && (
-            <>
-              <Select<string>
-                className="select-sm"
-                ariaLabel={t.keys.menu}
-                value=""
-                options={[{ value: "", label: t.keys.menu }, ...specialKeys(hostIsMac).map((k) => ({ value: k, label: t.keys.items[k as keyof typeof t.keys.items] })), { value: "type", label: t.keys.type }]}
-                onChange={special}
-              />
-              {hostIsMac && (
-                <label className="stage-check" title={t.keys.ctrlIsCmdHint}>
-                  <input type="checkbox" checked={prefs.ctrlIsCmd} onChange={(e) => update({ ctrlIsCmd: e.target.checked })} />
-                  {t.keys.ctrlIsCmd}
-                </label>
-              )}
-              {touch && (
-                <button type="button" className="button button-secondary button-small" onClick={() => captureRef.current?.showKeyboard()} title={t.keys.keyboardHint}>
-                  {t.keys.keyboard}
-                </button>
-              )}
-              <button type="button" className={`button button-secondary button-small${locked ? " is-on" : ""}`} aria-pressed={locked} onClick={toggleLock} title={t.keys.gameModeHint}>
-                {t.keys.gameMode}
+      <div className={`cap-zone${fsBar ? " is-fullscreen" : ""}`} onMouseEnter={fsBar ? keepPeek : undefined} onMouseLeave={fsBar ? dropPeek : undefined}>
+        {showBar ? (
+          <div className="cap" role="toolbar" aria-label={t.session.screenOf.replace("{name}", hostName)}>
+            <button type="button" className="bar-button bar-danger" aria-label={t.session.disconnect} title={t.session.disconnect} onClick={() => session?.hangUp()}>
+              <CloseIcon />
+            </button>
+            <span className="cap-title">{hostName}</span>
+            <span className="cap-divider" aria-hidden="true" />
+            {control && (
+              <BarMenu label={t.keys.menu} icon={<CommandIcon />} onOpen={onMenu}>
+                {(close) => (
+                  <>
+                    {specialKeys(hostIsMac).map((k) => (
+                      <MenuItem
+                        key={k}
+                        onSelect={() => {
+                          close();
+                          special(k);
+                        }}
+                      >
+                        {t.keys.items[k as keyof typeof t.keys.items]}
+                      </MenuItem>
+                    ))}
+                    <MenuSeparator />
+                    <MenuItem
+                      onSelect={() => {
+                        close();
+                        special("type");
+                      }}
+                    >
+                      {t.keys.type}
+                    </MenuItem>
+                    {touch && (
+                      <MenuItem
+                        onSelect={() => {
+                          close();
+                          captureRef.current?.showKeyboard();
+                        }}
+                      >
+                        {t.keys.keyboard}
+                      </MenuItem>
+                    )}
+                    <MenuSeparator />
+                    {hostIsMac && (
+                      <MenuItem kind="check" checked={prefs.ctrlIsCmd} onSelect={() => update({ ctrlIsCmd: !prefs.ctrlIsCmd })}>
+                        {t.keys.ctrlIsCmd}
+                      </MenuItem>
+                    )}
+                    <MenuItem
+                      kind="check"
+                      checked={locked}
+                      onSelect={() => {
+                        close();
+                        toggleLock();
+                      }}
+                    >
+                      {t.keys.gameMode}
+                    </MenuItem>
+                  </>
+                )}
+              </BarMenu>
+            )}
+            <button
+              type="button"
+              className={`bar-button chat-button${chatOpen ? " is-on" : ""}`}
+              aria-pressed={chatOpen}
+              aria-label={unread ? `${t.chat.title} (${unread})` : t.chat.title}
+              title={t.chat.title}
+              onClick={() => {
+                setChatOpen(!chatOpen);
+                setReadChat(view.chat.length);
+              }}
+            >
+              <ChatIcon size={18} />
+              {unread > 0 && <span className="badge">{unread}</span>}
+            </button>
+            {mayFiles && (
+              <button type="button" className={`bar-button${filesOpen ? " is-on" : ""}`} aria-pressed={filesOpen} aria-label={t.files.title} title={t.files.title} onClick={() => setFilesOpen(!filesOpen)}>
+                <FolderIcon size={18} />
               </button>
-            </>
-          )}
-          {hears && (
+            )}
+            {typeof navigator.mediaDevices?.getUserMedia === "function" && (
+              <button type="button" className={`bar-button${callOpen ? " is-on" : ""}`} aria-pressed={callOpen} aria-label={t.call.start} title={t.call.start} disabled={callOpen} onClick={() => setCallOpen(true)}>
+                <CameraIcon size={18} />
+              </button>
+            )}
+            {hears && (
+              <button
+                type="button"
+                className={`bar-button${prefs.muted ? "" : " is-on"}`}
+                aria-pressed={!prefs.muted}
+                aria-label={prefs.muted ? t.session.soundOff : t.session.soundOn}
+                title={prefs.muted ? t.session.soundOff : t.session.soundOn}
+                onClick={() => update({ muted: !prefs.muted })}
+              >
+                <SoundIcon size={18} off={prefs.muted} />
+              </button>
+            )}
+            <BarMenu label={t.session.screenMenu} icon={<MonitorIcon />} onOpen={onMenu}>
+              {() => (
+                <>
+                  {view.displays.length > 1 && (
+                    <>
+                      <MenuSection title={t.session.display} />
+                      {view.displays.map((d, i) => (
+                        <MenuItem key={d.id} kind="radio" checked={d.id === view.display} onSelect={() => session?.selectDisplay(d.id)}>
+                          {d.name || t.session.displayN.replace("{n}", String(i + 1))} <span className="bar-menu-detail">{`${d.width}×${d.height}`}</span>
+                        </MenuItem>
+                      ))}
+                    </>
+                  )}
+                  <MenuSection title={t.session.quality} />
+                  {(["quality", "balanced", "speed"] as const).map((p) => (
+                    <MenuItem key={p} kind="radio" checked={prefs.preset === p} onSelect={() => update({ preset: p })}>
+                      {t.session.presets[p]}
+                    </MenuItem>
+                  ))}
+                  <MenuSection title={t.session.view} />
+                  {(["fit", "original", "stretch"] as const).map((v) => (
+                    <MenuItem key={v} kind="radio" checked={prefs.view === v} onSelect={() => update({ view: v })}>
+                      {t.session.views[v]}
+                    </MenuItem>
+                  ))}
+                  <MenuSeparator />
+                  <MenuItem kind="check" checked={prefs.retina} onSelect={() => update({ retina: !prefs.retina })}>
+                    {t.session.retina}
+                  </MenuItem>
+                  <MenuItem kind="check" checked={prefs.cursorInVideo} onSelect={() => update({ cursorInVideo: !prefs.cursorInVideo })}>
+                    {t.session.cursorInVideo}
+                  </MenuItem>
+                </>
+              )}
+            </BarMenu>
             <button
               type="button"
-              className={`icon-button${prefs.muted ? "" : " is-on"}`}
-              aria-pressed={!prefs.muted}
-              aria-label={prefs.muted ? t.session.soundOff : t.session.soundOn}
-              title={prefs.muted ? t.session.soundOff : t.session.soundOn}
-              onClick={() => update({ muted: !prefs.muted })}
+              className="bar-button"
+              aria-label={fullscreen.active ? t.session.exitFullscreen : t.session.fullscreen}
+              title={fullscreen.active ? t.session.exitFullscreen : t.session.fullscreen}
+              onClick={fullscreen.toggle}
             >
-              <SoundIcon off={prefs.muted} />
+              {fullscreen.active ? <ShrinkIcon size={18} /> : <ExpandIcon size={18} />}
             </button>
-          )}
-          {typeof navigator.mediaDevices?.getUserMedia === "function" && (
-            <button
-              type="button"
-              className={`icon-button${callOpen ? " is-on" : ""}`}
-              aria-pressed={callOpen}
-              aria-label={t.call.start}
-              title={t.call.start}
-              disabled={callOpen}
-              onClick={() => setCallOpen(true)}
-            >
-              <CameraIcon />
-            </button>
-          )}
-          {mayFiles && (
-            <button
-              type="button"
-              className={`icon-button${filesOpen ? " is-on" : ""}`}
-              aria-pressed={filesOpen}
-              aria-label={t.files.title}
-              title={t.files.title}
-              onClick={() => setFilesOpen(!filesOpen)}
-            >
-              <FolderIcon />
-            </button>
-          )}
+            {!fsBar && (
+              <button type="button" className="bar-button" aria-label={t.session.hideBar} title={t.session.hideBar} onClick={() => setBarHidden(true)}>
+                <ChevronIcon up />
+              </button>
+            )}
+          </div>
+        ) : (
           <button
             type="button"
-            className={`icon-button chat-button${chatOpen ? " is-on" : ""}`}
-            aria-pressed={chatOpen}
-            aria-label={unread ? `${t.chat.title} (${unread})` : t.chat.title}
-            title={t.chat.title}
-            onClick={() => {
-              setChatOpen(!chatOpen);
-              setReadChat(view.chat.length);
-            }}
+            className="cap-handle"
+            aria-label={t.session.showBar}
+            title={t.session.showBar}
+            onClick={() => (fsBar ? keepPeek() : setBarHidden(false))}
           >
-            <ChatIcon />
-            {unread > 0 && <span className="badge">{unread}</span>}
+            <ChevronIcon />
           </button>
-          <button type="button" className="icon-button" aria-label={t.session.fullscreen} title={t.session.fullscreen} onClick={fullscreen.toggle}>
-            <ExpandIcon />
-          </button>
-          <button type="button" className="button button-danger" onClick={() => session?.hangUp()}>
-            <HangUpIcon />
-            {t.session.disconnect}
-          </button>
-        </div>
+        )}
       </div>
       {hostNotice && (
         <p className="stage-banner" role="status">
@@ -574,7 +631,7 @@ export function LiveSession({
         />
         <img ref={cursorRef} className="remote-cursor" alt="" draggable={false} />
         {/* The figures float over the picture, as in go-link's player: they stay in full screen. */}
-        <div className="stream-info-float">
+        <div className="stream-info-float" hidden={fsBar && !showBar}>
           <StreamInfo
             stats={stats}
             sent={view.sent}

@@ -45,6 +45,10 @@ export const es: Messages = {
     reconnecting: "Se cortó la conexión. Reconectando…",
     disconnect: "Desconectar",
     fullscreen: "Pantalla completa",
+    exitFullscreen: "Salir de pantalla completa",
+    screenMenu: "Pantalla",
+    hideBar: "Ocultar la barra",
+    showBar: "Mostrar la barra",
     screenOf: "Pantalla de {name}",
     rejected: {
       declined: "La persona en esa computadora no aceptó.",
