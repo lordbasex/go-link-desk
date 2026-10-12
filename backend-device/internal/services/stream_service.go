@@ -872,7 +872,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 		_ = pc.Close()
 		return err
 	}
-	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.HasH264)}
+	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.H264Available())}
 	v.gated.Store(gated)
 	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
 	video, err := newVideoTrack(trackCodec(v.codec))

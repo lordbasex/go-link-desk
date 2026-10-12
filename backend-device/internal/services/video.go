@@ -254,11 +254,14 @@ func codecLabel(codec string) string {
 	return "H.264"
 }
 
-// h264Encoder is the system's H.264 encoder. It takes the capture's pixel
-// buffers as they are; the test card's I420 frames are copied in.
+// h264Encoder is the system's H.264 encoder. On macOS it takes the
+// capture's pixel buffers as they are; elsewhere (Windows) the capture's
+// frames are I420 and go in with their times. The test card's I420 frames
+// are copied in.
 type h264Encoder struct {
 	enc  *encoder.H264
 	w, h int
+	i420 []byte // the capture's frame, copied out (not macOS)
 }
 
 func newH264Encoder(w, h, fps, kbps int, baseline bool, out *sampleWriter) (*h264Encoder, error) {
@@ -272,8 +275,19 @@ func newH264Encoder(w, h, fps, kbps int, baseline bool, out *sampleWriter) (*h26
 }
 
 func (e *h264Encoder) encode(f Frame, key bool) error {
-	if f.PixelBuffer != nil {
+	switch {
+	case f.PixelBuffer != nil && encoder.PixelBuffers:
 		return e.enc.WritePixelBuffer(f.PixelBuffer, f.PTS, key)
+	case f.PixelBuffer != nil:
+		n := encoder.FrameSize(e.w, e.h)
+		if cap(e.i420) < n {
+			e.i420 = make([]byte, n)
+		}
+		e.i420 = e.i420[:n]
+		if err := screencap.ToI420(f.PixelBuffer, e.i420, e.w, e.h); err != nil {
+			return err
+		}
+		return e.enc.WriteAt(e.i420, f.PTS, key)
 	}
 	return e.enc.WriteKey(f.I420, key)
 }
