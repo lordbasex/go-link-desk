@@ -67,6 +67,7 @@ help:
 	@echo "  make device-notarized       signed with a Developer ID and notarized (source ~/.go-link-signing/env.sh first)"
 	@echo "  make device-linux-amd64     the Linux host, built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make linux-package-amd64    that host with its installer, menu entry and icons, in a .tar.gz (also -arm64)"
+	@echo "  make linux-packages-amd64   the same as .deb, .rpm and Arch packages (nFPM; also -arm64)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
 
@@ -216,6 +217,18 @@ linux-package-%: device-linux-%
 	COPYFILE_DISABLE=1 tar $(if $(filter darwin,$(HOST_OS)),--no-xattrs --no-mac-metadata) -C $(DEVICE_OUT) -czf $(DEVICE_OUT)/$(LINUX_PKG).tar.gz $(LINUX_PKG)
 	cd $(DEVICE_OUT) && shasum -a 256 $(LINUX_PKG).tar.gz > $(LINUX_PKG).tar.gz.sha256
 	@echo "$(GREEN)✓ $(DEVICE_OUT)/$(LINUX_PKG).tar.gz$(NC)"
+
+# The Linux host as .deb, .rpm and Arch packages, from the .tar.gz's folder:
+# dist/desk/go-link-desk_<version>_<arch>.deb, go-link-desk-<version>-1.<arch>.rpm
+# and go-link-desk-<version>-1-<arch>.pkg.tar.zst.
+NFPM = go run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+linux-packages-%: linux-package-%
+	sed -e 's|@VERSION@|$(SHORT_VERSION)|' -e 's|@ARCH@|$*|' -e 's|@DIR@|$(abspath $(DEVICE_OUT))/$(LINUX_PKG)|' \
+		$(DEVICE_DIR)/build/linux/nfpm.yaml > $(DEVICE_OUT)/nfpm-$*.yaml
+	@for p in deb rpm archlinux; do \
+		$(NFPM) package --config $(DEVICE_OUT)/nfpm-$*.yaml --packager $$p --target $(DEVICE_OUT)/ || exit 1; \
+	done
+	@echo "$(GREEN)✓ the $* packages are in $(DEVICE_OUT)$(NC)"
 
 # ---------------------------------------------------------------------------
 # End-to-end tests (e2e/global-setup.ts builds signalhub, the web and the

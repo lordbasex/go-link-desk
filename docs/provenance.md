@@ -91,6 +91,7 @@ The same path in both repositories unless noted.
 | `apps/web/src/components/useFullscreen.ts` | adapted | No landscape lock or quiet full screen (a gamepad's). |
 | `apps/web/src/session/{session,useSession}.ts` | rewritten | The join, backlog and host-left handling of go-link's `apps/web/src/signal/useJoinRoom.ts`, plus the knock; one signaling connection per visit. |
 | `apps/web/src/session/test-utils.ts` | rewritten | A fake `SignalClient`, in the spirit of go-link's `test-utils.tsx` `FakeSocket`. |
+| `apps/web/src/pages/DocsPage.tsx`, `src/i18n/docs-types.ts`, the `.docs-*` rules of `src/styles/global.css` (→ `src/styles/docs.css`) | adapted (go-link `30c5a5d`) | The documentation at `/docs`: the same blocks, search, tabs by system (plus iPhone and Android), pager and table of contents, on the landing's header and footer; a small copy button of its own. The pages (`docs-{en,es,pt}.ts`) are Desk's own. |
 
 ## iOS app (`mobile/ios/`)
 

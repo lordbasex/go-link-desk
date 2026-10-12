@@ -269,7 +269,7 @@ export const pt: Messages = {
     ],
   },
   site: {
-    nav: { ways: "Formas de conectar", features: "Recursos", security: "Segurança", download: "Downloads", source: "Código aberto", openWeb: "Abrir o app web", downloadButton: "Baixar" },
+    nav: { docs: "Docs", ways: "Formas de conectar", features: "Recursos", security: "Segurança", download: "Downloads", source: "Código aberto", openWeb: "Abrir o app web", downloadButton: "Baixar" },
     hero: {
       eyebrow: "Área de trabalho remota · direta e criptografada",
       title: "O seu computador, {em} dígitos.",
