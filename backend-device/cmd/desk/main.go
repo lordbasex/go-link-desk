@@ -380,7 +380,9 @@ func run(args []string) error {
 			chat.SetPeer("")
 			call.SetPeer("", "")
 		}
-		if p.Control && !input.Trusted() {
+		if p.Control && !inject.Supported {
+			logger.Warn("the viewer may control, but this system cannot move the mouse or type in this version")
+		} else if p.Control && !input.Trusted() {
 			logger.Warn("the viewer may control, but this app may not move the mouse or type yet: allow it in System Settings › Privacy & Security › Accessibility")
 			stream.Notice(services.NoticeNoAccessibility)
 		}
