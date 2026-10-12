@@ -402,9 +402,11 @@ export function LiveSession({
       ? t.session.noScreenPermission
       : view.notice === "capture_failed"
         ? t.session.captureFailed
-        : view.notice === "no_accessibility" && control
-          ? t.session.noAccessibility
-          : null;
+        : view.notice === "wayland_session"
+          ? t.session.waylandSession
+          : view.notice === "no_accessibility" && control
+            ? t.session.noAccessibility
+            : null;
   return (
     <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
       <div className={`cap-zone${fsBar ? " is-fullscreen" : ""}`} onMouseEnter={fsBar ? keepPeek : undefined} onMouseLeave={fsBar ? dropPeek : undefined}>

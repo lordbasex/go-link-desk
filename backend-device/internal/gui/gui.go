@@ -7,6 +7,7 @@ package gui
 
 import (
 	"context"
+	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 	"log/slog"
 	"strings"
 	"sync"
@@ -213,6 +214,13 @@ func newUI(a fyne.App, opts Options) *ui {
 	u.code = canvas.NewText("— — —", theme.Color(theme.ColorNameForeground))
 	u.code.TextSize = 44
 	u.code.TextStyle = fyne.TextStyle{Monospace: true}
+	// A light or dark system theme changes the code's color with it.
+	u.app.Settings().AddListener(func(fyne.Settings) {
+		fyne.Do(func() {
+			u.code.Color = theme.Color(theme.ColorNameForeground)
+			u.code.Refresh()
+		})
+	})
 	u.code.Alignment = fyne.TextAlignCenter
 	u.link = widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
 	u.link.Wrapping = fyne.TextWrapWord
@@ -239,6 +247,14 @@ func newUI(a fyne.App, opts Options) *ui {
 		widget.NewSeparator(),
 		hint,
 		u.state,
+	}
+	// A Linux desktop in a Wayland session: its screen cannot be shared
+	// yet; say how to make it work.
+	if screencap.Problem() == screencap.ProblemWayland {
+		w := widget.NewLabelWithStyle(L("This desktop uses Wayland, whose screen cannot be shared yet: sessions show a test card. Log out and log in again choosing \"Ubuntu on Xorg\" (the gear on the login screen)."), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+		w.Wrapping = fyne.TextWrapWord
+		w.Importance = widget.WarningImportance
+		items = append(items, widget.NewSeparator(), w)
 	}
 	if permission.Needed || opts.Permissions != nil {
 		granted, request := permission.Granted, permission.Request
@@ -290,6 +306,8 @@ func (u *ui) render(st models.Status) {
 		u.link.SetText("")
 		u.copyBtn.Disable()
 	}
+	// The theme's text color now (light or dark, as the system is).
+	u.code.Color = theme.Color(theme.ColorNameForeground)
 	u.code.Refresh()
 	if st.Session == nil {
 		u.newBtn.Disable()

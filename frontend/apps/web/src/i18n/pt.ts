@@ -81,6 +81,7 @@ export const pt: Messages = {
     noScreenPermission: "Aquele computador ainda não permitiu que o go-link Desk grave a tela, então você vê um padrão de teste. A pessoa lá pode permitir em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela.",
     noAccessibility: "Aquele computador ainda não permitiu que o go-link Desk use o mouse e o teclado. A pessoa lá pode permitir em Ajustes do Sistema › Privacidade e Segurança › Acessibilidade.",
     captureFailed: "Aquele computador não conseguiu gravar a tela, então você vê um padrão de teste.",
+    waylandSession: "Aquele computador usa uma sessão Wayland, cuja tela ainda não pode ser compartilhada, então você vê um padrão de teste. Lá, saia e entre de novo escolhendo “Ubuntu no Xorg” (a engrenagem na tela de login).",
     close: "Fechar",
     soundOn: "Som ativado (clique para silenciar)",
     soundOff: "Som silenciado (clique para ouvir)",

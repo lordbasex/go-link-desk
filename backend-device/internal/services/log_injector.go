@@ -3,6 +3,7 @@
 package services
 
 import (
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/keymap"
 	"log/slog"
 
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
@@ -25,8 +26,11 @@ func (l LogInjector) Button(b int, down bool, x, y float64, at bool) {
 func (l LogInjector) Scroll(dx, dy int, lines bool) {
 	l.Log.Info("injected", "what", "scroll", "dx", dx, "dy", dy, "lines", lines)
 }
+
+// Key logs the key as macOS's virtual key code on every system, so the
+// tests read the same numbers wherever the host runs.
 func (l LogInjector) Key(vk int, down, repeat bool, mods uint8) {
-	l.Log.Info("injected", "what", "key", "vk", vk, "down", down, "repeat", repeat, "mods", mods)
+	l.Log.Info("injected", "what", "key", "vk", keymap.MacOf(vk), "down", down, "repeat", repeat, "mods", mods)
 }
 func (l LogInjector) Text(s string) { l.Log.Info("injected", "what", "text", "text", s) }
 func (l LogInjector) ReleaseAll()   { l.Log.Info("injected", "what", "release_all") }

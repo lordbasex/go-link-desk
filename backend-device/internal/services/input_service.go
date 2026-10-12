@@ -4,6 +4,7 @@ package services
 
 import (
 	"log/slog"
+	"runtime"
 	"sync"
 
 	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
@@ -83,19 +84,23 @@ func (s *InputService) Release(peer string) {
 // Forget ends a viewer's control for good (its session ended).
 func (s *InputService) Forget(peer string) { s.Allow(peer, false) }
 
-// Paste presses the host's paste shortcut (Cmd+V) for a viewer that may
-// control: the viewer's own Cmd+V or Ctrl+V, after its text reached the
-// host's clipboard.
+// Paste presses the host's paste shortcut (Cmd+V on macOS, Ctrl+V
+// elsewhere) for a viewer that may control: the viewer's own Cmd+V or
+// Ctrl+V, after its text reached the host's clipboard.
 func (s *InputService) Paste(peer string) {
 	s.mu.Lock()
 	ok := s.allowed[peer] != nil
 	s.mu.Unlock()
 	k, found := keymap.Lookup(keymap.Index("KeyV"))
-	if !ok || !found || k.Mac < 0 {
+	if !ok || !found || k.Native() < 0 {
 		return
 	}
-	s.inj.Key(k.Mac, true, false, inject.ModMeta)
-	s.inj.Key(k.Mac, false, false, inject.ModMeta)
+	mod := uint8(inject.ModCtrl)
+	if runtime.GOOS == "darwin" {
+		mod = inject.ModMeta
+	}
+	s.inj.Key(k.Native(), true, false, mod)
+	s.inj.Key(k.Native(), false, false, mod)
 }
 
 // HandlePointer applies a pointer move from the unreliable channel; a
@@ -144,8 +149,8 @@ func (s *InputService) HandleInput(peer string, data []byte) {
 	case inputproto.TypeWheel:
 		s.inj.Scroll(int(p.DX), int(p.DY), p.Mode == inputproto.WheelLines)
 	case inputproto.TypeKey:
-		if k, ok := keymap.Lookup(p.Keycode); ok && k.Mac >= 0 {
-			s.inj.Key(k.Mac, p.Down, p.Repeat, p.Mods&(inputproto.ModShift|inputproto.ModCtrl|inputproto.ModAlt|inputproto.ModMeta))
+		if k, ok := keymap.Lookup(p.Keycode); ok && k.Native() >= 0 {
+			s.inj.Key(k.Native(), p.Down, p.Repeat, p.Mods&(inputproto.ModShift|inputproto.ModCtrl|inputproto.ModAlt|inputproto.ModMeta))
 		}
 	case inputproto.TypeText:
 		s.inj.Text(p.Text)

@@ -12,6 +12,10 @@ import (
 	"unsafe"
 )
 
+// ProblemWayland (Problem): the desktop is a Wayland session, which lets
+// no program read the screen without its portal (Linux).
+const ProblemWayland = "wayland"
+
 // ErrUnsupported: this system has no screen capture in this build.
 var ErrUnsupported = errors.New("capture: not supported on this system")
 

@@ -162,6 +162,16 @@ go-link Desk also connects to other computers, in the same window: Home has the 
 - **Codecs:** the knock lists what this device decodes (H.264 High, Baseline, VP8). A device that cannot encode H.264 turns down the video call's lines in the answer, since an answer with no common codec on a line fails.
 - **Linked computers** are sealed with an RSA key of the keystore: its public half seals (no prompt, as the iOS keychain write), its private half opens only right after the fingerprint, face or screen lock (`BiometricPrompt` with the key's cipher). Hence Android 11 or newer.
 
+## The Linux host
+
+The computer that shares can be a Linux desktop in an **X11 (Xorg) session**, with the same window, consent, session panel and settings (Fyne) as everywhere:
+
+- **The picture:** XShm reads the monitor (XRandR lists them) into shared memory; C scales it to the size the viewers need (a box filter, so text stays readable) and turns it into I420 for libvpx, skipping a still screen (nothing changed since the last grab). The pointer comes apart (XFixes), as on macOS.
+- **Control:** XTest presses keys by the layout's keycode for each key's X11 keysym (`keymap.Key.Native`), so keys go by position; characters the layout lacks are typed on a free keycode mapped to them for the moment. Mouse buttons 1 to 9 and the wheel's clicks (4 to 7).
+- **The clipboard:** the CLIPBOARD selection as UTF-8 text, on a thread that owns it when this side copies and asks its owner when it is read; XFixes counts every copy.
+- **Wayland:** a Wayland session lets no program read the screen or inject input without the desktop's portal (PipeWire and libei, with a prompt). Until that comes, the host says so in its window and to the viewer (`wayland_session`), and sessions show the test card: logging in with "Ubuntu on Xorg" makes it work.
+- **Not yet:** the computer's sound and keeping the display awake.
+
 ## Unattended access
 
 - **One door, three ways in.** The session service takes guests from the session room (`join`), from the pairing code (`claim`) and from `reach`; all of them knock with the same message, and only what follows the knock changes. A browser that came with the pairing code is asked about like any viewer, in a request window that says it is a link; one that came with `reach` is connected gated.

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !darwin
+//go:build !darwin && !linux
 
 package capture
 
@@ -28,3 +28,6 @@ func RequestAccess() bool                           { return false }
 
 // Supported reports whether this build captures the screen.
 const Supported = false
+
+// Problem is why the screen cannot be captured now ("" when it can).
+func Problem() string { return "" }
