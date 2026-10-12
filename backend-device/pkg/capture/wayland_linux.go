@@ -31,6 +31,16 @@ import (
 // waylandReady reports whether a Wayland desktop can be captured.
 func waylandReady() bool { return portal.Available() && C.dk_pw_load() != 0 }
 
+// RemoteControl reports whether the desktop lets the viewers use the mouse
+// and keyboard: a Wayland desktop's person may share the screen only.
+func RemoteControl() bool {
+	if !portal.Wayland() {
+		return true
+	}
+	s := portal.Active()
+	return s == nil || s.Control()
+}
+
 // waylandDisplays are the shared monitors while a session runs, else the
 // monitors as XWayland sees them (they match the desktop's at scale 1).
 func waylandDisplays() []Display {

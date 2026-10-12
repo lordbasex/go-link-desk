@@ -350,6 +350,12 @@ func (r *remote) onNotice(code string) {
 		r.notify(L("The computer has no Accessibility permission: your mouse and keyboard do not reach it."))
 	case "capture_failed":
 		r.notify(L("The computer could not capture its screen."))
+	case "wayland_session":
+		r.notify(L("The computer's Wayland desktop cannot share its screen: you see a test card."))
+	case "share_denied":
+		r.notify(L("The person at the computer did not allow sharing the screen: you see a test card."))
+	case "no_remote_input":
+		r.notify(L("The person at the computer shared the screen but not the mouse and keyboard: you can only watch."))
 	}
 }
 

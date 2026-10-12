@@ -126,6 +126,7 @@ type Session struct {
 	handle  dbus.ObjectPath
 	streams []Stream
 	cursor  bool // the streams carry the pointer as metadata
+	control bool // the person allowed the mouse and keyboard
 	closed  chan struct{}
 	refs    int
 	input   chan event
@@ -198,6 +199,10 @@ func Active() *Session {
 
 // Streams are the shared monitors, left to right.
 func (s *Session) Streams() []Stream { return s.streams }
+
+// Control reports whether the person allowed the mouse and keyboard too
+// (GNOME asks it apart: "Allow Remote Interaction").
+func (s *Session) Control() bool { return s.control }
 
 // CursorMetadata reports whether the streams carry the pointer apart from
 // the picture (else it is drawn into it).
@@ -305,16 +310,21 @@ func start(ctx context.Context) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	if t, _ := res["restore_token"].Value().(string); t != "" {
-		saveToken(t)
-	}
 	s.streams = parseStreams(res["streams"])
 	if len(s.streams) == 0 {
 		return nil, errors.New("portal: the session shares no monitor")
 	}
 	granted, _ := res["devices"].Value().(uint32)
+	s.control = granted&(deviceKeyboard|devicePointer) != 0
+	// The choice is remembered only with the mouse and keyboard: shared
+	// without them, the desktop asks again next time.
+	if t, _ := res["restore_token"].Value().(string); t != "" && s.control {
+		saveToken(t)
+	} else if !s.control {
+		saveToken("")
+	}
 	s.input = make(chan event, 256)
-	slog.Info("wayland desktop shared", "monitors", len(s.streams), "keyboard", granted&deviceKeyboard != 0, "pointer", granted&devicePointer != 0, "cursor_apart", s.cursor, "remembered", res["restore_token"].Value() != nil)
+	slog.Info("wayland desktop shared", "monitors", len(s.streams), "keyboard", granted&deviceKeyboard != 0, "pointer", granted&devicePointer != 0, "cursor_apart", s.cursor, "remembered", s.control && res["restore_token"].Value() != nil)
 	go s.watch(signals)
 	go s.send()
 	ok = true
@@ -472,6 +482,10 @@ func loadToken() string {
 func saveToken(t string) {
 	p := tokenPath()
 	if p == "" {
+		return
+	}
+	if t == "" {
+		_ = os.Remove(p)
 		return
 	}
 	_ = os.MkdirAll(filepath.Dir(p), 0o700)

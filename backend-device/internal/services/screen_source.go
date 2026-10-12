@@ -26,6 +26,9 @@ const (
 	// NoticeShareDenied: the person at the computer did not allow sharing
 	// the screen (a Wayland desktop asks them).
 	NoticeShareDenied = "share_denied"
+	// NoticeNoRemoteInput: the person shared the screen but not the mouse
+	// and keyboard (GNOME's "Allow Remote Interaction").
+	NoticeNoRemoteInput = "no_remote_input"
 )
 
 // When a still screen sends its last frame again: a few times after it
@@ -157,6 +160,10 @@ func (src *ScreenSource) capture(ctx context.Context, sink MediaSink) error {
 		return err
 	}
 	stream.OnAudio(sink.AudioSamples)
+	if !screencap.RemoteControl() {
+		src.Log.Warn("the screen is shared, but not the mouse and keyboard: the viewers can only watch")
+		sink.Notice(NoticeNoRemoteInput)
+	}
 	src.Log.Info("screen capture started", "display", req.Display.Name, "size", cfgSize(cfg), "fps", cfg.FPS)
 	var last captured
 	defer func() {

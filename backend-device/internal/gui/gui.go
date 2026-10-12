@@ -248,10 +248,10 @@ func newUI(a fyne.App, opts Options) *ui {
 		hint,
 		u.state,
 	}
-	// A Linux desktop in a Wayland session: its screen cannot be shared
-	// yet; say how to make it work.
+	// A Linux Wayland desktop without the remote desktop portal (or
+	// PipeWire): its screen cannot be shared; say how to make it work.
 	if screencap.Problem() == screencap.ProblemWayland {
-		w := widget.NewLabelWithStyle(L("This desktop uses Wayland, whose screen cannot be shared yet: sessions show a test card. Log out and log in again choosing \"Ubuntu on Xorg\" (the gear on the login screen)."), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+		w := widget.NewLabelWithStyle(L("This Wayland desktop cannot share its screen (it lacks the remote desktop portal or PipeWire): sessions show a test card. Log out and log in again with an Xorg session (the gear on the login screen), or use GNOME or KDE Plasma."), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 		w.Wrapping = fyne.TextWrapWord
 		w.Importance = widget.WarningImportance
 		items = append(items, widget.NewSeparator(), w)
