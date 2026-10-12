@@ -2,7 +2,8 @@
 
 // Package capture captures the screen: ScreenCaptureKit on macOS, which
 // hands every changed frame over as an NV12 pixel buffer the hardware
-// encoder takes as it is. Other systems come in a later phase; there
+// encoder takes as it is; XShm on an X11 desktop and the remote desktop
+// portal's PipeWire streams on a Wayland one, as I420 (Linux). Elsewhere
 // Start returns ErrUnsupported and sessions show the test card.
 package capture
 
@@ -15,6 +16,10 @@ import (
 // ProblemWayland (Problem): the desktop is a Wayland session, which lets
 // no program read the screen without its portal (Linux).
 const ProblemWayland = "wayland"
+
+// ErrDenied: the person at the computer did not allow sharing the screen
+// (a Wayland desktop's portal asks them).
+var ErrDenied = errors.New("capture: sharing the screen was not allowed")
 
 // ErrUnsupported: this system has no screen capture in this build.
 var ErrUnsupported = errors.New("capture: not supported on this system")

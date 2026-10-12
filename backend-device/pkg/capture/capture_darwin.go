@@ -197,3 +197,7 @@ func cbool(v bool) C.int {
 // Problem is why the screen cannot be captured now ("" when it can; the
 // Screen Recording permission is HasAccess's).
 func Problem() string { return "" }
+
+// RemoteControl reports whether the desktop lets the viewers use the mouse
+// and keyboard (always, here).
+func RemoteControl() bool { return true }

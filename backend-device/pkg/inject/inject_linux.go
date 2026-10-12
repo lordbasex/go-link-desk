@@ -80,6 +80,41 @@ static int inj_spare(void) {
 	return spare;
 }
 
+// The layout as XKB has it (the X server's, or XWayland's: the Wayland
+// desktop's), read again by inj_keymap_refresh.
+static XkbDescPtr inj_xkb;
+static int inj_group;
+
+static int inj_keymap_refresh(void) {
+	if (!inj_open()) return 0;
+	if (inj_xkb) XkbFreeKeyboard(inj_xkb, 0, True);
+	inj_xkb = XkbGetMap(inj_dpy, XkbAllClientInfoMask, XkbUseCoreKbd);
+	XkbStateRec st;
+	inj_group = XkbGetState(inj_dpy, XkbUseCoreKbd, &st) == Success ? st.group : 0;
+	return inj_xkb != NULL;
+}
+
+// The key that types sym on the layout's current group, at the lowest
+// level that has it (0 plain, 1 Shift, 2 AltGr, 3 Shift+AltGr); 0: none.
+static int inj_find(unsigned long sym, int *level) {
+	if (!inj_xkb) return 0;
+	int best = 0, best_level = 4;
+	for (int kc = inj_xkb->min_key_code; kc <= inj_xkb->max_key_code; kc++) {
+		int groups = XkbKeyNumGroups(inj_xkb, kc);
+		if (!groups) continue;
+		int g = inj_group < groups ? inj_group : 0;
+		int width = XkbKeyGroupWidth(inj_xkb, kc, g);
+		for (int l = 0; l < width && l < best_level; l++) {
+			if (XkbKeySymEntry(inj_xkb, kc, l, g) == sym) {
+				best = kc;
+				best_level = l;
+			}
+		}
+	}
+	*level = best_level;
+	return best;
+}
+
 static void inj_map(int kc, unsigned long sym) {
 	if (!inj_open()) return;
 	KeySym s[2] = {sym, sym};
@@ -92,9 +127,12 @@ import "C"
 import (
 	"sync"
 	"time"
+
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/portal"
 )
 
-// Linux drives an X11 desktop's mouse and keyboard with XTest, on a display
+// Linux drives an X11 desktop's mouse and keyboard with XTest (a Wayland
+// one's through its portal: wayland_linux.go), on a display
 // connection of its own. Positions are the root window's pixels. Keys come
 // as X11 keysyms (keymap.Key.Native) and go by the keycode the layout gives
 // them.
@@ -109,8 +147,13 @@ type x11 struct {
 	spare   int
 }
 
-// New returns the X11 injector.
-func New() Injector { return &x11{keys: map[int]bool{}, buttons: map[int]bool{}} }
+// New returns the injector of the desktop: X11's, or Wayland's portal.
+func New() Injector {
+	if portal.Wayland() {
+		return newWayland()
+	}
+	return &x11{keys: map[int]bool{}, buttons: map[int]bool{}}
+}
 
 // Supported reports whether this build injects input.
 const Supported = true
@@ -312,6 +355,22 @@ func (x *x11) Trusted() bool {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	return C.inj_open() != 0
+}
+
+// layoutKeys reads the desktop's keyboard layout (as its X server, or
+// XWayland, has it); false without one. Only the Wayland injector calls
+// these (under its lock): the X11 one has the display.
+func layoutKeys() bool { return C.inj_keymap_refresh() != 0 }
+
+// layoutKey is the key that types sym on the layout read last: its evdev
+// code and level (0 plain, 1 Shift, 2 AltGr, 3 both); ok false if none.
+func layoutKey(sym int) (code, level int, ok bool) {
+	var l C.int
+	kc := int(C.inj_find(C.ulong(sym), &l))
+	if kc < 8 {
+		return 0, 0, false
+	}
+	return kc - 8, int(l), true // X keycodes are evdev's plus 8
 }
 
 func boolInt(b bool) C.int {

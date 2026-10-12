@@ -306,6 +306,7 @@ func run(args []string) error {
 	if f.clipboardFile != "" {
 		board, shareClipboard = &services.FileBoard{Path: f.clipboardFile}, true
 	}
+	logger.Info("clipboard", "board", fmt.Sprintf("%T", board))
 	clip := services.NewClipboardService(board, stream.SendControl, input.Paste, logger)
 	chat := services.NewChatService(stream.SendControl, logger)
 	home, err := os.UserHomeDir()

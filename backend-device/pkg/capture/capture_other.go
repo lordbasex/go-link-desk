@@ -31,3 +31,7 @@ const Supported = false
 
 // Problem is why the screen cannot be captured now ("" when it can).
 func Problem() string { return "" }
+
+// RemoteControl reports whether the desktop lets the viewers use the mouse
+// and keyboard (always, here).
+func RemoteControl() bool { return true }
