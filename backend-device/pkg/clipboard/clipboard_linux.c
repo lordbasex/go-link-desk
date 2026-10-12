@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build linux
+//go:build linux && !headless
 
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
