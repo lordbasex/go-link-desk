@@ -235,7 +235,13 @@ export const es: Messages = {
       {
         title: "No se recolecta nada",
         text: [
-          "go-link Desk no tiene cuentas, ni analíticas, ni publicidad, ni seguimiento. Nadie vende, comparte ni guarda tus datos, porque nunca se reúnen.",
+          "go-link Desk no tiene cuentas, ni publicidad, ni seguimiento. Nadie vende, comparte ni guarda tus datos, porque nunca se reúnen.",
+        ],
+      },
+      {
+        title: "Estadísticas de visitas de este sitio",
+        text: [
+          "Solo si aceptás el aviso de cookies, Google Analytics cuenta las visitas a las páginas públicas de este sitio (la portada, la documentación y esta página) con sus cookies; esos datos van a Google, bajo su propia política de privacidad. Las páginas de la app (conectarse, las sesiones, las computadoras vinculadas) nunca lo cargan, y tampoco las apps de computadora, iPhone, iPad y Android. Podés cambiar tu elección cuando quieras en \"Configurar cookies\".",
         ],
       },
       {
@@ -340,7 +346,7 @@ export const es: Messages = {
       cards: [
         { k: "DTLS-SRTP · WebRTC", title: "Cifrado de punta a punta", text: "Cada sesión negocia sus propias llaves. Si no hay camino directo, un relé TURN pasa los datos sin poder leerlos." },
         { k: "Consentimiento", title: "Siempre pide permiso", text: "Ninguna sesión empieza sin que la persona acepte, y un panel visible le deja cortarla en cualquier momento. La primera vez, avisa sobre las estafas telefónicas." },
-        { k: "MIT · GitHub", title: "Código abierto", text: "Cualquiera puede leer qué hace. Sin cuenta, sin publicidad, sin seguimiento: no guardamos tus sesiones." },
+        { k: "MIT · GitHub", title: "Código abierto", text: "Cualquiera puede leer qué hace. Sin cuenta, sin publicidad, sin seguimiento en la app: no guardamos tus sesiones." },
       ],
       you: "Tu equipo",
       computer: "La computadora",
@@ -424,6 +430,13 @@ export const es: Messages = {
     about: "Software libre y de código abierto (licencia MIT). La imagen, el sonido y el control van directo entre los equipos, cifrados de punta a punta.",
     version: "Versión",
     website: "Acerca de go-link Desk",
+  },
+  consent: {
+    title: "Cookies y estadísticas",
+    text: "go-link Desk no guarda ningún dato tuyo. Si aceptás, Google Analytics cuenta tu visita a este sitio (la portada y la documentación) con sus cookies, para saber cuánta gente viene; esos datos van a Google. Las páginas de la app nunca lo usan. Si rechazás, no se carga nada.",
+    reject: "Rechazar",
+    accept: "Aceptar",
+    settings: "Configurar cookies",
   },
   footer: { source: "Código fuente", privacy: "Privacidad" },
 };

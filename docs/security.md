@@ -8,7 +8,7 @@ Remote desktop software is a favorite tool of "tech support" scammers. go-link D
 2. **Always visible.** While a session lasts, the tray icon turns red and a floating panel shows who is connected, the permissions (changeable live), the chat and **Disconnect**.
 3. **Least privilege.** Every permission (view, control, audio, clipboard, files) is shown and can be revoked during the session. The defaults are minimal.
 4. **signalhub is not trusted.** It only relays signaling. Media and input are encrypted end to end (DTLS/SRTP). For linked browsers the host proves itself first (HMAC over a nonce), and only then does the browser show its token.
-5. **No third parties on the website.** Strict Content Security Policy, no third-party scripts, no analytics, self-hosted fonts.
+5. **No third parties where sessions run.** The app's pages (`/web`, `/c/…`, `/link/…`, `/d/…`) load no third-party script and are served with a strict Content Security Policy; fonts are self-hosted everywhere. Only the public pages (`/`, `/docs`, `/privacy`) may load Google Analytics 4, and only after the visitor accepts the cookie notice. Once it is loaded, moving to an app page is a full page load (`src/analytics.ts`), so Google's script never shares a page with a remote session; there the server's CSP header, which leaves Google out, applies on top of the page's own.
 6. **The macOS app runs with the hardened runtime and no code-signing exceptions** (its only entitlements are the camera and the microphone, for video calls), and is notarized for release.
 
 ## Threat model

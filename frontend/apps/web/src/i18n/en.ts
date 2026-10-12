@@ -237,7 +237,13 @@ export const en = {
       {
         title: "Nothing is collected",
         text: [
-          "go-link Desk has no accounts, no analytics, no advertising and no tracking. Nobody sells, shares or keeps your data, because it is never gathered.",
+          "go-link Desk has no accounts, no advertising and no tracking. Nobody sells, shares or keeps your data, because it is never gathered.",
+        ],
+      },
+      {
+        title: "Visit statistics on this website",
+        text: [
+          "Only if you accept the cookie notice, Google Analytics counts visits to the public pages of this website (the home page, the docs and this page) with its cookies; that data goes to Google, under its own privacy policy. The app's pages (connecting, sessions, linked computers) never load it, and neither do the computer, iPhone, iPad and Android apps. You can change your choice at any time in \"Cookie settings\".",
         ],
       },
       {
@@ -342,7 +348,7 @@ export const en = {
       cards: [
         { k: "DTLS-SRTP · WebRTC", title: "End-to-end encrypted", text: "Each session negotiates its own keys. When there is no direct path, a TURN relay passes the data without being able to read it." },
         { k: "Consent", title: "It always asks first", text: "No session starts until the person accepts, and a visible panel lets them end it at any moment. The first time, it warns about phone scams." },
-        { k: "MIT · GitHub", title: "Open source", text: "Anyone can read what it does. No account, no ads, no tracking: we keep no sessions." },
+        { k: "MIT · GitHub", title: "Open source", text: "Anyone can read what it does. No account, no ads, no tracking in the app: we keep no sessions." },
       ],
       you: "Your device",
       computer: "The computer",
@@ -426,6 +432,13 @@ export const en = {
     about: "Free and open source software (MIT license). The picture, sound and controls go straight between the devices, encrypted end to end.",
     version: "Version",
     website: "About go-link Desk",
+  },
+  consent: {
+    title: "Cookies and statistics",
+    text: "go-link Desk keeps no data about you. If you accept, Google Analytics counts your visit to this website (the home page and the docs) with its cookies, so we know how many people come by; that data goes to Google. The app's pages never use it. If you reject, nothing is loaded.",
+    reject: "Reject",
+    accept: "Accept",
+    settings: "Cookie settings",
   },
   footer: { source: "Source code", privacy: "Privacy" },
 };

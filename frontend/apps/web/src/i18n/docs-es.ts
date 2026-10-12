@@ -356,7 +356,7 @@ export const docsEs: Docs = {
             "**Consentimiento:** cada sesión se acepta en la computadora, con los permisos que elige la persona, y un panel queda visible mientras dura.",
             "**El acceso desatendido** está apagado hasta que la persona de la computadora lo activa, siempre tiene contraseña, y cada vínculo se puede revocar.",
             "**La computadora se identifica** antes de que un equipo vinculado mande su clave, así una página falsa no puede robarla.",
-            "**Sin cuentas ni rastreo.** Mirá la [página de privacidad](/privacy).",
+            "**Sin cuentas ni rastreo en la app.** El sitio cuenta visitas con Google Analytics solo si aceptás; mirá la [página de privacidad](/privacy).",
             "**Software libre** con licencia MIT: [leé el código](https://github.com/lordbasex/go-link-desk).",
           ],
         },

@@ -12,6 +12,7 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@go-link-desk/shared/tokens.css";
 import "./styles/global.css";
+import { guardHistory } from "./analytics";
 import { App } from "./App";
 import { useLang } from "./i18n";
 
@@ -24,6 +25,9 @@ function LangRoot() {
     </BrowserRouter>
   );
 }
+
+// Before anything navigates and before Google's script could load.
+guardHistory();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

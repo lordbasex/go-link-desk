@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- The website asks before counting visits: a cookie notice (English, Spanish and Portuguese) on the home page, the docs and the privacy page. Only if the visitor accepts does Google Analytics 4 load there; "Cookie settings" in the footer asks again, and rejecting deletes its cookies. The app's pages (connecting, sessions, linked computers) never load it, and leaving the public pages after it loaded is a full page load. The privacy page, the security docs and the "no tracking" texts say so.
+
 ## [1.1.0] - 2026-10-12
 
 go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 and Wayland. Also the new website, Android ready for Google Play, and fixes.

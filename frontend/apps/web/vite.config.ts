@@ -4,14 +4,19 @@ import react from "@vitejs/plugin-react";
 
 // Strict Content Security Policy for the production build. connect-src
 // allows any wss: host because users may pick their own signaling server.
-// It is not applied in dev: Vite's hot reload needs inline scripts.
+// Google Analytics' hosts are here for the public pages (with consent,
+// see src/analytics.ts); on the app's pages the server's CSP header leaves
+// them out, and both policies apply. It is not applied in dev: Vite's hot
+// reload needs inline scripts.
+const GA = "https://*.googletagmanager.com";
+const GA_HITS = "https://*.google-analytics.com https://*.analytics.google.com";
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  `script-src 'self' ${GA}`,
   "style-src 'self'",
   "font-src 'self'",
-  "img-src 'self' data: blob:",
-  "connect-src 'self' wss:",
+  `img-src 'self' data: blob: ${GA_HITS} ${GA}`,
+  `connect-src 'self' wss: ${GA_HITS} ${GA}`,
   "media-src 'self' blob:",
   "base-uri 'none'",
   "form-action 'self'",

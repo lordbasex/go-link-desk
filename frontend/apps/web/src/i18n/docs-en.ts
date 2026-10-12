@@ -357,7 +357,7 @@ export const docsEn: Docs = {
             "**Consent:** every session is accepted at the computer, with the permissions the person chooses, and a panel stays visible while it lasts.",
             "**Unattended access** is off until the person at the computer turns it on, always has a password, and every link can be revoked.",
             "**The computer proves itself** before a linked device sends its key, so a fake page cannot steal it.",
-            "**No accounts, no tracking.** See the [privacy page](/privacy).",
+            "**No accounts, no tracking in the app.** The website counts visits with Google Analytics only if you accept; see the [privacy page](/privacy).",
             "**Free software** under the MIT license: [read the code](https://github.com/lordbasex/go-link-desk).",
           ],
         },

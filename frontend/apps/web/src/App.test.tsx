@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { resetAnalyticsForTests } from "./analytics";
 import { App } from "./App";
 import { setLang } from "./i18n";
 import { en } from "./i18n/en";
@@ -20,9 +21,26 @@ function renderAt(path: string) {
 afterEach(() => {
   cleanup();
   setLang("en");
+  window.localStorage.removeItem("go-link-desk.consent");
+  resetAnalyticsForTests();
 });
 
 describe("App", () => {
+  it("asks about cookies on the public pages only, and remembers the answer", async () => {
+    const user = userEvent.setup();
+    renderAt("/web");
+    expect(screen.queryByRole("region", { name: en.consent.title })).toBeNull();
+    cleanup();
+    renderAt("/");
+    expect(screen.getByRole("region", { name: en.consent.title })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.consent.reject }));
+    expect(screen.queryByRole("region", { name: en.consent.title })).toBeNull();
+    expect(window.localStorage.getItem("go-link-desk.consent")).toBe("denied");
+    expect(document.querySelector('script[src*="googletagmanager"]')).toBeNull();
+    await user.click(screen.getByRole("button", { name: en.consent.settings }));
+    expect(screen.getByRole("region", { name: en.consent.title })).toBeInTheDocument();
+  });
+
   it("shows the landing with the four ways in", () => {
     renderAt("/");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(en.site.hero.titleEm);
