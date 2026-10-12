@@ -356,7 +356,7 @@ export const docsPt: Docs = {
             "**Consentimento:** cada sessão é aceita no computador, com as permissões que a pessoa escolhe, e um painel fica visível enquanto ela dura.",
             "**O acesso não supervisionado** fica desligado até a pessoa no computador ativá-lo, sempre tem senha, e cada vínculo pode ser revogado.",
             "**O computador se identifica** antes de um aparelho vinculado enviar a chave, então uma página falsa não consegue roubá-la.",
-            "**Sem contas nem rastreamento.** Veja a [página de privacidade](/privacy).",
+            "**Sem contas nem rastreamento no app.** O site conta visitas com o Google Analytics só se você aceitar; veja a [página de privacidade](/privacy).",
             "**Software livre** com licença MIT: [leia o código](https://github.com/lordbasex/go-link-desk).",
           ],
         },

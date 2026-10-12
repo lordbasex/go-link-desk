@@ -268,3 +268,19 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .drop-overlay { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(10, 14, 22, 0.7); color: #fff; font-size: 20px; border: 3px dashed var(--color-accent); pointer-events: none; }
 .app-own { min-height: 100dvh; display: block; }
 .app-own > .ios { min-height: 100dvh; }
+
+/* ---------- cookie notice (public pages only, see analytics.ts) ---------- */
+.consent { position: fixed; z-index: 50; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: min(560px, calc(100% - 40px)); display: grid; gap: 14px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border-strong); border-left: 3px solid var(--color-accent); border-radius: 16px; padding: 18px 20px; box-shadow: 0 24px 60px var(--shadow-strong); }
+.consent-text { display: grid; gap: 6px; }
+.consent-text strong { font: 700 18px/1.2 var(--font-title); }
+.consent-text p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-2); }
+.consent-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.consent-btn { font: 600 15px/1 var(--font-text); border-radius: 12px; padding: 12px 16px; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-text); }
+.consent-btn:hover { border-color: var(--color-border-strong); }
+.consent-accept { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+.consent-accept:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+.linkish { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 560px) {
+  .consent { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: calc(100% - 32px); }
+  .consent-btn { flex: 1; }
+}

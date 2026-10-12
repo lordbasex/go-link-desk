@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { editCodeFromChange, parseInvite, type CodeEdit } from "@go-link-desk/shared";
+import { askConsent } from "../analytics";
 import { REPO_URL } from "../config";
 import { LANGS, setLang, t, useLang } from "../i18n";
 import { signalUrl } from "../session/useSession";
@@ -442,6 +443,11 @@ export function SiteFooter() {
               </li>
               <li>
                 <Link to="/privacy">{f.privacy}</Link>
+              </li>
+              <li>
+                <button type="button" className="lp-foot-link" onClick={askConsent}>
+                  {t.consent.settings}
+                </button>
               </li>
               <li>
                 <a href="/#download">{t.site.nav.download}</a>
