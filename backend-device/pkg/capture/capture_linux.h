@@ -6,12 +6,7 @@
 
 #include <stdint.h>
 
-// A captured picture: packed I420 at w x h, shared by reference count.
-typedef struct {
-	int refs;
-	int w, h;
-	uint8_t *data;
-} dk_frame;
+#include "frame.h"
 
 typedef struct dk_cap dk_cap;
 
@@ -37,11 +32,3 @@ void dk_close(dk_cap *c);
 // (one reference), or NULL when it did not change since the last grab (or
 // on failure: *err set). cursor: draw the pointer into it.
 dk_frame *dk_grab(dk_cap *c, int x, int y, int w, int h, int ow, int oh, int cursor, int *err);
-
-void dk_retain(dk_frame *f);
-void dk_release(dk_frame *f);
-
-// The picture src (w x h, 32 bits a pixel, bpl bytes a row: BGRx, or RGBx
-// when rgb) fitted in ow x oh, keeping its shape, as a new I420 frame (one
-// reference).
-dk_frame *dk_scale(const uint8_t *src, int bpl, int w, int h, int ow, int oh, int rgb);
