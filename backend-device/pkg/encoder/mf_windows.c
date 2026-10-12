@@ -104,10 +104,11 @@ static HRESULT set_bool(ICodecAPI *api, const GUID *key, int v) {
 	return ICodecAPI_SetValue(api, key, &var);
 }
 
-// The first synchronous H.264 encoder that takes I420 (hardware ones
-// first, though those are asynchronous and so not listed).
+// The first synchronous H.264 encoder that takes I420, which Windows
+// names IYUV (hardware ones first, though those are asynchronous and so
+// not listed).
 static IMFTransform *find_encoder(int *hardware) {
-	MFT_REGISTER_TYPE_INFO in = {MFMediaType_Video, MFVideoFormat_I420};
+	MFT_REGISTER_TYPE_INFO in = {MFMediaType_Video, MFVideoFormat_IYUV};
 	MFT_REGISTER_TYPE_INFO out = {MFMediaType_Video, MFVideoFormat_H264};
 	IMFActivate **acts = NULL;
 	UINT32 n = 0;
@@ -204,7 +205,7 @@ mf_enc *mf_open(int w, int h, int fps, int kbps, int gop, int high, int *err) {
 		*err = 5;
 		goto fail;
 	}
-	IMFMediaType *in = video_type(&MFVideoFormat_I420, w, h, e->fps);
+	IMFMediaType *in = video_type(&MFVideoFormat_IYUV, w, h, e->fps);
 	if (!in) {
 		*err = 4;
 		goto fail;
