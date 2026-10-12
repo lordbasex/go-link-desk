@@ -297,28 +297,32 @@ func (e *h264Encoder) size() (int, int)    { return e.w, e.h }
 func (e *h264Encoder) close()              { e.enc.Close() }
 
 // vp8Encoder is libvpx: the fallback for browsers without H.264 and
-// systems without a system encoder. Its bitrate changes start it again
-// (with a keyframe), so they are kept rare.
+// systems without a system encoder (Linux, and Windows without Media
+// Foundation's). Frames go in with their times, and the bitrate changes
+// as it runs.
 type vp8Encoder struct {
-	enc       *encoder.VP8
-	w, h, fps int
-	kbps      int
-	setAt     time.Time
-	i420      []byte
-	out       *sampleWriter
+	enc   *encoder.VP8
+	w, h  int
+	kbps  int
+	setAt time.Time
+	i420  []byte
+	out   *sampleWriter
 }
 
 func newVP8Encoder(w, h, fps, kbps int, out *sampleWriter) (*vp8Encoder, error) {
-	enc, err := encoder.NewVP8(encoder.Config{Width: w, Height: h, FPS: fps, BitrateKbps: kbps, Threads: vp8Threads(w, h)})
+	enc, err := encoder.NewVP8(encoder.Config{Width: w, Height: h, FPS: fps, BitrateKbps: kbps, Threads: vp8Threads(w, h), Screen: true})
 	if err != nil {
 		return nil, err
 	}
-	return &vp8Encoder{enc: enc, w: w, h: h, fps: fps, kbps: kbps, setAt: time.Now(), out: out}, nil
+	return &vp8Encoder{enc: enc, w: w, h: h, kbps: kbps, setAt: time.Now(), out: out}, nil
 }
 
-// vp8Threads gives large pictures more of libvpx's threads.
+// vp8Threads gives large pictures more of libvpx's threads (the encoder
+// keeps them to the computer's cores).
 func vp8Threads(w, h int) int {
 	switch px := w * h; {
+	case px >= 2560*1440:
+		return 6
 	case px >= 1920*1080:
 		return 4
 	case px >= 1280*720:
@@ -340,7 +344,7 @@ func (e *vp8Encoder) encode(f Frame, key bool) error {
 		}
 		frame = e.i420
 	}
-	data, _, err := e.enc.Encode(frame, key)
+	data, _, err := e.enc.EncodeAt(frame, f.PTS, key)
 	if err != nil || len(data) == 0 {
 		return err
 	}
@@ -348,18 +352,15 @@ func (e *vp8Encoder) encode(f Frame, key bool) error {
 	return nil
 }
 
-// setBitrate restarts the encoder only for a change of a fifth or more,
-// and not more than every two seconds.
+// setBitrate follows changes of a tenth or more, once a second at most:
+// the rate control needs a moment at each bitrate to settle.
 func (e *vp8Encoder) setBitrate(kbps int) {
-	if kbps <= 0 || time.Since(e.setAt) < 2*time.Second || (kbps*5 > e.kbps*4 && kbps*5 < e.kbps*6) {
+	if kbps <= 0 || time.Since(e.setAt) < time.Second || (kbps*10 > e.kbps*9 && kbps*10 < e.kbps*11) {
 		return
 	}
-	enc, err := encoder.NewVP8(encoder.Config{Width: e.w, Height: e.h, FPS: e.fps, BitrateKbps: kbps, Threads: vp8Threads(e.w, e.h)})
-	if err != nil {
-		return
+	if e.enc.SetBitrate(kbps) == nil {
+		e.kbps, e.setAt = kbps, time.Now()
 	}
-	e.enc.Close()
-	e.enc, e.kbps, e.setAt = enc, kbps, time.Now()
 }
 
 func (e *vp8Encoder) size() (int, int) { return e.w, e.h }

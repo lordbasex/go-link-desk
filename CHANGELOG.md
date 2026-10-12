@@ -20,6 +20,20 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 - The website asks before counting visits: a cookie notice (English, Spanish and Portuguese) on the home page, the docs and the privacy page. Only if the visitor accepts does Google Analytics 4 load there; "Cookie settings" in the footer asks again, and rejecting deletes its cookies. The app's pages (connecting, sessions, linked computers) never load it, and leaving the public pages after it loaded is a full page load. The privacy page, the security docs and the "no tracking" texts say so.
 - The website measures with its own Google Analytics property (`G-JF0SPS21MX`), apart from go-link.org's, and its own cookies (`desk__ga…`, on desk.go-link.org only): a choice on one site never changes the other.
 
+### Changed
+
+- **Sharper, steadier VP8** (Linux, and Windows without H.264):
+  - **Frames carry their times:** libvpx was told every frame came a sixtieth of a second after the last. A desktop changes far less often, so each frame got a fraction of the bits it had. Now each frame gets the bits of the time since the previous one; a test checks that frames 100 ms apart get about six times more.
+  - **No more restarts on bitrate changes:** a change of a tenth or more now applies while the encoder runs, at most once a second. Before, a change of a fifth or more started the encoder again with a keyframe, which made bursts the viewer saw as stalls.
+  - **WebRTC's short rate control buffer** (1 s, not libvpx's 6 s), so a busy screen does not send long bursts.
+  - **libvpx's screen content mode**, for sharper text and still areas left alone.
+  - **Threads no more than the computer's cores**, and six for pictures of 2560×1440 and larger.
+- **The screen's pictures are scaled and converted to I420 with libyuv** (BSD-3-Clause; Linux and Windows):
+  - Its SIMD code does a 1080p frame in about 2 ms. The plain C before took 28–37 ms, which alone held the capture to about 30 frames a second and took a core.
+  - Smaller pictures average every pixel under each of their own (a box filter), not up to sixteen samples.
+  - Linking: on Linux, Debian stable's static `libyuv.a`; on Windows, built from source in Docker without its JPEG decoder. Both are linked in, so no new runtime libraries are needed (checked by `check-deps.sh`).
+  - On Debian and Ubuntu, development builds need `libyuv-dev`.
+
 ## [1.1.0] - 2026-10-12
 
 go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 and Wayland. Also the new website, Android ready for Google Play, and fixes.
