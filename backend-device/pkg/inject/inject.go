@@ -2,7 +2,7 @@
 
 // Package inject drives the host's mouse and keyboard: CGEvent on macOS
 // (it needs the Accessibility permission); XTest on an X11 desktop and the
-// remote desktop portal on a Wayland one (Linux).
+// remote desktop portal on a Wayland one (Linux); SendInput on Windows.
 // An Injector keeps which keys and buttons it holds down, so that
 // ReleaseAll can let them all go: a viewer that disconnects never leaves a
 // key stuck on the host.
