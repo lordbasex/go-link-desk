@@ -21,29 +21,7 @@ export function LandingPage() {
   return (
     <div className="lp">
       <div className="lp-wrap">
-        <header className="lp-nav">
-          <Link className="lp-brand" to="/" aria-label={t.brand.home}>
-            <img src="/landing/icon.png" alt="" width={32} height={32} />
-            {t.brand.name} <b>{t.brand.suffix}</b>
-          </Link>
-          <nav className="lp-nav-links" aria-label={s.nav.ways}>
-            <a href="#ways">{s.nav.ways}</a>
-            <a href="#features">{s.nav.features}</a>
-            <a href="#security">{s.nav.security}</a>
-            <a href="#download">{s.nav.download}</a>
-            <a href={REPO_URL} rel="noreferrer">
-              {s.nav.source}
-            </a>
-          </nav>
-          <div className="lp-nav-cta">
-            <Link className="lp-btn lp-btn-ghost" to="/web">
-              {s.nav.openWeb}
-            </Link>
-            <a className="lp-btn lp-btn-primary" href="#download">
-              {s.nav.downloadButton}
-            </a>
-          </div>
-        </header>
+        <SiteNav />
 
         <div className="lp-hero">
           <div>
@@ -375,6 +353,36 @@ function useSignalStatus(): Status {
   return status;
 }
 
+/** The site's header: the brand, the sections, the docs and the web app. */
+export function SiteNav() {
+  const s = t.site;
+  return (
+    <header className="lp-nav">
+      <Link className="lp-brand" to="/" aria-label={t.brand.home}>
+        <img src="/landing/icon.png" alt="" width={32} height={32} />
+        {t.brand.name} <b>{t.brand.suffix}</b>
+      </Link>
+      <nav className="lp-nav-links" aria-label={s.nav.ways}>
+        <a href="/#ways">{s.nav.ways}</a>
+        <a href="/#features">{s.nav.features}</a>
+        <a href="/#security">{s.nav.security}</a>
+        <Link to="/docs">{s.nav.docs}</Link>
+        <a href={REPO_URL} rel="noreferrer">
+          {s.nav.source}
+        </a>
+      </nav>
+      <div className="lp-nav-cta">
+        <Link className="lp-btn lp-btn-ghost" to="/web">
+          {s.nav.openWeb}
+        </Link>
+        <a className="lp-btn lp-btn-primary" href="/#download">
+          {s.nav.downloadButton}
+        </a>
+      </div>
+    </header>
+  );
+}
+
 /** The site map, the scam warning, and the fine print. */
 export function SiteFooter() {
   const lang = useLang();
@@ -423,6 +431,9 @@ export function SiteFooter() {
           <nav className="lp-foot-col" aria-label={f.help}>
             <h4>{f.help}</h4>
             <ul>
+              <li>
+                <Link to="/docs">{t.site.nav.docs}</Link>
+              </li>
               <li>
                 <a href="/#features">{t.site.nav.features}</a>
               </li>

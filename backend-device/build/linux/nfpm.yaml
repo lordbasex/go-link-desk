@@ -1,0 +1,106 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# The Linux host as .deb, .rpm and Arch packages (nFPM). The Makefile fills
+# @VERSION@, @ARCH@ (Go's: amd64, arm64) and @DIR@ (the unpacked
+# linux-package folder) in a copy of this file:
+#
+#   make linux-packages-amd64
+name: go-link-desk
+version: "@VERSION@"
+arch: "@ARCH@"
+platform: linux
+section: net
+priority: optional
+maintainer: Federico Pereira <lord.basex@gmail.com>
+vendor: go-link
+homepage: https://desk.go-link.org
+license: MIT
+description: |-
+  Remote desktop, peer to peer.
+  Share this computer's screen with a 9-digit code; whoever helps you
+  connects from a browser, a phone or a Mac. The picture, the sound and the
+  control travel encrypted end to end. X11 and Wayland (GNOME, KDE Plasma
+  and other desktops with the remote desktop portal and PipeWire).
+
+contents:
+  - src: "@DIR@/go-link-desk"
+    dst: /usr/bin/go-link-desk
+    file_info: { mode: 0755 }
+  - src: "@DIR@/org.go-link.desk.desktop"
+    dst: /usr/share/applications/org.go-link.desk.desktop
+    file_info: { mode: 0644 }
+  # Each icon on its own: the hicolor folders belong to the icon theme.
+  - src: "@DIR@/icons/hicolor/48x48/apps/org.go-link.desk.png"
+    dst: /usr/share/icons/hicolor/48x48/apps/org.go-link.desk.png
+    file_info: { mode: 0644 }
+  - src: "@DIR@/icons/hicolor/64x64/apps/org.go-link.desk.png"
+    dst: /usr/share/icons/hicolor/64x64/apps/org.go-link.desk.png
+    file_info: { mode: 0644 }
+  - src: "@DIR@/icons/hicolor/128x128/apps/org.go-link.desk.png"
+    dst: /usr/share/icons/hicolor/128x128/apps/org.go-link.desk.png
+    file_info: { mode: 0644 }
+  - src: "@DIR@/icons/hicolor/256x256/apps/org.go-link.desk.png"
+    dst: /usr/share/icons/hicolor/256x256/apps/org.go-link.desk.png
+    file_info: { mode: 0644 }
+  - src: "@DIR@/icons/hicolor/512x512/apps/org.go-link.desk.png"
+    dst: /usr/share/icons/hicolor/512x512/apps/org.go-link.desk.png
+    file_info: { mode: 0644 }
+  - src: "@DIR@/LICENSE"
+    dst: /usr/share/doc/go-link-desk/LICENSE
+    file_info: { mode: 0644 }
+  - src: "@DIR@/THIRD_PARTY_NOTICES.md"
+    dst: /usr/share/doc/go-link-desk/THIRD_PARTY_NOTICES.md
+    file_info: { mode: 0644 }
+
+# The window (X11, OpenGL) and the Wayland clipboard are linked; PipeWire
+# (Wayland's screen) and PulseAudio (the sound) are loaded only when there,
+# so they are recommended (Arch has no recommendations in nFPM: its
+# desktops have both).
+overrides:
+  deb:
+    depends:
+      - libc6 (>= 2.34)
+      - libx11-6
+      - libxext6
+      - libxfixes3
+      - libxrandr2
+      - libxtst6
+      - libgl1
+      - libwayland-client0
+    recommends:
+      - libpipewire-0.3-0t64 | libpipewire-0.3-0
+      - libpulse0
+      - xdg-desktop-portal
+  rpm:
+    depends:
+      - libc.so.6(GLIBC_2.34)(64bit)
+      - libX11.so.6()(64bit)
+      - libXext.so.6()(64bit)
+      - libXfixes.so.3()(64bit)
+      - libXrandr.so.2()(64bit)
+      - libXtst.so.6()(64bit)
+      - libGL.so.1()(64bit)
+      - libwayland-client.so.0()(64bit)
+    recommends:
+      - libpipewire-0.3.so.0()(64bit)
+      - libpulse-simple.so.0()(64bit)
+      - xdg-desktop-portal
+  archlinux:
+    depends:
+      - glibc
+      - libx11
+      - libxext
+      - libxfixes
+      - libxrandr
+      - libxtst
+      - libglvnd
+      - wayland
+
+rpm:
+  group: Applications/Internet
+  summary: Remote desktop, peer to peer
+deb:
+  fields:
+    Bugs: https://github.com/lordbasex/go-link-desk/issues
+archlinux:
+  packager: Federico Pereira <lord.basex@gmail.com>

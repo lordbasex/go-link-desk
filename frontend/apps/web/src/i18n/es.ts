@@ -269,7 +269,7 @@ export const es: Messages = {
     ],
   },
   site: {
-    nav: { ways: "Formas de conectarte", features: "Funciones", security: "Seguridad", download: "Descargas", source: "Código abierto", openWeb: "Abrir la web", downloadButton: "Descargar" },
+    nav: { docs: "Docs", ways: "Formas de conectarte", features: "Funciones", security: "Seguridad", download: "Descargas", source: "Código abierto", openWeb: "Abrir la web", downloadButton: "Descargar" },
     hero: {
       eyebrow: "Escritorio remoto · directo y cifrado",
       title: "Tu computadora, {em} dígitos.",

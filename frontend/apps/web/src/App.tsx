@@ -4,6 +4,7 @@ import { Header } from "./components/Header";
 import { APP_VERSION, REPO_URL } from "./config";
 import { t, useLang } from "./i18n";
 import { DevicePage } from "./pages/DevicePage";
+import { DocsPage } from "./pages/DocsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkPage } from "./pages/LinkPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -11,18 +12,20 @@ import { SessionPage } from "./pages/SessionPage";
 import { WebHomePage } from "./pages/WebHomePage";
 
 /**
- * desk.go-link.org: the landing (/) and the web app's Home (/web) have
- * their own look; the session, linking and privacy pages keep the site's
+ * desk.go-link.org: the landing (/), the docs (/docs) and the web app's
+ * Home (/web) have their own look; the session, linking and privacy pages keep the site's
  * header and footer. /c and /devices, the old ways in, lead to /web.
  */
 export function App() {
   useLang();
   const path = useLocation().pathname;
-  const ownLook = path === "/" || path === "/web";
+  const ownLook = path === "/" || path === "/web" || path === "/docs" || path.startsWith("/docs/");
   const routes = (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/web" element={<WebHomePage />} />
+      <Route path="/docs" element={<DocsPage />} />
+      <Route path="/docs/:slug" element={<DocsPage />} />
       <Route path="/c" element={<Navigate to="/web" replace />} />
       <Route path="/c/:target" element={<SessionPage />} />
       <Route path="/link" element={<LinkPage />} />

@@ -16,7 +16,7 @@ The computer you control runs go-link Desk and shows a code. Whoever controls it
 | Where | What |
 |---|---|
 | **macOS** 13 or newer (Intel and Apple silicon) | [The latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `go-link-desk-<version>-macos-universal.dmg`, signed and notarized. It shares this Mac's screen and connects to other computers. |
-| **Linux**, x86-64 and ARM64, glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or newer) | [The latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `go-link-desk-<version>-linux-<arch>.tar.gz`. Unpack it and run `./install.sh` (for this user, no root) or `./go-link-desk`. It shares the screen of an X11 or Wayland desktop (GNOME, KDE Plasma and others with the remote desktop portal and PipeWire); to connect to other computers from Linux, use the browser. |
+| **Linux**, x86-64 and ARM64, glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or newer) | `curl -fsSL https://desk.go-link.org/install.sh \| sh`, or from [the latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `.deb`, `.rpm`, Arch package, or `.tar.gz` (unpack it and run `./install.sh`, for this user, no root). It shares the screen of an X11 or Wayland desktop (GNOME, KDE Plasma and others with the remote desktop portal and PipeWire); to connect to other computers from Linux, use the browser. |
 | **iPhone and iPad**, iOS and iPadOS 26 or newer | go-link Desk on the App Store: it connects to other computers (with a code, or linked ones with Face ID). |
 | **Android** phones and tablets, Android 11 or newer | go-link Desk for Android ([mobile/android](mobile/android/README.md)): the iPhone and iPad app on Android (a code, or linked computers with the fingerprint, face or screen lock). |
 | **Any browser** | [desk.go-link.org](https://desk.go-link.org): connect to a computer with its code, nothing to install. |
@@ -32,6 +32,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md). The Windows host com
 
 ## Docs
 
+- [User documentation](https://desk.go-link.org/docs): installing, sharing, connecting, Linux, troubleshooting
 - [Architecture](docs/architecture.md)
 - [Protocol](docs/protocol.md)
 - [Security and threat model](docs/security.md)

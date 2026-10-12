@@ -271,7 +271,7 @@ export const en = {
     ],
   },
   site: {
-    nav: { ways: "Ways to connect", features: "Features", security: "Security", download: "Download", source: "Open source", openWeb: "Open the web app", downloadButton: "Download" },
+    nav: { docs: "Docs", ways: "Ways to connect", features: "Features", security: "Security", download: "Download", source: "Open source", openWeb: "Open the web app", downloadButton: "Download" },
     hero: {
       eyebrow: "Remote desktop · direct and encrypted",
       title: "Your computer, {em} code.",
