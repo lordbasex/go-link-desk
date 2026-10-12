@@ -2,7 +2,8 @@
 
 // Package capture captures the screen: ScreenCaptureKit on macOS, which
 // hands every changed frame over as an NV12 pixel buffer the hardware
-// encoder takes as it is. Other systems come in a later phase; there
+// encoder takes as it is; XShm on an X11 desktop and the remote desktop
+// portal's PipeWire streams on a Wayland one, as I420 (Linux). Elsewhere
 // Start returns ErrUnsupported and sessions show the test card.
 package capture
 

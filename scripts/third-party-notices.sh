@@ -3,7 +3,10 @@
 #
 # Writes THIRD_PARTY_NOTICES.md: the license of every third-party component
 # that go-link Desk's binaries and website include (Go modules, the Go
-# standard library, libvpx, libopus, npm packages and fonts). The BSD, MIT,
+# standard library, libvpx, libopus, the Linux host's Wayland clipboard
+# protocol, npm packages and fonts). Libraries the Linux host only loads
+# from the system at run time (libpipewire, libpulse-simple) are not
+# included, so they are not listed. The BSD, MIT,
 # Apache and OFL licenses ask for their notices to travel with the
 # binaries, so the release packs this file next to them.
 #
@@ -82,6 +85,11 @@ cat "$WORK/libvpx-$VPX_VERSION/LICENSE" "$WORK/libvpx-$VPX_VERSION/PATENTS" > "$
 section "libvpx" "$VPX_VERSION" "https://chromium.googlesource.com/webm/libvpx" "$WORK/vpx.txt"
 curl -fsSL "https://downloads.xiph.org/releases/opus/opus-$OPUS_VERSION.tar.gz" | tar xz -C "$WORK"
 section "libopus" "$OPUS_VERSION" "https://opus-codec.org" "$WORK/opus-$OPUS_VERSION/COPYING"
+
+echo "▶ wlr-data-control (the Linux host's clipboard protocol, generated code)"
+awk '/Copyright ©/{f=1} f{sub(/^ \* ?/, ""); print} /THIS SOFTWARE\./{exit}' \
+  "$ROOT/backend-device/pkg/clipboard/wlr_data_control_linux.c" > "$WORK/wlr.txt"
+section "wlr-data-control-unstable-v1" "1" "https://gitlab.freedesktop.org/wlroots/wlr-protocols" "$WORK/wlr.txt"
 
 echo "▶ Website packages and fonts"
 (cd "$ROOT/frontend" && node -e '

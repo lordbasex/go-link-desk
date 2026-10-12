@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
 // Package clipboard reads and writes the computer's clipboard as text:
-// NSPasteboard on macOS. Other systems come in phase 7; there Supported is
-// false and nothing is shared.
+// NSPasteboard on macOS; on Linux, the X11 CLIPBOARD, or a Wayland
+// desktop's data-control protocol. Elsewhere Supported is false and
+// nothing is shared.
 package clipboard
 
 // Board is the clipboard (an interface so tests can stand in for it).
