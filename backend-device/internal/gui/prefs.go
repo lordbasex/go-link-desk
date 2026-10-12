@@ -46,7 +46,7 @@ func (u *ui) showPrefs() {
 	spec := u.prefsSpec()
 	b, _ := json.Marshal(spec)
 	u.prefs.last = string(b)
-	remoteview.SetPrefs(spec, true)
+	mainSetPrefs(spec, true)
 }
 
 // refreshPrefs redraws the native Settings if it was opened and something
@@ -61,7 +61,7 @@ func (u *ui) refreshPrefs() {
 		return
 	}
 	u.prefs.last = string(b)
-	remoteview.SetPrefs(spec, false)
+	mainSetPrefs(spec, false)
 }
 
 func off() *bool { f := false; return &f }
@@ -245,7 +245,7 @@ func (u *ui) setting(arg string) {
 			value = ""
 		}
 		u.app.SetIcon(fyne.NewStaticResource("go-link-desk.png", appIcon(value)))
-		remoteview.SetDockIcon(appIcon(value))
+		mainSetIcon(appIcon(value))
 		update(func(c *models.Config) { c.AppIcon = value })
 	case id == "tray_icon":
 		if value != "dark" {
@@ -256,7 +256,7 @@ func (u *ui) setting(arg string) {
 		u.renderTray(activeOf(u.lastSt))
 		update(func(c *models.Config) { c.TrayIcon = value })
 	case id == "theme":
-		remoteview.SetTheme(themeOf(value))
+		mainSetTheme(themeOf(value))
 		update(func(c *models.Config) { c.Theme = value })
 	case id == "signal_url":
 		v := strings.TrimSpace(value)
