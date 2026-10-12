@@ -70,8 +70,8 @@ test("a linked browser comes back without a code after the host restarts, with t
     let seen = codes(host).length;
     await stopHost(host);
     host = await start(unattended, seen);
-    await page.goto("/devices");
-    await page.getByRole("link", { name: "Connect" }).first().click();
+    await page.goto("/web");
+    await page.getByRole("link", { name: /^Connect to / }).first().click();
     await expect(page).toHaveURL(new RegExp(`/d/${deviceId}$`));
     const password = page.getByLabel("Password of that computer");
     await password.fill("wrong guess");

@@ -15,7 +15,7 @@ import { SessionRunner } from "./SessionRunner";
 export function SessionPage({ createClient }: { createClient?: () => SignalClient }) {
   const { target: raw = "" } = useParams();
   const target = parseInvite(raw);
-  if (!target) return <Navigate to="/c" replace />;
+  if (!target) return <Navigate to="/web" replace />;
   return <JoinSession target={target} createClient={createClient} />;
 }
 
@@ -28,7 +28,7 @@ function JoinSession({ target, createClient }: { target: InviteTarget; createCli
     <SessionRunner
       door={door}
       title={t.session.nameTitle.replace("{code}", shown)}
-      back={{ to: "/c", label: t.session.back }}
+      back={{ to: "/web", label: t.session.back }}
       onHost={recent.host}
       onLive={recent.live}
       onSnapshot={recent.snapshot}

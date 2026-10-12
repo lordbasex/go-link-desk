@@ -16,7 +16,7 @@ export function Header() {
         {t.brand.name} <span className="brand-suffix">{t.brand.suffix}</span>
       </Link>
       <div className="header-tools">
-        <Link to="/devices" className="header-link" aria-label={t.header.devices}>
+        <Link to="/web" className="header-link" aria-label={t.header.devices}>
           <DevicesIcon />
           <span className="header-link-text">{t.header.devices}</span>
         </Link>

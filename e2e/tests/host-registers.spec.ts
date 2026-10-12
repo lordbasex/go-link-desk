@@ -73,9 +73,9 @@ test("a wrong code opens nothing", async () => {
 test("the website takes the code and opens its session page", async ({ page }) => {
   const code = sessionCode();
   await page.goto("/");
-  await page.getByRole("link", { name: "Connect" }).click();
-  await expect(page).toHaveURL(/\/c$/);
-  await page.getByLabel("Code or link").fill(code);
+  await page.getByRole("link", { name: "Open the web app", exact: true }).click();
+  await expect(page).toHaveURL(/\/web$/);
+  await page.getByLabel("Its 9-digit code").fill(code);
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page).toHaveURL(new RegExp(`/c/${code}$`));
   const grouped = `${code.slice(0, 3)} ${code.slice(3, 6)} ${code.slice(6)}`;
