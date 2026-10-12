@@ -101,7 +101,9 @@ func (pw *prefsWindow) rebuild() {
 	}
 	pw.win.SetTitle(page.Title)
 
-	// The bar: a button per page, its symbol over its title.
+	// The bar: a button per page, its symbol over its title, as the Mac's
+	// preferences toolbar (the chosen one in the text's color on a grey
+	// fill, the others muted).
 	var buttons []fyne.CanvasObject
 	for _, pg := range pages {
 		pg := pg
@@ -109,10 +111,10 @@ func (pw *prefsWindow) rebuild() {
 		col := p.muted
 		bg := box(nil, 7, nil, 0)
 		if on {
-			col = p.accent
+			col = p.text
 			bg.FillColor = p.selected
 		}
-		item := fyneColumn(3, container.NewCenter(icon(pg.Symbol, 20, col)), container.NewCenter(text(pg.Title, 11, medium, col)))
+		item := fyneColumn(3, container.NewCenter(icon(pg.Symbol, 22, col)), container.NewCenter(text(pg.Title, 11, regular, col)))
 		buttons = append(buttons, newTap(container.NewStack(bg, pad(6, 10, 5, 10, item)), func() {
 			pw.page = pg.ID
 			pw.rebuild()
@@ -242,16 +244,16 @@ func (pw *prefsWindow) row(r remoteview.PrefRow) fyne.CanvasObject {
 		e.SetPlaceHolder(r.Placeholder)
 		e.OnSubmitted = func(v string) { pw.send(r.ID, v); pw.typing = false; pw.renderIfStale() }
 		e.OnChanged = func(string) { pw.typing = true }
-		right = sized(220, 30, fieldStyle(e))
+		right = sized(220, 22, fieldStyle(e))
 	case "password":
 		f := widget.NewPasswordEntry()
 		f.SetPlaceHolder(r.Placeholder)
 		var f2 *widget.Entry
-		fields := []fyne.CanvasObject{sized(170, 30, fieldStyle(f))}
+		fields := []fyne.CanvasObject{sized(170, 22, fieldStyle(f))}
 		if r.Repeat != "" {
 			f2 = widget.NewPasswordEntry()
 			f2.SetPlaceHolder(r.Repeat)
-			fields = append(fields, sized(170, 30, fieldStyle(f2)))
+			fields = append(fields, sized(170, 22, fieldStyle(f2)))
 		}
 		set := func() {
 			v := f.Text
@@ -353,9 +355,15 @@ func (pw *prefsWindow) selectBox(r remoteview.PrefRow, enabled bool) fyne.Canvas
 		col = p.faint
 	}
 	label := text(title, 12, regular, col)
+	// As wide as its longest choice, as the Mac's pop-up button: the
+	// title on the left, the arrows on the right, a plain fill.
+	var widest float32
+	for _, o := range r.Options {
+		widest = max(widest, measureInter(o.Title, 12, regular))
+	}
 	var t *tap
-	t = newTap(container.NewStack(box(p.surface2, 6, p.border, 1),
-		pad(5, 8, 5, 10, row(8, label, layout.NewSpacer(), icon("chevrons-up-down", 11, p.muted)))), func() {
+	t = newTap(sized(widest+40, 22, container.NewStack(box(p.surface2, 5, nil, 0),
+		pad(0, 6, 0, 9, row(6, label, layout.NewSpacer(), icon("chevrons-up-down", 11, p.text))))), func() {
 		if !enabled {
 			return
 		}
@@ -405,9 +413,11 @@ func smallButton(title string, danger bool, onTap func()) *button {
 
 // fieldStyle gives a Fyne field the Mac look: the field's color, a thin
 // border, no focus ring.
+// fieldStyle is the Mac's small text field: square corners, a thin
+// border, 12 points.
 func fieldStyle(e *widget.Entry) fyne.CanvasObject {
 	p := c()
-	return container.NewStack(box(p.bg, 6, p.fieldBorder, 1),
+	return container.NewStack(box(p.bg, 2, p.fieldBorder, 1),
 		container.NewThemeOverride(e, &sizedTheme{text: 12, inputBorder: 0, fontW: regular}))
 }
 

@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
@@ -72,6 +73,7 @@ func OpenMain(labels map[string]string, h Handler) error {
 	if a == nil {
 		return remoteview.ErrUnsupported
 	}
+	a.Settings().SetTheme(fontTheme{theme.DefaultTheme()})
 	m := &mainWin{app: a, labels: labels, h: h, filter: "all"}
 	m.viewMode = a.Preferences().IntWithFallback("org.go-link.desk.view", 0)
 	m.win = a.NewWindow("go-link Desk")
@@ -164,7 +166,9 @@ func (m *mainWin) build() {
 		holder.Hidden = m.address.Text != ""
 		holder.Refresh()
 	}
-	fieldTheme := &sizedTheme{text: 14, inputBorder: 0, fontW: medium}
+	// Regular, not the Mac's medium: Fyne measures a field's text in the
+	// regular face, and wider letters would be cut.
+	fieldTheme := &sizedTheme{text: 14, inputBorder: 0, fontW: regular}
 	glyph := icon("display", 15, p.faint)
 	m.doorLabel = text(m.doorTitle(), 11, medium, p.text)
 	var door *tap
@@ -190,7 +194,7 @@ func (m *mainWin) build() {
 			pad(0, 8, 0, 6, container.NewCenter(door)),
 			container.NewStack(
 				container.NewThemeOverride(m.address, fieldTheme),
-				pad(0, 0, 0, 8, container.NewVBox(layout.NewSpacer(), holder, layout.NewSpacer())))),
+				pad(0, 0, 0, 4, container.NewVBox(layout.NewSpacer(), holder, layout.NewSpacer())))),
 	)
 	connect := newButton(m.L("connect"), "arrow.right", true, m.connect).trailingSymbol()
 	settings := newButton("", "gearshape", false, func() { m.h.MainAction("settings", "") })

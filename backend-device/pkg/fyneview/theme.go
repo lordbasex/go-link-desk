@@ -190,7 +190,7 @@ func (appTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
 	case theme.ColorNameMenuBackground, theme.ColorNameOverlayBackground, theme.ColorNameHeaderBackground:
 		return p.surface
 	case theme.ColorNameScrollBar:
-		return withAlpha(p.faint, 0x99)
+		return withAlpha(p.faint, 0x55) // faint, as the Mac's overlay scroller
 	case theme.ColorNameScrollBarBackground:
 		return color.Transparent
 	case theme.ColorNameShadow:
@@ -227,6 +227,20 @@ func (appTheme) Size(n fyne.ThemeSizeName) float32 {
 		return 3
 	}
 	return theme.DefaultTheme().Size(n)
+}
+
+// fontTheme is Fyne's own theme with Inter for text: the app's theme
+// everywhere, so its other windows read like these. Fyne measures a
+// field's text with the app's theme, not the field's: in another font
+// the measure falls short of what Inter draws, and the last character
+// was cut.
+type fontTheme struct{ fyne.Theme }
+
+func (t fontTheme) Font(s fyne.TextStyle) fyne.Resource {
+	if s.Monospace || s.Symbol {
+		return t.Theme.Font(s)
+	}
+	return appTheme{}.Font(s)
 }
 
 func withAlpha(col color.NRGBA, a uint8) color.NRGBA {
