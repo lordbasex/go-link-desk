@@ -535,8 +535,9 @@ func logOutput() (io.Writer, func()) {
 	if err != nil {
 		return os.Stderr, func() {}
 	}
-	// A Windows program built without a console has no standard error.
-	if runtime.GOOS == "windows" {
+	// A Windows program built without a console has no standard error
+	// (its handle is 0); the console build's may be a file or a pipe.
+	if h := os.Stderr.Fd(); runtime.GOOS == "windows" && (h == 0 || h == ^uintptr(0)) {
 		return f, func() { _ = f.Close() }
 	}
 	return io.MultiWriter(f, os.Stderr), func() { _ = f.Close() }
