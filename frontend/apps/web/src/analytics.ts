@@ -9,7 +9,10 @@ import { useSyncExternalStore } from "react";
  * Google's script was loaded is a full page load (guardHistory), so the
  * app starts clean, under its strict Content Security Policy.
  */
-export const GA_ID = "G-MGF9L3YHVB";
+export const GA_ID = "G-JF0SPS21MX";
+// Desk's own cookies (desk__ga, desk__ga_<id>) on this host only, apart from
+// go-link.org's: a choice here never touches the other site's.
+const COOKIE_PREFIX = "desk";
 const KEY = "go-link-desk.consent";
 
 export type Consent = "granted" | "denied" | null;
@@ -83,20 +86,20 @@ export function startAnalytics(win: GtagWindow = window as unknown as GtagWindow
     win.dataLayer!.push(arguments);
   };
   win.gtag("js", new Date());
-  win.gtag("config", GA_ID);
+  win.gtag("config", GA_ID, { cookie_prefix: COOKIE_PREFIX, cookie_domain: win.location.hostname });
   const s = win.document.createElement("script");
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
   win.document.head.appendChild(s);
 }
 
-/** Stops sending and deletes Google's cookies (_ga, _ga_<id>). */
+/** Stops sending and deletes Desk's Google cookies (desk__ga, desk__ga_<id>). */
 export function stopAnalytics(win: GtagWindow = window as unknown as GtagWindow): void {
   win[`ga-disable-${GA_ID}`] = true;
   for (const part of win.document.cookie.split(";")) {
     const name = (part.split("=")[0] ?? "").trim();
-    if (!name.startsWith("_ga")) continue;
-    for (const domain of ["", "; domain=go-link.org", "; domain=.go-link.org"]) {
+    if (!name.startsWith(`${COOKIE_PREFIX}_`)) continue;
+    for (const domain of ["", `; domain=${win.location.hostname}`]) {
       win.document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domain}`;
     }
   }
