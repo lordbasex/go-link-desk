@@ -5,16 +5,14 @@
 package gui
 
 import (
-	"runtime"
-
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/fyneview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 )
 
 // The main window and Settings drawn with Fyne as macOS draws them
-// (fyneview): on Windows. Linux keeps the small code window for now.
+// (fyneview): on Windows and Linux.
 
-var hasMain = runtime.GOOS == "windows"
+const hasMain = true
 
 func mainOpen(labels map[string]string, h remoteview.MainHandler) error {
 	return fyneview.OpenMain(labels, h)

@@ -20,6 +20,15 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 - The website asks before counting visits: a cookie notice (English, Spanish and Portuguese) on the home page, the docs and the privacy page. Only if the visitor accepts does Google Analytics 4 load there; "Cookie settings" in the footer asks again, and rejecting deletes its cookies. The app's pages (connecting, sessions, linked computers) never load it, and leaving the public pages after it loaded is a full page load. The privacy page, the security docs and the "no tracking" texts say so.
 - The website measures with its own Google Analytics property (`G-JF0SPS21MX`), apart from go-link.org's, and its own cookies (`desk__ga…`, on desk.go-link.org only): a choice on one site never changes the other.
 
+### Changed
+
+- **Windows and Linux get the Mac app's window** (`pkg/fyneview`, drawn with Fyne):
+  - **The main window:** the address field with Session/Link, Connect and Settings; the "This computer" panel with the code, the link and the permissions; the filters; the linked computers and recent sessions as cards, a list or a detailed list, with their menus (favorite, rename, forget, copy code).
+  - **Settings**, with the same pages and rows.
+  - **Same look:** the Mac's colors (dark and light), Inter (OFL) with tabular figures, and Lucide icons (ISC).
+  - **Not yet:** sessions do not open in the app's own tabs. Connect opens the viewer in the browser.
+  - The small code window is gone on both systems.
+
 ## [1.1.0] - 2026-10-12
 
 go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 and Wayland. Also the new website, Android ready for Google Play, and fixes.

@@ -148,13 +148,17 @@ func (m *mainWin) build() {
 
 	// The top bar: the address field, Connect, Settings; then the tabs.
 	m.address = widget.NewEntry()
-	m.address.SetPlaceHolder(m.L("address"))
+	// The placeholder is drawn here, as the Mac's (13, regular): Fyne's
+	// own measures it in the app's font, not Inter, and cuts its end.
+	holder := text(m.L("address"), 13, regular, p.holder)
 	m.address.OnSubmitted = func(string) { m.connect() }
 	m.address.OnChanged = func(s string) {
 		if f := formatCode(s); f != s {
 			m.address.SetText(f)
 			m.address.CursorColumn = len([]rune(f))
 		}
+		holder.Hidden = m.address.Text != ""
+		holder.Refresh()
 	}
 	fieldTheme := &sizedTheme{text: 14, inputBorder: 0, fontW: medium}
 	glyph := icon("display", 15, p.faint)
@@ -180,7 +184,9 @@ func (m *mainWin) build() {
 		container.NewBorder(nil, nil,
 			pad(0, 0, 0, 10, container.NewCenter(glyph)),
 			pad(0, 8, 0, 6, container.NewCenter(door)),
-			container.NewThemeOverride(m.address, fieldTheme)),
+			container.NewStack(
+				container.NewThemeOverride(m.address, fieldTheme),
+				pad(0, 0, 0, 8, container.NewVBox(layout.NewSpacer(), holder, layout.NewSpacer())))),
 	)
 	connect := newButton(m.L("connect"), "arrow.right", true, m.connect).trailingSymbol()
 	settings := newButton("", "gearshape", false, func() { m.h.MainAction("settings", "") })
@@ -270,11 +276,14 @@ func (m *mainWin) buildHome() fyne.CanvasObject {
 	filterRow := row(18, append(filters, layout.NewSpacer(), m.clearBtn, views)...)
 
 	m.tiles = container.NewWithoutLayout()
-	m.scroll = container.NewVScroll(pad(0, 28, 12, 28, m.tiles))
+	// A pixel above the tiles: Fyne draws a border on its edge, half
+	// outside, and the scroll would clip the first row's top line (the
+	// Mac draws it inside). The filters give that pixel back.
+	m.scroll = container.NewVScroll(pad(1, 28, 12, 28, m.tiles))
 	m.version = text("", 11, regular, p.faint)
 
 	header := pad(24, 28, 0, 28, panel)
-	filtersPad := pad(26, 28, 14, 28, filterRow)
+	filtersPad := pad(26, 28, 13, 28, filterRow)
 	versionRow := pad(6, 14, 8, 0, container.NewHBox(layout.NewSpacer(), m.version))
 	return container.NewBorder(container.NewVBox(header, filtersPad), versionRow, nil, nil, m.scroll)
 }
