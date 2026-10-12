@@ -71,13 +71,18 @@ describe("analytics", () => {
     expect(analyticsLoaded()).toBe(true);
   });
 
-  it("rejecting turns it off and deletes Google's cookies", () => {
-    const home = fakeWindow("/");
-    home.win.document.cookie = "_ga=GA1.1.1; path=/";
-    home.win.document.cookie = "lang=es; path=/";
-    stopAnalytics(home.win as unknown as W);
-    expect((home.win as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`]).toBe(true);
-    expect(home.win.document.cookie).not.toContain("_ga");
+  it("rejecting turns it off and deletes Desk's Google cookies only", () => {
+    // The test page's real document, which keeps cookies.
+    const win = { document, location: window.location } as unknown as W;
+    document.cookie = "desk__ga=GA1.1.1; path=/";
+    document.cookie = `desk__ga_${GA_ID.slice(2)}=GS1.1; path=/`;
+    document.cookie = "_ga=GA1.1.2; path=/";
+    expect(document.cookie).toContain("desk__ga=");
+    stopAnalytics(win);
+    expect((win as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`]).toBe(true);
+    expect(document.cookie).not.toContain("desk__ga");
+    expect(document.cookie).toContain("_ga=GA1.1.2");
+    document.cookie = "_ga=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   });
 
   it("leaves for an app page with a full page load once Google's script is in", () => {
