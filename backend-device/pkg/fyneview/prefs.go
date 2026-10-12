@@ -54,6 +54,7 @@ func SetPrefs(spec remoteview.Prefs, show bool) {
 			return
 		}
 		pw = &prefsWindow{win: a.NewWindow("")}
+		pw.win.SetPadded(false)
 		pw.win.Resize(fyne.NewSize(640, 640))
 		pw.win.SetCloseIntercept(pw.win.Hide)
 		pwMu.Lock()
@@ -69,6 +70,7 @@ func SetPrefs(spec remoteview.Prefs, show bool) {
 	}
 	if show {
 		pw.win.Show()
+		styleFrame(pw.win)
 		pw.win.RequestFocus()
 	}
 }
@@ -491,7 +493,9 @@ func ShowAbout(version, notice string) {
 		container.NewCenter(text(version, 11, regular, p.faint)),
 	}, lines...)...)
 	w.SetContent(container.NewThemeOverride(container.NewStack(canvas.NewRectangle(p.bg), pad(22, 24, 22, 24, body)), appTheme{}))
+	w.SetPadded(false)
 	w.SetFixedSize(true)
 	w.CenterOnScreen()
 	w.Show()
+	styleFrame(w)
 }

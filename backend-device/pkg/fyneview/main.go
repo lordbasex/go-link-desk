@@ -75,6 +75,7 @@ func OpenMain(labels map[string]string, h Handler) error {
 	m := &mainWin{app: a, labels: labels, h: h, filter: "all"}
 	m.viewMode = a.Preferences().IntWithFallback("org.go-link.desk.view", 0)
 	m.win = a.NewWindow("go-link Desk")
+	m.win.SetPadded(false) // the content reaches the edges, as the Mac's
 	m.win.Resize(fyne.NewSize(1180, 760))
 	m.win.SetCloseIntercept(m.win.Hide) // it lives in the tray
 	m.build()
@@ -95,6 +96,7 @@ func current() *mainWin {
 func ShowMain() {
 	if m := current(); m != nil {
 		m.win.Show()
+		styleFrame(m.win)
 		m.win.RequestFocus()
 	}
 }
@@ -121,9 +123,11 @@ func SetTheme(mode int) {
 	setPalette(p)
 	if m := current(); m != nil {
 		m.build()
+		styleFrame(m.win)
 	}
 	if pw := prefsWin(); pw != nil {
 		pw.rebuild()
+		styleFrame(pw.win)
 	}
 }
 
