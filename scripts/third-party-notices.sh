@@ -24,6 +24,8 @@ VPX_VERSION=1.17.0
 # Must match backend-device/build/windows.Dockerfile (the Linux build
 # links Debian stable's, under the same license).
 YUV_VERSION=0.0.1974.20261008
+# Debian stable's libva-dev (backend-device/build/linux.Dockerfile).
+VA_VERSION=2.17.0
 
 license_file() { # dir
   find "$1" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'ofl.txt' \) | sort | head -1
@@ -82,7 +84,7 @@ echo "▶ Go modules"
     section "$path" "$version" "https://pkg.go.dev/$path" "$f"
   done
 
-echo "▶ libvpx, libopus and libyuv (linked into the host)"
+echo "▶ libvpx, libopus and libyuv (linked into the host), libva's headers"
 curl -fsSL "https://github.com/webmproject/libvpx/archive/refs/tags/v$VPX_VERSION.tar.gz" | tar xz -C "$WORK"
 cat "$WORK/libvpx-$VPX_VERSION/LICENSE" "$WORK/libvpx-$VPX_VERSION/PATENTS" > "$WORK/vpx.txt"
 section "libvpx" "$VPX_VERSION" "https://chromium.googlesource.com/webm/libvpx" "$WORK/vpx.txt"
@@ -91,6 +93,10 @@ section "libopus" "$OPUS_VERSION" "https://opus-codec.org" "$WORK/opus-$OPUS_VER
 curl -fsSL "https://deb.debian.org/debian/pool/main/liby/libyuv/libyuv_$YUV_VERSION.orig.tar.xz" | tar xJ -C "$WORK"
 cat "$WORK/libyuv-$YUV_VERSION/LICENSE" "$WORK/libyuv-$YUV_VERSION/PATENTS" > "$WORK/yuv.txt"
 section "libyuv" "$YUV_VERSION" "https://chromium.googlesource.com/libyuv/libyuv" "$WORK/yuv.txt"
+# libva's headers (the Linux host compiles against them and loads libva
+# at run time): Debian stable's version.
+curl -fsSL "https://raw.githubusercontent.com/intel/libva/$VA_VERSION/COPYING" -o "$WORK/va.txt"
+section "libva (headers)" "$VA_VERSION" "https://github.com/intel/libva" "$WORK/va.txt"
 
 echo "▶ wlr-data-control (the Linux host's clipboard protocol, generated code)"
 awk '/Copyright ©/{f=1} f{sub(/^ \* ?/, ""); print} /THIS SOFTWARE\./{exit}' \

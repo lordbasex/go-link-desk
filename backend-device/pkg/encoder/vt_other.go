@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 package encoder
 
@@ -10,8 +10,8 @@ import (
 	"unsafe"
 )
 
-// VideoToolbox is macOS's and Media Foundation Windows': elsewhere there is
-// no system H.264 encoder (Linux sessions use VP8).
+// VideoToolbox is macOS's, Media Foundation Windows' and VA-API Linux's:
+// elsewhere there is no system H.264 encoder (sessions use VP8).
 type sysEncoder struct{ hardware int }
 
 func newSys(Config, int, func([]byte, bool, time.Duration)) (*sysEncoder, error) {
@@ -31,4 +31,5 @@ func (v *sysEncoder) close()         {}
 const (
 	hasSys       = false
 	pixelBuffers = false
+	probeOutput  = false
 )

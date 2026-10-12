@@ -13,7 +13,8 @@ import (
 // H264 encodes I420 frames to H.264 with the operating system's own
 // encoder: VideoToolbox on macOS (the GPU's or Apple silicon's media
 // engine), Media Foundation's on Windows (the GPU's where it has one,
-// else Windows' own software encoder). No helper program and nothing to
+// else Windows' own software encoder), VA-API on Linux (Intel's and
+// AMD's GPUs). No helper program and nothing to
 // install: where the system has no encoder, NewH264 fails and the stream
 // uses VP8. Each access
 // unit (one frame, Annex B) comes back to onFrame; the SPS and PPS ride with
@@ -29,12 +30,28 @@ var available = sync.OnceValue(func() bool {
 	if !hasSys {
 		return false
 	}
-	e, err := NewH264(Config{Width: 128, Height: 72, FPS: 30, BitrateKbps: 300}, func([]byte, time.Duration) {})
+	// A size every GPU encoder takes (some refuse tiny pictures).
+	w, h := 256, 144
+	var sps, idr bool
+	e, err := NewH264(Config{Width: w, Height: h, FPS: 30, BitrateKbps: 300}, func(au []byte, _ time.Duration) {
+		for _, nal := range nalUnits(au) {
+			sps = sps || nal[0]&0x1f == 7
+			idr = idr || nal[0]&0x1f == 5
+		}
+	})
 	if err != nil {
 		return false
 	}
-	e.Close()
-	return true
+	defer e.Close()
+	if !probeOutput {
+		return true
+	}
+	// An encoder that writes its own SPS: one frame shows it does.
+	frame := make([]byte, FrameSize(w, h))
+	for i := range frame {
+		frame[i] = 128
+	}
+	return e.WriteKey(frame, true) == nil && sps && idr
 })
 
 // H264Available reports whether the system's encoder opens on this

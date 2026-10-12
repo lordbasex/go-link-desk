@@ -2,7 +2,8 @@
 
 # Builds the host for Linux (amd64 or arm64) with its C libraries: libvpx
 # and libopus (static) for the encoders, libyuv (static) for the capture's
-# scaling and color conversion, OpenGL, X11 and Wayland for the
+# scaling and color conversion, libva's headers only (the host loads
+# libva when a session encodes H.264 on the GPU), OpenGL, X11 and Wayland for the
 # Fyne window, and PipeWire's headers only (the host loads libpipewire
 # when a Wayland desktop shares its screen). Debian stable's glibc keeps the binary running on older
 # distributions. The target platform runs through buildx (QEMU for the
@@ -12,7 +13,7 @@
 #     -f build/linux.Dockerfile --output type=local,dest=../dist/desk/linux-arm64 .
 FROM golang:1.26-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      pkg-config libvpx-dev libopus-dev libyuv-dev libgl1-mesa-dev xorg-dev \
+      pkg-config libvpx-dev libopus-dev libyuv-dev libva-dev libgl1-mesa-dev xorg-dev \
       libwayland-dev libxkbcommon-dev wayland-protocols libpipewire-0.3-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /src

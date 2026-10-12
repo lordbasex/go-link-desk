@@ -10,7 +10,6 @@ package encoder
 import "C"
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"sync"
@@ -23,13 +22,13 @@ import (
 // system. It runs synchronously: each frame's access unit comes back to
 // onFrame before write returns.
 type sysEncoder struct {
-	mu       sync.Mutex
-	e        *C.mf_enc
-	onFrame  func([]byte, bool, time.Duration)
-	frameSz  int
-	frame    time.Duration // one frame at the configured rate
-	count    int64         // frames written without a time of their own
-	params   []byte        // the last SPS and PPS, for keyframes that come without
+	mu      sync.Mutex
+	e       *C.mf_enc
+	onFrame func([]byte, bool, time.Duration)
+	frameSz int
+	frame   time.Duration // one frame at the configured rate
+	count   int64         // frames written without a time of their own
+	params
 	hardware int
 }
 
@@ -98,64 +97,6 @@ func (v *sysEncoder) drain() error {
 	}
 }
 
-// withParams makes every keyframe start with the SPS and PPS, which is how
-// a viewer starts the picture: the encoder sends them with the first one,
-// and they are kept for those that come without.
-func (v *sysEncoder) withParams(au []byte) ([]byte, bool) {
-	var params []byte
-	key, hasSPS := false, false
-	for _, nal := range nalUnits(au) {
-		switch nal[0] & 0x1f {
-		case 5:
-			key = true
-		case 7:
-			hasSPS = true
-			params = append(params, startCode...)
-			params = append(params, nal...)
-		case 8:
-			params = append(params, startCode...)
-			params = append(params, nal...)
-		}
-	}
-	if hasSPS {
-		v.params = params
-	}
-	if key && !hasSPS && v.params != nil {
-		au = append(append([]byte(nil), v.params...), au...)
-	}
-	return au, key
-}
-
-var startCode = []byte{0, 0, 0, 1}
-
-// nalUnits splits Annex B into its NAL units (without start codes).
-func nalUnits(b []byte) [][]byte {
-	var out [][]byte
-	start := -1
-	for i := 0; i+2 < len(b); {
-		if b[i] == 0 && b[i+1] == 0 && b[i+2] == 1 {
-			if start >= 0 {
-				out = append(out, bytes.TrimRight(b[start:i], "\x00"))
-			}
-			i += 3
-			start = i
-			continue
-		}
-		i++
-	}
-	if start >= 0 && start < len(b) {
-		out = append(out, b[start:])
-	}
-	n := 0
-	for _, nal := range out {
-		if len(nal) > 0 {
-			out[n] = nal
-			n++
-		}
-	}
-	return out[:n]
-}
-
 // writePixelBuffer: Windows' capture hands over I420 (WriteAt).
 func (v *sysEncoder) writePixelBuffer(unsafe.Pointer, time.Duration, bool) error {
 	return errors.New("h264: no pixel buffers on Windows")
@@ -189,4 +130,5 @@ func cbool(v bool) C.int {
 const (
 	hasSys       = true
 	pixelBuffers = false
+	probeOutput  = false
 )
