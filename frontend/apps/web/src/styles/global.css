@@ -137,19 +137,14 @@ code, kbd, .mono { font-family: var(--font-mono); }
 /* ---------- session ---------- */
 .input-name { text-align: left; }
 .small { font-size: 13px; }
-/* The remote screen takes the whole window, with a bar of tools on top. */
-.stage { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--color-bg); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-.stage-bar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; border-bottom: 1px solid var(--color-divider); }
-.stage-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.stage-tools { display: flex; align-items: center; gap: 8px; }
+/* The remote screen takes the whole window, black, with the toolbar
+   floating over its top as in the iPhone app. */
+.stage { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: #000; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 .stage-screen { position: relative; flex: 1; min-height: 0; background: #000; touch-action: none; -webkit-user-select: none; user-select: none; }
 /* Fit the whole desktop, never crop it, and draw it smooth (a desktop's
    text is not pixel art). */
 .screen { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .stage-notice { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; }
-@media (max-width: 560px) {
-  .stage-bar .button-danger { padding: 0 12px; }
-}
 
 /* ---------- stream figures ---------- */
 .stream-info { position: relative; }
@@ -162,7 +157,6 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .stream-info-panel p { margin: 8px 0 0; }
 
 /* ---------- session tools ---------- */
-.stage-tools { flex-wrap: wrap; justify-content: flex-end; }
 .stage-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-2); white-space: nowrap; cursor: pointer; }
 .stage-banner { margin: 0; padding: 10px 14px; background: var(--tint-accent-bg); border-bottom: 1px solid var(--tint-accent-border); color: var(--color-text-2); font-size: 13px; }
 .stage-screen.view-original { overflow: auto; display: flex; }
@@ -171,9 +165,35 @@ code, kbd, .mono { font-family: var(--font-mono); }
 /* The host's pointer, drawn from its shape over the picture. */
 .remote-cursor { position: absolute; left: 0; top: 0; display: none; pointer-events: none; will-change: transform; image-rendering: auto; }
 .stream-info-panel .button-small { margin-top: 10px; }
-@media (max-width: 760px) {
-  .stage-check, .stage-tools .select { display: none; }
-}
+
+/* ---------- the floating toolbar (the iPhone app's capsule) ---------- */
+.cap-zone { position: absolute; z-index: 70; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; justify-content: center; max-width: calc(100% - 24px); }
+.cap { display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 999px; background: rgb(28 28 30 / 0.82); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); color: #fff; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); max-width: 100%; }
+.cap-title { font: 500 13px/1 var(--font-text); padding: 0 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-divider { width: 1px; height: 20px; margin: 0 4px; background: rgb(255 255 255 / 0.25); flex: none; }
+.bar-button { position: relative; width: 38px; height: 38px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; }
+.bar-button:hover { background: rgb(255 255 255 / 0.12); }
+.bar-button.is-on { color: var(--color-accent); }
+.bar-button:disabled { opacity: 0.45; cursor: default; }
+.bar-danger { color: #ff453a; }
+.bar-button .badge { position: absolute; top: 2px; right: 0; }
+.cap-handle { width: 56px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 0 0 14px 14px; background: rgb(28 28 30 / 0.82); color: #fff; cursor: pointer; margin-top: calc(-8px - env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+/* Full screen: nothing over the picture until the pointer reaches the top. */
+.cap-zone.is-fullscreen { top: 0; padding: 0 60px 30px; }
+.cap-zone.is-fullscreen .cap { margin-top: calc(8px + env(safe-area-inset-top)); }
+.cap-zone.is-fullscreen .cap-handle { opacity: 0; transition: opacity 0.15s; }
+.cap-zone.is-fullscreen:hover .cap-handle, .cap-zone.is-fullscreen .cap-handle:focus-visible { opacity: 1; }
+@media (hover: none) { .cap-zone.is-fullscreen .cap-handle { opacity: 0.55; } }
+@media (max-width: 600px) { .cap-title, .cap-divider { display: none; } .bar-button { width: 34px; height: 34px; } }
+.bar-menu-box { position: relative; flex: none; }
+.bar-menu { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 80; min-width: 240px; max-height: min(70vh, 560px); overflow: auto; padding: 6px; border-radius: 14px; background: rgb(44 44 46 / 0.96); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 18px 50px rgb(0 0 0 / 0.5); color: #fff; }
+.bar-menu-section { padding: 10px 10px 4px; font: 500 12px/1 var(--font-text); letter-spacing: 0.04em; text-transform: uppercase; color: rgb(235 235 245 / 0.6); }
+.bar-menu-separator { height: 1px; margin: 6px 4px; background: rgb(84 84 88 / 0.65); }
+.bar-menu-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: 400 14px/1.2 var(--font-text); text-align: left; cursor: pointer; white-space: nowrap; }
+.bar-menu-item:hover, .bar-menu-item:focus-visible { background: rgb(255 255 255 / 0.1); }
+.bar-menu-mark { width: 18px; display: grid; place-items: center; color: var(--color-accent); flex: none; }
+.bar-menu-detail { color: rgb(235 235 245 / 0.6); font-size: 12px; margin-left: 6px; }
+@media (prefers-reduced-motion: reduce) { .cap-zone.is-fullscreen .cap-handle { transition: none; } }
 
 /* ---------- control ---------- */
 /* The keyboard's target: focused, invisible, out of the way. */

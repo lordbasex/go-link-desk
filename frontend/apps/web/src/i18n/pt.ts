@@ -45,6 +45,10 @@ export const pt: Messages = {
     reconnecting: "A conexão caiu. Reconectando…",
     disconnect: "Desconectar",
     fullscreen: "Tela cheia",
+    exitFullscreen: "Sair da tela cheia",
+    screenMenu: "Tela",
+    hideBar: "Ocultar a barra",
+    showBar: "Mostrar a barra",
     screenOf: "Tela de {name}",
     rejected: {
       declined: "A pessoa naquele computador não aceitou.",

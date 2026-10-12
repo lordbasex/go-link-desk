@@ -34,8 +34,8 @@ test("a viewer allowed to control clicks, types and scrolls on the host", async 
   await expect.poll(() => injected(/what=scroll dx=0 dy=120 lines=false/)).toBe(true);
 
   // Text typed out, as a paste would be.
-  await page.getByRole("combobox", { name: "Keys" }).click();
-  await page.getByRole("option", { name: "Type text…" }).click();
+  await page.getByRole("button", { name: "Keys" }).click();
+  await page.getByRole("menuitem", { name: "Type text…" }).click();
   await page.getByLabel(/Paste or write the text/).fill("hola ñandú");
   await page.getByRole("button", { name: "Type it" }).click();
   await expect.poll(() => injected(/what=text text="hola ñandú"/)).toBe(true);
@@ -49,7 +49,7 @@ test("a viewer allowed to control clicks, types and scrolls on the host", async 
 
 test("a viewer that may only watch gets no keyboard and sends nothing", async ({ page }) => {
   await join(page, "accept", "Watcher");
-  await expect(page.getByRole("combobox", { name: "Keys" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Game mode" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Keys" })).toHaveCount(0);
+  await expect(page.getByRole("menuitemcheckbox", { name: "Game mode" })).toHaveCount(0);
   await page.getByRole("button", { name: "Disconnect" }).click();
 });

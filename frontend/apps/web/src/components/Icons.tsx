@@ -76,3 +76,40 @@ export const DevicesIcon = ({ size = 16 }: P) => (
     <rect x="17" y="9" width="5" height="11" rx="1" />
   </svg>
 );
+
+export const CommandIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base}>
+    <path d="M9 9h6v6H9zM9 9V6a3 3 0 1 0-3 3h3M15 9V6a3 3 0 1 1 3 3h-3M9 15v3a3 3 0 1 1-3-3h3M15 15v3a3 3 0 1 0 3-3h-3" />
+  </svg>
+);
+
+export const MonitorIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M9 20h6M12 16v4" />
+  </svg>
+);
+
+export const CloseIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.2} {...base}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);
+
+export const ChevronIcon = ({ size = 18, up = false }: P & { up?: boolean }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.2} {...base}>
+    <path d={up ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+  </svg>
+);
+
+export const ShrinkIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </svg>
+);
+
+export const CheckIcon = ({ size = 16 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.4} {...base}>
+    <path d="M5 12.5l4.5 4.5L19 7" />
+  </svg>
+);

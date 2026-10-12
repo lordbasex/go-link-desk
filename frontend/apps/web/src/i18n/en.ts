@@ -47,6 +47,10 @@ export const en = {
     reconnecting: "The connection dropped. Reconnecting…",
     disconnect: "Disconnect",
     fullscreen: "Full screen",
+    exitFullscreen: "Leave full screen",
+    screenMenu: "Screen",
+    hideBar: "Hide the toolbar",
+    showBar: "Show the toolbar",
     screenOf: "Screen of {name}",
     rejected: {
       declined: "The person at that computer did not accept.",
