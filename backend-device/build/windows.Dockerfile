@@ -1,0 +1,72 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+
+# Cross-compiles the host for Windows 10 and 11 (x86-64 or ARM64) with
+# llvm-mingw. libvpx and libopus are built from source as static libraries,
+# and the C runtime's threads and C++ library are linked in too, so the .exe
+# needs no DLL beyond Windows' own (scripts/check-deps.sh windows checks).
+# Its icon, manifest and version come from build/windows/desk.rc.
+#
+#   docker buildx build --build-arg ARCH=x86_64 --build-arg GOARCH=amd64 \
+#     -f build/windows.Dockerfile --output type=local,dest=../dist/desk/windows-amd64 .
+FROM mstorsjo/llvm-mingw:20261006 AS build
+ARG ARCH=x86_64
+ARG GOARCH=amd64
+# The versions and checksums of build/macos/static-libs.sh.
+ARG OPUS_VERSION=1.6.1
+ARG OPUS_SHA256=6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
+ARG VPX_VERSION=1.17.0
+ARG VPX_SHA256=1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a
+ENV HOST=${ARCH}-w64-mingw32 PREFIX=/deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl make pkg-config nasm yasm perl && rm -rf /var/lib/apt/lists/*
+COPY --from=golang:1.26-bookworm /usr/local/go /usr/local/go
+ENV PATH=/usr/local/go/bin:$PATH
+
+# libopus, static. On ARM, Windows gives Opus no way to detect the CPU's
+# features at run time (rtcd), so they are chosen when it is built.
+RUN curl -fsSL https://downloads.xiph.org/releases/opus/opus-${OPUS_VERSION}.tar.gz -o /tmp/opus.tar.gz && \
+    echo "${OPUS_SHA256}  /tmp/opus.tar.gz" | sha256sum -c --quiet - && \
+    tar xzf /tmp/opus.tar.gz -C /tmp && cd /tmp/opus-${OPUS_VERSION} && \
+    RTCD="" && if [ "$ARCH" = aarch64 ]; then RTCD=--disable-rtcd; fi && \
+    ./configure --host=$HOST --prefix=$PREFIX --enable-static --disable-shared \
+      --disable-doc --disable-extra-programs $RTCD CC=$HOST-clang && \
+    make -j"$(nproc)" && make install
+
+# libvpx (VP8 only), static. Its encoder threads use winpthreads, linked in
+# with the rest (-static).
+RUN curl -fsSL https://github.com/webmproject/libvpx/archive/refs/tags/v${VPX_VERSION}.tar.gz -o /tmp/vpx.tar.gz && \
+    echo "${VPX_SHA256}  /tmp/vpx.tar.gz" | sha256sum -c --quiet - && \
+    tar xzf /tmp/vpx.tar.gz -C /tmp && cd /tmp/libvpx-${VPX_VERSION} && \
+    case "$ARCH" in x86_64) T=x86_64-win64-gcc ;; aarch64) T=arm64-win64-gcc ;; esac && \
+    CROSS=$HOST- CC=$HOST-clang CXX=$HOST-clang++ AR=llvm-ar LD=$HOST-clang STRIP=llvm-strip \
+      ./configure --target=$T --prefix=$PREFIX --enable-static --disable-shared \
+        --disable-examples --disable-tools --disable-docs --disable-unit-tests \
+        --enable-vp8 --disable-vp9 && \
+    make -j"$(nproc)" && make install
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG TAGS=""
+ARG VERSION=dev
+# The x.y.z Explorer shows in the file's Properties.
+ARG SHORT_VERSION=0.1.0
+# The resources (icon, manifest, version) as a .syso the Go linker takes
+# from the package's folder.
+RUN CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico && \
+    cd build/windows && \
+    printf '#define VERSION_COMMA %s,0\n#define VERSION_TEXT "%s"\n' "$(echo "$SHORT_VERSION" | tr . ,)" "$VERSION" > version.h && \
+    $HOST-windres -O coff -o /src/cmd/desk/rsrc_windows_$GOARCH.syso desk.rc
+# The window's build is a Windows program (no console window opens with
+# it); the headless one is a console program, for servers and scripts.
+RUN SUBSYSTEM="-H windowsgui" && case " $TAGS " in *" headless "*) SUBSYSTEM="" ;; esac && \
+    CGO_ENABLED=1 GOOS=windows GOARCH=$GOARCH CC=$HOST-clang CXX=$HOST-clang++ \
+    PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig \
+    CGO_LDFLAGS="-static -lpthread" \
+    go build -trimpath -tags "$TAGS" -ldflags "-s -w $SUBSYSTEM -X main.version=$VERSION" \
+      -o /out/go-link-desk.exe ./cmd/desk
+
+# Only the program leaves the build (docker buildx --output type=local).
+FROM scratch AS export
+COPY --from=build /out/ /

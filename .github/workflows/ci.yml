@@ -2,8 +2,9 @@
 #
 # Tests on every push and pull request: the host (Linux, with its C
 # libraries), the website, the story end to end (with signalhub from its
-# own repository, unchanged), the portable builds (no library outside the
-# operating system), and a scan for secrets in the history.
+# own repository, unchanged), the portable builds for macOS, Linux and
+# Windows (no library outside the operating system), and a scan for
+# secrets in the history.
 
 name: ci
 
@@ -112,6 +113,20 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - run: make device-linux-amd64 VERSION=ci
       - run: scripts/check-deps.sh linux dist/desk/linux-amd64/go-link-desk
+
+  # The Windows host as it ships (llvm-mingw; libvpx, libopus and the C
+  # runtime inside): its import table may only list Windows' own DLLs.
+  deps-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - uses: docker/setup-buildx-action@v3
+      # make runs scripts/check-deps.sh windows on it.
+      - run: make device-windows-amd64 VERSION=ci
 
   # The macOS app as it ships (macOS 13+, libvpx and libopus built from
   # source and linked in): otool may only list /System/Library and /usr/lib.

@@ -513,18 +513,17 @@ func hostName() string {
 const maxLogSize = 5 << 20
 
 // logOutput is where the log goes: the terminal when there is one, else
-// (the app opened from the Finder or the Start menu)
-// ~/go-link-desk/logs/desk.log, so the code and errors are not lost.
+// (the app opened from the Finder or the Start menu) logDir's desk.log,
+// so the code and errors are not lost.
 func logOutput() (io.Writer, func()) {
 	// A real terminal, not /dev/null (where macOS sends an app's output).
 	if term.IsTerminal(int(os.Stderr.Fd())) {
 		return os.Stderr, func() {}
 	}
-	home, err := os.UserHomeDir()
+	dir, err := logDir()
 	if err != nil {
 		return os.Stderr, func() {}
 	}
-	dir := filepath.Join(home, "go-link-desk", "logs")
 	if os.MkdirAll(dir, 0o700) != nil {
 		return os.Stderr, func() {}
 	}
@@ -536,7 +535,29 @@ func logOutput() (io.Writer, func()) {
 	if err != nil {
 		return os.Stderr, func() {}
 	}
+	// A Windows program built without a console has no standard error.
+	if runtime.GOOS == "windows" {
+		return f, func() { _ = f.Close() }
+	}
 	return io.MultiWriter(f, os.Stderr), func() { _ = f.Close() }
+}
+
+// logDir is the log's folder: ~/go-link-desk/logs, and on Windows
+// %LOCALAPPDATA%\go-link-desk\logs, where Windows keeps a program's own
+// files (not in the user's folder, among their documents).
+func logDir() (string, error) {
+	if runtime.GOOS == "windows" {
+		dir, err := os.UserCacheDir() // %LOCALAPPDATA%
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(dir, "go-link-desk", "logs"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "go-link-desk", "logs"), nil
 }
 
 // wantsHeadless reports whether there is no desktop to show a window on.

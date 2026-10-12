@@ -4,12 +4,15 @@
 // app icon drawn by pkg/trayicon (RenderApp); iconutil turns it into go-link-desk.icns.
 // With -ios it writes the iOS app's icon (RenderAppSquare) and Home's logo
 // into its asset catalog; with -linux, a Linux desktop's icon theme folder
-// (DIR/hicolor/<size>x<size>/apps/org.go-link.desk.png).
+// (DIR/hicolor/<size>x<size>/apps/org.go-link.desk.png); with -windows, the
+// .exe's icon (an .ico with every size Windows shows).
 //
 //	go run ./build/macos/appicon DIR/go-link-desk.iconset
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,8 +52,16 @@ func main() {
 		}
 		return
 	}
+	// The Windows .exe's icon.
+	if len(os.Args) == 3 && os.Args[1] == "-windows" {
+		if err := os.WriteFile(os.Args[2], windowsIcon(), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: appicon DIR/go-link-desk.iconset | appicon -ios DIR/Assets.xcassets | appicon -linux DIR/icons")
+		fmt.Fprintln(os.Stderr, "usage: appicon DIR/go-link-desk.iconset | appicon -ios DIR/Assets.xcassets | appicon -linux DIR/icons | appicon -windows FILE.ico")
 		os.Exit(2)
 	}
 	dir := os.Args[1]
@@ -68,4 +79,33 @@ func main() {
 			}
 		}
 	}
+}
+
+// windowsIcon is an .ico with the sizes Windows draws (the taskbar, Explorer's
+// views, the Start menu, at every scale), each a PNG, which Windows reads
+// since Vista.
+func windowsIcon() []byte {
+	sizes := []int{16, 20, 24, 32, 40, 48, 64, 128, 256}
+	images := make([][]byte, len(sizes))
+	for i, size := range sizes {
+		images[i] = trayicon.RenderApp(size, false)
+	}
+	var b bytes.Buffer
+	le := func(v any) { _ = binary.Write(&b, binary.LittleEndian, v) }
+	le([3]uint16{0, 1, uint16(len(sizes))}) // reserved, type 1 (icon), count
+	offset := 6 + 16*len(sizes)
+	for i, size := range sizes {
+		dim := uint8(size)
+		if size >= 256 {
+			dim = 0 // 0 means 256
+		}
+		le([4]uint8{dim, dim, 0, 0}) // width, height, no palette, reserved
+		le([2]uint16{1, 32})         // planes, bits per pixel
+		le([2]uint32{uint32(len(images[i])), uint32(offset)})
+		offset += len(images[i])
+	}
+	for _, img := range images {
+		b.Write(img)
+	}
+	return b.Bytes()
 }

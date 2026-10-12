@@ -8,12 +8,14 @@
 #   darwin: otool -L may only list /System/Library and /usr/lib.
 #   linux:  ldd may only list glibc, the C++ runtime, and the desktop's X11,
 #           Wayland and OpenGL libraries.
+#   windows: the .exe's import table (read with Go's debug/pe, on any
+#           system) may only list DLLs that come with Windows 10 and 11.
 #
-# Usage: scripts/check-deps.sh darwin|linux BINARY
+# Usage: scripts/check-deps.sh darwin|linux|windows BINARY
 set -euo pipefail
 
-OS="${1:?usage: check-deps.sh darwin|linux BINARY}"
-BIN="${2:?usage: check-deps.sh darwin|linux BINARY}"
+OS="${1:?usage: check-deps.sh darwin|linux|windows BINARY}"
+BIN="${2:?usage: check-deps.sh darwin|linux|windows BINARY}"
 [[ -f "$BIN" ]] || { echo "no such binary: $BIN" >&2; exit 2; }
 
 case "$OS" in
@@ -26,8 +28,15 @@ case "$OS" in
     libs="$(ldd "$BIN" | awk '{print $1}')"
     allowed='^(linux-vdso\.so|linux-gate\.so|/lib(64)?/ld-linux|ld-linux|lib(c|m|dl|rt|pthread|resolv|util|gcc_s|stdc\+\+)\.so|libX[A-Za-z0-9]*\.so|libxcb[a-z0-9-]*\.so|libxkbcommon\.so|libGL[A-Za-z]*\.so|libEGL\.so|libOpenGL\.so|libwayland-[a-z]+\.so|libffi\.so|libbsd\.so|libmd\.so)'
     ;;
+  windows)
+    abs="$(cd "$(dirname "$BIN")" && pwd)/$(basename "$BIN")"
+    libs="$(cd "$(dirname "$0")/../backend-device" && GOOS= GOARCH= CGO_ENABLED=0 go run ./build/windows/imports "$abs" | tr 'A-Z' 'a-z')"
+    # The universal C runtime's api-ms-win-crt-* sets and Windows' own
+    # system DLLs; never libvpx, libopus, libwinpthread or a C++ runtime.
+    allowed='^(api-ms-win-[a-z0-9-]+\.dll|(kernel32|user32|gdi32|shell32|advapi32|ole32|oleaut32|opengl32|ws2_32|winmm|ntdll|bcrypt|crypt32|secur32|iphlpapi|dnsapi|dwmapi|imm32|uxtheme|shcore|shlwapi|comctl32|comdlg32|version|userenv|powrprof|setupapi|cfgmgr32|hid|d3d11|dxgi|d2d1|dwrite|windowscodecs|mfplat|mf|mfreadwrite|evr|wtsapi32|propsys|avrt|ksuser|mmdevapi|ucrtbase|msvcrt|wintrust|netapi32|normaliz|winhttp|wininet|rpcrt4|sspicli|mswsock)\.dll)$'
+    ;;
   *)
-    echo "unknown OS: $OS (darwin or linux)" >&2
+    echo "unknown OS: $OS (darwin, linux or windows)" >&2
     exit 2
     ;;
 esac

@@ -23,3 +23,8 @@ Thumbs.db
 
 # test coverage reports
 coverage/
+
+# the Windows build's generated resources
+backend-device/cmd/desk/*.syso
+backend-device/build/windows/desk.ico
+backend-device/build/windows/version.h
