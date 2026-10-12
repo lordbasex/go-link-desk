@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !darwin
+//go:build !darwin && (!linux || headless)
 
 package cursor
 

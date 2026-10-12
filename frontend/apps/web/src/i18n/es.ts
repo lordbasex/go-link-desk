@@ -81,6 +81,7 @@ export const es: Messages = {
     noScreenPermission: "Esa computadora todavía no le permitió a go-link Desk grabar su pantalla, así que ves una carta de ajuste. La persona ahí lo puede permitir en Ajustes del Sistema › Privacidad y seguridad › Grabación de pantalla.",
     noAccessibility: "Esa computadora todavía no le permitió a go-link Desk usar su mouse y su teclado. La persona ahí lo puede permitir en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad.",
     captureFailed: "Esa computadora no pudo grabar su pantalla, así que ves una carta de ajuste.",
+    waylandSession: "Esa computadora usa una sesión Wayland, cuya pantalla todavía no se puede compartir, así que ves una carta de ajuste. Ahí, cerrá sesión y volvé a entrar eligiendo “Ubuntu en Xorg” (el engranaje de la pantalla de inicio).",
     close: "Cerrar",
     soundOn: "Sonido activado (clic para silenciar)",
     soundOff: "Sonido silenciado (clic para escuchar)",

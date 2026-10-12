@@ -55,12 +55,14 @@ test("the clipboard goes both ways: copied on the host lands here, pasted here l
   writeFileSync(file, "copiado en el host ñ 日本");
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 10_000 }).toBe("copiado en el host ñ 日本");
 
-  // Pasted here: the host's clipboard gets it, and the host presses its Cmd+V (macOS virtual key 9).
+  // Pasted here: the host's clipboard gets it, and the host presses its paste
+  // shortcut (V is macOS virtual key 9 in the log): Cmd+V on a Mac, Ctrl+V elsewhere.
   await page.evaluate(() => navigator.clipboard.writeText("pegado desde el navegador"));
   await page.locator("video").click();
   await page.keyboard.press("ControlOrMeta+KeyV");
   await expect.poll(() => readFileSync(file, "utf8"), { timeout: 10_000 }).toBe("pegado desde el navegador");
-  await expect.poll(() => hostLogged(/what=key vk=9 down=true repeat=false mods=8/, "control")).toBe(true);
+  const pasteMods = process.platform === "darwin" ? 8 : 2;
+  await expect.poll(() => hostLogged(new RegExp(`what=key vk=9 down=true repeat=false mods=${pasteMods}`), "control")).toBe(true);
   // The host's own write does not come back.
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("pegado desde el navegador");
   await page.getByRole("button", { name: "Disconnect" }).click();

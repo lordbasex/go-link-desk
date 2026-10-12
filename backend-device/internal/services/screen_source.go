@@ -18,6 +18,9 @@ import (
 const (
 	NoticeNoScreenPermission = "no_screen_permission" // showing the test card instead
 	NoticeCaptureFailed      = "capture_failed"
+	// NoticeWayland: a Linux desktop in a Wayland session, whose screen
+	// cannot be read yet; an Xorg session can.
+	NoticeWayland = "wayland_session"
 )
 
 // When a still screen sends its last frame again: a few times after it
@@ -64,8 +67,13 @@ func (src *ScreenSource) Run(ctx context.Context, sink MediaSink) error {
 			return ctx.Err()
 		}
 		if !screencap.Supported || !screencap.HasAccess() {
-			src.Log.Warn("cannot record the screen: no Screen Recording permission; showing the test card")
-			sink.Notice(NoticeNoScreenPermission)
+			if screencap.Problem() == screencap.ProblemWayland {
+				src.Log.Warn("cannot record the screen of a Wayland session; log in with an Xorg session. Showing the test card")
+				sink.Notice(NoticeWayland)
+			} else {
+				src.Log.Warn("cannot record the screen: no Screen Recording permission; showing the test card")
+				sink.Notice(NoticeNoScreenPermission)
+			}
 			src.fallback(ctx, sink)
 			continue
 		}

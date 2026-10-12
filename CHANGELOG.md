@@ -6,6 +6,8 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Added
 
+- **The Linux host** (phase 7, X11 sessions): a Linux desktop shares its screen as a Mac does. The screen (XShm, every monitor with XRandR), the pointer (XFixes), the mouse and the keyboard by position (XTest, with characters the layout lacks), the clipboard both ways, locking the screen when a session ends (loginctl), and the same window, consent, session panel and settings. Tested on Ubuntu 24.04 (GNOME on Xorg): the consent, the picture, clicks, right clicks, typing (ñ, €, accents) and the clipboard both ways. A Wayland session shows the test card and says, on both sides, to log in with "Ubuntu on Xorg". Not yet: the computer's sound.
+- Keys go to each system as its own key (`keymap.Key.Native`: macOS's virtual key, X11's keysym); the test logs keep macOS's numbers everywhere. Paste on Linux is Ctrl+V.
 - **A new desk.go-link.org.** The landing (`/`) says what go-link Desk is, with real screenshots: the four ways to connect (the web, iPhone and iPad, Android, the Mac app) and their state, the shared computer (macOS today; Windows and Linux coming), how it works, what it does, why it is safe, downloads, questions, and a footer with the site map, the scam warning, a live check of the connection server and the language. A code typed in its hero opens the session at once.
 - **The web app at `/web`, as the iPhone and iPad app:** Home with the code, My computers (rename, favorite, forget in each row's menu) and the recent sessions, and Settings in a sheet (language, appearance, message sound). `/c` and `/devices` lead there; session and linking links keep working.
 - **The web session's toolbar, as the iPhone app's:** a floating capsule over the picture (disconnect, the computer's name, Keys, chat, files, video call, sound, Screen, full screen, hide) whose Keys and Screen buttons open menus (special keys, Type text, Ctrl = Cmd, Game mode; displays, picture, view, Retina, the remote cursor). In full screen nothing covers the picture: the toolbar and the details button come back when the pointer reaches the top, or with a tap on the handle.
@@ -18,6 +20,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Fixed
 
+- **The code was nearly invisible in the host's window with a light theme** (Linux, Fyne): it took the dark theme's white at start; it now follows the theme.
 - **The connection request could stay behind the other windows** (macOS) when it came while the main thread was busy, as right after a session ended: it was brought to the front only within 200 ms of being asked. Now it is looked for until it is on screen (up to 5 s), and put over the app in front even when that app keeps the focus.
 
 ## [1.0.0] - 2026-10-11

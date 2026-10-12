@@ -193,3 +193,7 @@ func cbool(v bool) C.int {
 	}
 	return 0
 }
+
+// Problem is why the screen cannot be captured now ("" when it can; the
+// Screen Recording permission is HasAccess's).
+func Problem() string { return "" }

@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"os/exec"
 	"runtime"
 	"sync"
 	"time"
@@ -90,8 +91,12 @@ func (w *IdleWatch) Run(ctx context.Context) {
 
 // LockScreen locks the computer's screen as its person would: on macOS,
 // Control-Command-Q (it needs the Accessibility permission, like the
-// viewer's input). False where there is no way yet.
+// viewer's input); on Linux, the session's own lock (loginctl). False
+// where there is no way yet.
 func LockScreen(inj inject.Injector) bool {
+	if runtime.GOOS == "linux" {
+		return exec.Command("loginctl", "lock-session").Run() == nil
+	}
 	if runtime.GOOS != "darwin" {
 		return false
 	}

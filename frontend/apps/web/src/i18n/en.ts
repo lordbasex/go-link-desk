@@ -83,6 +83,7 @@ export const en = {
     noScreenPermission: "That computer has not allowed go-link Desk to record its screen yet, so you see a test card. The person there can allow it in System Settings › Privacy & Security › Screen Recording.",
     noAccessibility: "That computer has not allowed go-link Desk to use its mouse and keyboard yet. The person there can allow it in System Settings › Privacy & Security › Accessibility.",
     captureFailed: "That computer could not record its screen, so you see a test card.",
+    waylandSession: "That computer uses a Wayland session, whose screen cannot be shared yet, so you see a test card. There, log out and log in again choosing “Ubuntu on Xorg” (the gear on the login screen).",
     close: "Close",
     soundOn: "Sound on (click to mute)",
     soundOff: "Sound muted (click to hear)",

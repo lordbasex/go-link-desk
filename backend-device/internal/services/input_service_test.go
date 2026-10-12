@@ -114,7 +114,10 @@ func TestButtonsWheelKeysAndText(t *testing.T) {
 	} {
 		s.HandleInput("P", pkt)
 	}
-	want := []string{"button 0 true 720,450 true", "button 2 false 0,0 false", "scroll 0,-120 false", "key 0 true false 0", "key 0 true true 1", "text hi", "release"}
+	// The key arrives as this system's own (macOS's 0, X11's keysym 'a').
+	ka, _ := keymap.Lookup(a)
+	nk := ka.Native()
+	want := []string{"button 0 true 720,450 true", "button 2 false 0,0 false", "scroll 0,-120 false", fmt.Sprintf("key %d true false 0", nk), fmt.Sprintf("key %d true true 1", nk), "text hi", "release"}
 	if c := f.take(); !slices.Equal(c, want) {
 		t.Fatalf("calls\n %v\nwant\n %v", c, want)
 	}
