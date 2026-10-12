@@ -5,7 +5,7 @@
 package capture
 
 /*
-#cgo LDFLAGS: -ld3d11 -ldxgi -lgdi32 -luser32
+#cgo LDFLAGS: -ld3d11 -ldxgi -lgdi32 -luser32 -lole32
 #include <stdlib.h>
 #include "capture_windows.h"
 */
@@ -21,9 +21,10 @@ import (
 )
 
 // Windows: the screen through the Desktop Duplication API (the GPU), or
-// GDI where that cannot run (capture_windows.c). Windows asks nobody for
-// it: any program of the person at the computer may read their screen,
-// so there is nothing to allow.
+// GDI where that cannot run (capture_windows.c); the sound through a
+// WASAPI loopback stream (audio_windows.c). Windows asks nobody for them:
+// any program of the person at the computer may read their screen and
+// sound, so there is nothing to allow.
 
 func init() { C.dk_win_dpi() }
 
@@ -91,7 +92,8 @@ type Stream struct {
 	onFrame func(Frame)
 	onErr   func(error)
 	onAudio func([]int16)
-	how     C.int // how the screen was read last: 1 the GPU, 2 GDI
+	audio   *audioTap // reading the sound while cfg.Audio
+	how     C.int     // how the screen was read last: 1 the GPU, 2 GDI
 }
 
 // Start captures cfg's display, calling onFrame with each changed picture
@@ -174,8 +176,22 @@ func (s *Stream) grab(c *C.dk_cap, cfg Config) (*C.dk_frame, error) {
 func (s *Stream) Update(cfg Config) error {
 	s.mu.Lock()
 	s.cfg = cfg
+	s.syncAudio()
 	s.mu.Unlock()
 	return nil
+}
+
+// syncAudio reads the sound while it is wanted and someone takes it
+// (under s.mu).
+func (s *Stream) syncAudio() {
+	want := s.cfg.Audio && s.onAudio != nil
+	switch {
+	case want && s.audio == nil:
+		s.audio = startAudio(s.onAudio)
+	case !want && s.audio != nil:
+		s.audio.Stop()
+		s.audio = nil
+	}
 }
 
 // Config is what is captured now.
@@ -188,6 +204,10 @@ func (s *Stream) Config() Config {
 // Stop ends the capture and waits for it.
 func (s *Stream) Stop() {
 	s.mu.Lock()
+	if s.audio != nil {
+		s.audio.Stop()
+		s.audio = nil
+	}
 	s.onAudio = nil
 	s.mu.Unlock()
 	select {
@@ -198,11 +218,13 @@ func (s *Stream) Stop() {
 	<-s.done
 }
 
-// OnAudio would hand over the computer's sound; Windows' comes in a later
-// version (WASAPI loopback), so sessions have none yet.
+// OnAudio hands the computer's sound (interleaved stereo at 48 kHz) to f
+// while the capture's Config asks for it. It is what the speakers play,
+// the host's own sound included.
 func (s *Stream) OnAudio(f func([]int16)) {
 	s.mu.Lock()
 	s.onAudio = f
+	s.syncAudio()
 	s.mu.Unlock()
 }
 

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build linux && !headless
+//go:build (linux || windows) && !headless
 
 package capture
 
 /*
 #include <stdlib.h>
-#include "audio_linux.h"
+#include "audio.h"
 */
 import "C"
 
@@ -26,7 +26,7 @@ type audioTap struct {
 }
 
 // startAudio starts reading the sound; nil when the system has none to
-// read (no PulseAudio, nor PipeWire's).
+// read.
 func startAudio(on func([]int16)) *audioTap {
 	h := C.dk_audio_open(C.int(AudioRate), C.int(AudioChannels), C.int(audioFrame*2))
 	if h == nil {

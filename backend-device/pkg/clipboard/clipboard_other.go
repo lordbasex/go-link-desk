@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !darwin && (!linux || headless)
+//go:build !darwin && ((!linux && !windows) || headless)
 
 package clipboard
 

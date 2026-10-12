@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+//go:build !windows
+
 package autostart
 
 import (

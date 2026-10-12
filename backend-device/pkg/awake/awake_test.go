@@ -10,8 +10,9 @@ import (
 func TestHoldAndRelease(t *testing.T) {
 	Hold()
 	Hold()
-	// Linux holds only with a desktop session to ask (not in CI).
-	if got := Held(); runtime.GOOS != "linux" && got != (runtime.GOOS == "darwin") {
+	// Linux holds only with a desktop session to ask (not in CI); macOS
+	// and Windows always do.
+	if got := Held(); runtime.GOOS != "linux" && got != (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		t.Fatalf("held = %v on %s", got, runtime.GOOS)
 	}
 	Release()
