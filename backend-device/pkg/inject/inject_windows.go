@@ -7,6 +7,8 @@ package inject
 import (
 	"math"
 	"sync"
+	"time"
+	"unicode"
 	"unicode/utf16"
 	"unsafe"
 
@@ -17,16 +19,26 @@ import (
 // virtual screen's pixels (the process is per-monitor DPI aware, see
 // pkg/capture), the primary monitor's top-left at 0, 0. Keys come as scan
 // codes (keymap.Key.Native, 0xE0xx for extended keys), so the computer's
-// own layout makes the characters; typed text goes as Unicode characters,
-// whatever the layout. Windows lets no ordinary program drive a window
-// running as administrator, nor the secure desktop (the lock screen, a UAC
-// prompt): input there is dropped.
+// own layout makes the characters. Typed text goes by the keys of the
+// layout of the window in front, with the Shift, Ctrl or AltGr each
+// character takes; a character the layout has no key for goes as a
+// Unicode character, one at a time (Windows 11's own apps read those after
+// the fact, and a burst of them came out as copies of the last). Windows
+// lets no ordinary program drive a window running as administrator, nor
+// the secure desktop (the lock screen, a UAC prompt): input there is
+// dropped.
 
 var (
-	user32            = windows.NewLazySystemDLL("user32.dll")
-	procSendInput     = user32.NewProc("SendInput")
-	procGetMetrics    = user32.NewProc("GetSystemMetrics")
-	procMapVirtualKey = user32.NewProc("MapVirtualKeyW")
+	user32              = windows.NewLazySystemDLL("user32.dll")
+	procSendInput       = user32.NewProc("SendInput")
+	procGetMetrics      = user32.NewProc("GetSystemMetrics")
+	procMapVirtualKey   = user32.NewProc("MapVirtualKeyW")
+	procMapVirtualKeyEx = user32.NewProc("MapVirtualKeyExW")
+	procVkKeyScanEx     = user32.NewProc("VkKeyScanExW")
+	procGetLayout       = user32.NewProc("GetKeyboardLayout")
+	procForeground      = user32.NewProc("GetForegroundWindow")
+	procWindowThread    = user32.NewProc("GetWindowThreadProcessId")
+	procGetKeyState     = user32.NewProc("GetKeyState")
 )
 
 // INPUT, as SendInput takes it: a type and a union of the mouse's and the
@@ -93,7 +105,10 @@ const (
 	smCYVirtual = 79
 
 	vkPause    = 0x13
+	vkCapital  = 0x14
 	vkSnapshot = 0x2C
+
+	mapVKToVSCEx = 4
 )
 
 func sendMouse(in ...mouseInput) {
@@ -293,9 +308,15 @@ func (w *win) Key(scan int, down, repeat bool, mods uint8) {
 	sendKeys(in...)
 }
 
+// unicodePause is the time between characters typed as Unicode, for the
+// window to read each before the next.
+const unicodePause = 15 * time.Millisecond
+
 func (w *win) Text(s string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	hkl := frontLayout()
+	caps := capsLock()
 	for _, r := range s {
 		switch r {
 		case '\n':
@@ -307,13 +328,73 @@ func (w *win) Text(s string) {
 		case '\r':
 			continue
 		}
+		if scan, shift, ok := layoutKey(r, hkl); ok {
+			// Caps Lock turns a letter's case: the key goes the other way.
+			if caps && (unicode.IsUpper(r) || unicode.IsLower(r)) {
+				shift ^= 1
+			}
+			var mods []int
+			for _, m := range []struct{ bit, scan int }{{1, 0x2A}, {2, 0x1D}, {4, 0x38}} { // Shift, Ctrl, Alt (Ctrl+Alt: AltGr)
+				if shift&m.bit != 0 {
+					mods = append(mods, m.scan)
+				}
+			}
+			var in []keyInput
+			for _, m := range mods {
+				in = append(in, key(m, false))
+			}
+			in = append(in, key(scan, false), key(scan, true))
+			for i := len(mods) - 1; i >= 0; i-- {
+				in = append(in, key(mods[i], true))
+			}
+			sendKeys(in...)
+			continue
+		}
 		// Characters outside the basic plane go as their two halves.
 		var in []keyInput
 		for _, u := range utf16.Encode([]rune{r}) {
 			in = append(in, keyInput{scan: u, flag: keyUnicode}, keyInput{scan: u, flag: keyUnicode | keyUp})
 		}
 		sendKeys(in...)
+		time.Sleep(unicodePause)
 	}
+}
+
+// frontLayout is the keyboard layout of the window in front (each window
+// may have its own).
+func frontLayout() uintptr {
+	hwnd, _, _ := procForeground.Call()
+	tid, _, _ := procWindowThread.Call(hwnd, 0)
+	hkl, _, _ := procGetLayout.Call(tid)
+	return hkl
+}
+
+func capsLock() bool {
+	r, _, _ := procGetKeyState.Call(vkCapital)
+	return r&1 != 0
+}
+
+// layoutKey is the key that types r on the layout hkl: its scan code and
+// the Shift (1), Ctrl (2) and Alt (4) it takes; ok false when no single key
+// does (dead keys, other scripts, emoji).
+func layoutKey(r rune, hkl uintptr) (scan, shift int, ok bool) {
+	if r < 0x20 || r > 0xFFFF {
+		return 0, 0, false
+	}
+	v, _, _ := procVkKeyScanEx.Call(uintptr(r), hkl)
+	res := int16(v)
+	if res == -1 {
+		return 0, 0, false
+	}
+	vk, state := int(res&0xFF), int(res>>8)&0xFF
+	if state&^7 != 0 || state == 2 || state == 3 { // only Ctrl: a control character, not text
+		return 0, 0, false
+	}
+	sc, _, _ := procMapVirtualKeyEx.Call(uintptr(vk), mapVKToVSCEx, hkl)
+	if sc == 0 {
+		return 0, 0, false
+	}
+	return int(sc), state, true
 }
 
 func (w *win) ReleaseAll() {

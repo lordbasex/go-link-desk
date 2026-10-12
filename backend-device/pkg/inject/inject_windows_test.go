@@ -57,3 +57,22 @@ func TestReleaseAllForgetsWhatWasHeld(t *testing.T) {
 		t.Fatalf("still held: %v %v %v", w.keys, w.buttons, w.mods)
 	}
 }
+
+// Text goes by the layout's keys: a letter by its key, its capital with
+// Shift; an emoji has no key (it goes as a Unicode character).
+func TestTextFindsTheLayoutsKeys(t *testing.T) {
+	hkl, _, _ := procGetLayout.Call(0)
+	a, shift, ok := layoutKey('a', hkl)
+	if !ok || shift != 0 || a == 0 {
+		t.Fatalf("a: %#x %d %v", a, shift, ok)
+	}
+	if capA, shift, ok := layoutKey('A', hkl); !ok || shift != 1 || capA != a {
+		t.Fatalf("A: %#x %d %v (a is %#x)", capA, shift, ok, a)
+	}
+	if _, _, ok := layoutKey('😀', hkl); ok {
+		t.Fatal("an emoji has a key")
+	}
+	if _, _, ok := layoutKey('\x01', hkl); ok {
+		t.Fatal("a control character has a key")
+	}
+}
