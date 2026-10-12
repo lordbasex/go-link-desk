@@ -63,7 +63,7 @@ function LinkForm() {
         {tried && !code ? t.link.invalid : t.link.codeHint}
       </span>
       <div>
-        <Link to="/devices" className="button button-ghost">
+        <Link to="/web" className="button button-ghost">
           {t.devices.title}
         </Link>
       </div>

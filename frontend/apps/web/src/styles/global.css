@@ -246,3 +246,5 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .files-job.is-failed .files-size { color: var(--color-danger-text); }
 .files-job.is-done .files-size { color: var(--color-accent-text); }
 .drop-overlay { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(10, 14, 22, 0.7); color: #fff; font-size: 20px; border: 3px dashed var(--color-accent); pointer-events: none; }
+.app-own { min-height: 100dvh; display: block; }
+.app-own > .ios { min-height: 100dvh; }

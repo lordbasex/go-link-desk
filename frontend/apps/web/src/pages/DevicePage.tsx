@@ -22,7 +22,7 @@ export function DevicePage({ createClient }: { createClient?: () => SignalClient
           <Link to="/link" className="button button-primary">
             {t.devices.link}
           </Link>
-          <Link to="/devices" className="button button-secondary">
+          <Link to="/web" className="button button-secondary">
             {t.devices.title}
           </Link>
         </div>
@@ -44,7 +44,7 @@ function ReachSession({ device, createClient }: { device: SavedDevice; createCli
     <SessionRunner
       door={door}
       title={t.session.nameTitle.replace("{code}", deviceName(device))}
-      back={{ to: "/devices", label: t.devices.title }}
+      back={{ to: "/web", label: t.devices.title }}
       autoStart
       onUnlinked={() => removeDevice(store, device.deviceId, device.signalUrl)}
       onHost={(h) => {

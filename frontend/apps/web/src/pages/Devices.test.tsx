@@ -8,8 +8,8 @@ import { en } from "../i18n/en";
 import { FakeClient } from "../session/test-utils";
 import { signalUrl } from "../session/useSession";
 import { DevicePage } from "./DevicePage";
-import { DevicesPage } from "./DevicesPage";
 import { LinkPage } from "./LinkPage";
+import { WebHomePage } from "./WebHomePage";
 
 const device = (): SavedDevice => ({
   deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
@@ -30,7 +30,7 @@ function at(path: string, client?: FakeClient) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/devices" element={<DevicesPage />} />
+        <Route path="/web" element={<WebHomePage />} />
         <Route path="/d/:deviceId" element={<DevicePage createClient={create} />} />
         <Route path="/link" element={<LinkPage createClient={create} />} />
         <Route path="/link/:code" element={<LinkPage createClient={create} />} />
@@ -45,15 +45,15 @@ afterEach(() => {
 });
 
 describe("My computers", () => {
-  it("lists the linked computers and the recent sessions", async () => {
+  it("lists the linked computers and the recent sessions on Home", async () => {
     const user = userEvent.setup();
     saveDevice(window.localStorage, device());
     addRecent(window.localStorage, { target: "915355636", deviceId: "", name: "", os: "", at: 5, thumb: "" });
-    at("/devices");
-    expect(screen.getByRole("heading", { name: "mac-studio" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: en.devices.connect })).toHaveAttribute("href", `/d/${device().deviceId}`);
-    expect(screen.getByRole("link", { name: en.devices.again })).toHaveAttribute("href", "/c/915355636");
+    at("/web");
+    expect(screen.getByRole("link", { name: en.web.connectTo.replace("{name}", "mac-studio") })).toHaveAttribute("href", `/d/${device().deviceId}`);
+    expect(screen.getByRole("link", { name: en.web.connectTo.replace("{name}", "915 355 636") })).toHaveAttribute("href", "/c/915355636");
 
+    await user.click(screen.getByRole("button", { name: en.web.more.replace("{name}", "mac-studio") }));
     await user.click(screen.getByRole("button", { name: `☆ ${en.devices.favorite}` }));
     expect(loadDevices(window.localStorage)[0]?.favorite).toBe(true);
 
@@ -61,12 +61,12 @@ describe("My computers", () => {
     const input = screen.getByRole("textbox", { name: en.devices.rename });
     await user.clear(input);
     await user.type(input, "Office{Enter}");
-    expect(screen.getByRole("heading", { name: "Office" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.web.connectTo.replace("{name}", "Office") })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: en.devices.forget }));
-    await user.click(screen.getByRole("button", { name: en.devices.forgetConfirm }));
+    await user.click(screen.getByRole("button", { name: en.web.forget }));
+    await user.click(screen.getByRole("button", { name: en.web.forgetConfirm }));
     expect(loadDevices(window.localStorage)).toEqual([]);
-    expect(screen.getByText(en.devices.empty)).toBeInTheDocument();
+    expect(screen.getByText(en.web.computersEmpty)).toBeInTheDocument();
   });
 
   it("goes back to a linked computer without a code, and says when unattended access is off", async () => {
