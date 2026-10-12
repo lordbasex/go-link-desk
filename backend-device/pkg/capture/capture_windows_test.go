@@ -87,3 +87,33 @@ func TestAFrameOutlivesItsCallback(t *testing.T) {
 	}
 	Release(p)
 }
+
+// The computer's sound comes 10 ms at a time, silence included while
+// nothing plays (a machine with no output device has none to read).
+func TestTheSoundComesAtItsPace(t *testing.T) {
+	got := make(chan int, 10)
+	tap := startAudio(func(s []int16) {
+		select {
+		case got <- len(s):
+		default:
+		}
+	})
+	if tap == nil {
+		t.Skip("no output device to read")
+	}
+	defer tap.Stop()
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		select {
+		case n := <-got:
+			if n != AudioRate/100*AudioChannels {
+				t.Fatalf("a read of %d samples", n)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("no sound read")
+		}
+	}
+	if time.Since(start) > time.Second {
+		t.Fatalf("5 reads of 10 ms took %v", time.Since(start))
+	}
+}

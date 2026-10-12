@@ -2,7 +2,7 @@
 
 //go:build linux && !headless
 
-#include "audio_linux.h"
+#include "audio.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
