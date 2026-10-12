@@ -16,7 +16,11 @@ import (
 var ErrLocked = errors.New("another device is already running")
 
 // Lock is a held lock. Keep it for the life of the process.
-type Lock struct{ f *os.File }
+type Lock struct {
+	f     *os.File
+	woken chan struct{}
+	stop  func()
+}
 
 // Acquire locks path, creating it when needed.
 func Acquire(path string) (*Lock, error) {
@@ -31,13 +35,24 @@ func Acquire(path string) (*Lock, error) {
 		f.Close()
 		return nil, err
 	}
-	return &Lock{f: f}, nil
+	l := &Lock{f: f, woken: make(chan struct{}, 1)}
+	l.stop = listen(path, l.woken)
+	return l, nil
 }
+
+// Woken receives a value each time another process calls Wake for this
+// lock's path: someone opened the app again, and the running one should
+// show itself. It never receives where Wake is not supported.
+func (l *Lock) Woken() <-chan struct{} { return l.woken }
 
 // Release frees the lock.
 func (l *Lock) Release() error {
 	if l == nil || l.f == nil {
 		return nil
+	}
+	if l.stop != nil {
+		l.stop()
+		l.stop = nil
 	}
 	err := unlockFile(l.f)
 	if cerr := l.f.Close(); err == nil {

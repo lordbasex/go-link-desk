@@ -69,6 +69,7 @@ help:
 	@echo "  make linux-package-amd64    that host with its installer, menu entry and icons, in a .tar.gz (also -arm64)"
 	@echo "  make linux-packages-amd64   the same as .deb, .rpm and Arch packages (nFPM; also -arm64)"
 	@echo "  make device-windows-amd64   the Windows host (go-link-desk.exe), built in Docker (also -arm64, -amd64-headless)"
+	@echo "  make windows-package-amd64  its installer (-setup.exe, for the user) and portable .zip (also -arm64)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
 
@@ -247,6 +248,21 @@ device-windows-%:
 	@echo "$(YELLOW)Building the host for windows/$*...$(NC)"
 	$(call WINDOWS_BUILD,$*,,$(DEVICE_OUT)/windows-$*)
 	@scripts/check-deps.sh windows $(DEVICE_OUT)/windows-$*/go-link-desk.exe
+
+# The Windows release: dist/desk/go-link-desk-<version>-windows-<arch>-setup.exe
+# (installs for the user, no administrator) and the same program portable,
+# in go-link-desk-<version>-windows-<arch>.zip, each with its .sha256.
+WINDOWS_PKG = go-link-desk-$(VERSION)-windows-$*
+windows-package-%:
+	@echo "$(YELLOW)Building the Windows release for $*...$(NC)"
+	$(call WINDOWS_BUILD,$*,--target setup --build-context root=$(CURDIR),$(DEVICE_OUT)/windows-$*-setup)
+	@scripts/check-deps.sh windows $(DEVICE_OUT)/windows-$*-setup/go-link-desk.exe
+	cp $(DEVICE_OUT)/windows-$*-setup/go-link-desk-setup.exe $(DEVICE_OUT)/$(WINDOWS_PKG)-setup.exe
+	@rm -rf $(DEVICE_OUT)/$(WINDOWS_PKG) && mkdir -p $(DEVICE_OUT)/$(WINDOWS_PKG)
+	cp $(DEVICE_OUT)/windows-$*-setup/go-link-desk.exe LICENSE THIRD_PARTY_NOTICES.md $(DEVICE_OUT)/$(WINDOWS_PKG)/
+	cd $(DEVICE_OUT) && rm -f $(WINDOWS_PKG).zip && zip -qr $(WINDOWS_PKG).zip $(WINDOWS_PKG)
+	cd $(DEVICE_OUT) && for f in $(WINDOWS_PKG)-setup.exe $(WINDOWS_PKG).zip; do shasum -a 256 $$f > $$f.sha256; done
+	@echo "$(GREEN)✓ $(DEVICE_OUT)/$(WINDOWS_PKG)-setup.exe and .zip$(NC)"
 
 # ---------------------------------------------------------------------------
 # End-to-end tests (e2e/global-setup.ts builds signalhub, the web and the

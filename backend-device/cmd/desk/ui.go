@@ -40,7 +40,10 @@ type uiOptions struct {
 	// setConsent hands the window's consent dialog to the session (nil:
 	// the tests' auto-accept stays).
 	setConsent func(services.Consent)
-	webURL     string // where viewers type the code
-	language   string
-	logger     *slog.Logger
+	// woken receives when the app is opened again while it runs: the
+	// window comes forward.
+	woken    <-chan struct{}
+	webURL   string // where viewers type the code
+	language string
+	logger   *slog.Logger
 }

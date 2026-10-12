@@ -183,7 +183,14 @@ func run(args []string) error {
 		return runTestViewer(f, cfg, target, filepath.Dir(store.Path()), logger)
 	}
 	// One host per user: a locked file next to device.json.
-	lock, err := instancelock.Acquire(filepath.Join(filepath.Dir(store.Path()), "desk.lock"))
+	lockPath := filepath.Join(filepath.Dir(store.Path()), "desk.lock")
+	lock, err := instancelock.Acquire(lockPath)
+	if errors.Is(err, instancelock.ErrLocked) && !f.headless && instancelock.Wake(lockPath) {
+		// Opened again (the Start menu, a double click): the one running
+		// shows its window, and this one has nothing to do.
+		logger.Info("go-link Desk is running already: its window comes forward")
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("cannot start: %w", err)
 	}
@@ -462,6 +469,7 @@ func run(args []string) error {
 		signalURL:      target,
 		connect:        f.connect,
 		webURL:         web,
+		woken:          lock.Woken(),
 		language:       cfg.Language,
 		logger:         logger,
 	})

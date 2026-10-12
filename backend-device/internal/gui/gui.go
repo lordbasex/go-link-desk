@@ -66,6 +66,9 @@ type Options struct {
 	// Connect opens sessions to these session codes at start (separated
 	// by commas).
 	Connect string
+	// Woken receives when the app is opened again while it runs (Windows):
+	// the main window comes forward.
+	Woken <-chan struct{}
 	// Autostart replaces the system's login item (tests).
 	Autostart *Autostart
 	// Permissions replaces the system's checks (tests).
@@ -133,6 +136,18 @@ func Run(opts Options) {
 	}
 	u.setupTray()
 	u.render(opts.Status.Snapshot())
+	if opts.Woken != nil {
+		go func() {
+			for {
+				select {
+				case <-opts.Ctx.Done():
+					return
+				case <-opts.Woken:
+					fyne.Do(u.showMain)
+				}
+			}
+		}()
+	}
 	if opts.SetConsent != nil {
 		opts.SetConsent(u) // the request window asks from now on
 		defer opts.SetConsent(nil)

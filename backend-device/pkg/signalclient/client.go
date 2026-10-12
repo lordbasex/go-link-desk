@@ -40,8 +40,12 @@ type Config struct {
 	MinBackoff time.Duration
 	MaxBackoff time.Duration
 	PongWait   time.Duration // max silence before the link is considered dead
-	WriteWait  time.Duration
-	Logger     *slog.Logger
+	// PingEvery is how often the client pings the server itself, so a link
+	// that died without a word (a NAT that dropped it) is noticed within
+	// PongWait rather than at the server's next ping.
+	PingEvery time.Duration
+	WriteWait time.Duration
+	Logger    *slog.Logger
 }
 
 // Client keeps a signalhub connection alive.
@@ -61,9 +65,12 @@ func New(cfg Config, h Handler) *Client {
 	if cfg.MaxBackoff <= 0 {
 		cfg.MaxBackoff = 30 * time.Second
 	}
+	if cfg.PingEvery <= 0 {
+		cfg.PingEvery = 15 * time.Second
+	}
 	if cfg.PongWait <= 0 {
-		// The server pings every 54s; allow a margin for slow links.
-		cfg.PongWait = 75 * time.Second
+		// Two of our pings unanswered (the server's own come every 54 s).
+		cfg.PongWait = 2*cfg.PingEvery + 5*time.Second
 	}
 	if cfg.WriteWait <= 0 {
 		cfg.WriteWait = 10 * time.Second
@@ -176,6 +183,26 @@ func (c *Client) session(ctx context.Context, target string) (connected bool, er
 		_ = conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait))
 		return conn.WriteControl(websocket.PongMessage, []byte(data), time.Now().Add(c.cfg.WriteWait))
 	})
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait))
+	})
+	// Our own pings: the server answers each with a pong, which keeps the
+	// link alive here; no answer for PongWait and the read fails.
+	pinging := make(chan struct{})
+	defer close(pinging)
+	go func() {
+		t := time.NewTicker(c.cfg.PingEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-pinging:
+				return
+			case <-t.C:
+				// WriteControl may run beside the other writers.
+				_ = conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(c.cfg.WriteWait))
+			}
+		}
+	}()
 
 	var hello Envelope
 	if err := conn.ReadJSON(&hello); err != nil {

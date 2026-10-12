@@ -67,6 +67,26 @@ RUN SUBSYSTEM="-H windowsgui" && case " $TAGS " in *" headless "*) SUBSYSTEM="" 
     go build -trimpath -tags "$TAGS" -ldflags "-s -w $SUBSYSTEM -X main.version=$VERSION" \
       -o /out/go-link-desk.exe ./cmd/desk
 
+# The installer (build/windows/installer.nsi, NSIS: zlib license) with the
+# program, its license and the third parties' notices, which come from the
+# repository's root: the "root" build context (make windows-package-amd64).
+FROM debian:bookworm-slim AS installer
+RUN apt-get update && apt-get install -y --no-install-recommends nsis && rm -rf /var/lib/apt/lists/*
+ARG VERSION=dev
+ARG SHORT_VERSION=0.1.0
+ARG GOARCH=amd64
+WORKDIR /nsis
+COPY --from=build /out/go-link-desk.exe /src/build/windows/desk.ico ./
+COPY build/windows/installer.nsi ./
+COPY --from=root LICENSE ./LICENSE.txt
+COPY --from=root THIRD_PARTY_NOTICES.md ./
+RUN mkdir /out && cp go-link-desk.exe /out/ && \
+    makensis -V2 -DVERSION="$VERSION" -DVERSION4="$SHORT_VERSION.0" -DARCH="$GOARCH" \
+      -DOUT=/out/go-link-desk-setup.exe installer.nsi
+
+FROM scratch AS setup
+COPY --from=installer /out/ /
+
 # Only the program leaves the build (docker buildx --output type=local).
 FROM scratch AS export
 COPY --from=build /out/ /

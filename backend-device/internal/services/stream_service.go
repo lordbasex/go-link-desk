@@ -183,6 +183,10 @@ type viewer struct {
 // encoder, or VP8), so a keyframe one viewer needs never costs the others
 // anything. Frames only come when the picture changes.
 type StreamService struct {
+	// softwareH264 is said once: the encoder starts again on every size
+	// and bitrate step.
+	softwareH264 sync.Once
+
 	cfg StreamConfig
 	log *slog.Logger
 	ice *ICEStore
@@ -651,7 +655,9 @@ func (s *StreamService) newEncoder(v *viewer, w, h int) (videoEncoder, error) {
 		if err == nil {
 			hw, known := h264.enc.Hardware()
 			if known && !hw {
-				s.log.Warn("H.264 runs on the software encoder: this computer has no hardware one", "peer_id", v.id)
+				s.softwareH264.Do(func() {
+					s.log.Warn("H.264 runs on the software encoder: this computer has no hardware one", "peer_id", v.id)
+				})
 			}
 		}
 		e = h264
@@ -872,7 +878,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 		_ = pc.Close()
 		return err
 	}
-	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.HasH264)}
+	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.H264Available())}
 	v.gated.Store(gated)
 	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
 	video, err := newVideoTrack(trackCodec(v.codec))

@@ -33,6 +33,7 @@ func runUI(o uiOptions) {
 		Connect:        o.connect,
 		AskCalls:       o.setConsent != nil,
 		SetConsent:     o.setConsent,
+		Woken:          o.woken,
 		WebURL:         o.webURL,
 		Language:       o.language,
 		Version:        version,

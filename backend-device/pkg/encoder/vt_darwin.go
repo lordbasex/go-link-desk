@@ -223,10 +223,10 @@ import (
 	"unsafe"
 )
 
-// vtEncoder is H.264 from VideoToolbox, macOS's own encoder (the GPU's or
+// sysEncoder is H.264 from VideoToolbox, macOS's own encoder (the GPU's or
 // the media engine's hardware), called directly: nothing to install, and
 // the encoder's licensing comes with the system.
-type vtEncoder struct {
+type sysEncoder struct {
 	mu       sync.Mutex
 	e        *C.vt_enc
 	handle   cgo.Handle
@@ -243,7 +243,7 @@ func goVTFrame(handle C.uintptr_t, data unsafe.Pointer, n C.int, key C.int, pts 
 // newVT starts a VideoToolbox session; onFrame gets each access unit (Annex
 // B, with an access unit delimiter, and SPS and PPS before each keyframe)
 // from VideoToolbox's own thread, one at a time and in order.
-func newVT(cfg Config, gop int, onFrame func([]byte, bool, time.Duration)) (*vtEncoder, error) {
+func newSys(cfg Config, gop int, onFrame func([]byte, bool, time.Duration)) (*sysEncoder, error) {
 	h := cgo.NewHandle(onFrame)
 	var cerr C.int
 	b := func(v bool) C.int {
@@ -264,10 +264,10 @@ func newVT(cfg Config, gop int, onFrame func([]byte, bool, time.Duration)) (*vtE
 		h.Delete()
 		return nil, fmt.Errorf("h264: VideoToolbox session failed (%d)", int(cerr))
 	}
-	return &vtEncoder{e: e, handle: h, frameSz: cfg.Width*cfg.Height + 2*(cfg.Width/2)*(cfg.Height/2), hardware: int(C.vt_hardware(e))}, nil
+	return &sysEncoder{e: e, handle: h, frameSz: cfg.Width*cfg.Height + 2*(cfg.Width/2)*(cfg.Height/2), hardware: int(C.vt_hardware(e))}, nil
 }
 
-func (v *vtEncoder) write(i420 []byte, key bool) error {
+func (v *sysEncoder) write(i420 []byte, key bool) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.e == nil {
@@ -282,9 +282,13 @@ func (v *vtEncoder) write(i420 []byte, key bool) error {
 	return nil
 }
 
+// writeAt: the capture's pixel buffers carry their own times; I420 frames
+// (the test card) are timed by their count.
+func (v *sysEncoder) writeAt(i420 []byte, _ time.Duration, key bool) error { return v.write(i420, key) }
+
 // writePixelBuffer encodes a CVPixelBufferRef as it is. The caller keeps
 // its own reference; VideoToolbox retains the buffer while it needs it.
-func (v *vtEncoder) writePixelBuffer(pb unsafe.Pointer, pts time.Duration, key bool) error {
+func (v *sysEncoder) writePixelBuffer(pb unsafe.Pointer, pts time.Duration, key bool) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.e == nil {
@@ -296,7 +300,7 @@ func (v *vtEncoder) writePixelBuffer(pb unsafe.Pointer, pts time.Duration, key b
 	return nil
 }
 
-func (v *vtEncoder) setBitrate(kbps int) {
+func (v *sysEncoder) setBitrate(kbps int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.e != nil && kbps > 0 {
@@ -304,7 +308,7 @@ func (v *vtEncoder) setBitrate(kbps int) {
 	}
 }
 
-func (v *vtEncoder) close() {
+func (v *sysEncoder) close() {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.e == nil {
@@ -322,5 +326,7 @@ func cbool(v bool) C.int {
 	return 0
 }
 
-// hasVT is whether this build can call VideoToolbox directly.
-const hasVT = true
+// hasSys is whether this build can call VideoToolbox directly.
+const hasSys = true
+
+const pixelBuffers = true
