@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 #
 # Tests on every push and pull request: the host (Linux, with its C
-# libraries, and Windows), the website, the story end to end (with signalhub from its
-# own repository, unchanged), the portable builds for macOS, Linux and
-# Windows (no library outside the operating system), and a scan for
-# secrets in the history.
+# libraries, and Windows), the website, the story end to end (with
+# signalhub from its own repository, unchanged), the portable builds for
+# macOS, Linux and Windows (no library outside the operating system), and
+# a scan for secrets in the history.
 
 name: ci
 
