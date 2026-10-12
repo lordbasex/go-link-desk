@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 )
@@ -119,12 +120,16 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(home, ".secret"), []byte("x"), 0o600)
 	outside := t.TempDir()
 	_ = os.WriteFile(filepath.Join(outside, "passwd"), []byte("root"), 0o644)
-	_ = os.Symlink(outside, filepath.Join(home, "escape"))
+	// Windows lets only administrators and developer mode make symbolic
+	// links: without them the links' cases drop out and the rest runs.
+	links := os.Symlink(outside, filepath.Join(home, "escape")) == nil
 	_ = os.MkdirAll(filepath.Join(home, ".ssh"), 0o700)
 	_ = os.WriteFile(filepath.Join(home, ".ssh", "id_ed25519"), []byte("key"), 0o600)
 	_ = os.MkdirAll(filepath.Join(home, "Library", "Keychains"), 0o700)
 	_ = os.WriteFile(filepath.Join(home, "Library", "Keychains", "login.keychain-db"), []byte("k"), 0o600)
-	_ = os.Symlink(filepath.Join(home, ".ssh"), filepath.Join(home, "keys")) // a plain name pointing at a hidden folder
+	if links {
+		_ = os.Symlink(filepath.Join(home, ".ssh"), filepath.Join(home, "keys")) // a plain name pointing at a hidden folder
+	}
 
 	f.Handle("P", true, msg(map[string]any{"type": "list", "id": "l1", "path": ""}))
 	r := w.last()
@@ -135,7 +140,11 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	for _, e := range r["entries"].([]any) {
 		names = append(names, e.(map[string]any)["name"].(string))
 	}
-	if len(names) != 3 || names[0] != "Documents" || names[1] != "escape" || names[2] != "keys" {
+	want := []string{"Documents"}
+	if links {
+		want = append(want, "escape", "keys")
+	}
+	if !slices.Equal(names, want) {
 		t.Fatalf("listing %v (hidden files must not show)", names)
 	}
 	for _, p := range []string{"../", "escape/passwd", "escape", "/etc/passwd", ".ssh/id_ed25519", ".ssh", "Documents/../.ssh/id_ed25519", "Library", "Library/Keychains/login.keychain-db", "library/Keychains/login.keychain-db", "LIBRARY", "./Library/Keychains", "Documents/../Library/Keychains", "keys/id_ed25519", "keys"} {

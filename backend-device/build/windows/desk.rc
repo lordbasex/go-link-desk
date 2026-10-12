@@ -1,0 +1,37 @@
+// Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+//
+// The .exe's resources: its icon, its manifest and the version Explorer
+// shows in Properties. version.h, written by the build
+// (build/windows.Dockerfile), defines VERSION_COMMA (1,2,3,0) and
+// VERSION_TEXT ("v1.2.3").
+#include <winver.h>
+#include "version.h"
+
+1 ICON "desk.ico"
+1 24 "desk.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION VERSION_COMMA
+PRODUCTVERSION VERSION_COMMA
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "go-link"
+      VALUE "FileDescription", "go-link Desk"
+      VALUE "FileVersion", VERSION_TEXT
+      VALUE "InternalName", "go-link-desk"
+      VALUE "LegalCopyright", "Copyright (c) 2026 Federico Pereira. MIT License."
+      VALUE "OriginalFilename", "go-link-desk.exe"
+      VALUE "ProductName", "go-link Desk"
+      VALUE "ProductVersion", VERSION_TEXT
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END

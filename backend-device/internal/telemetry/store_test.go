@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -98,6 +99,9 @@ func TestRunsSamplesAndEventsAreKeptPerRoom(t *testing.T) {
 }
 
 func TestTheDatabaseIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix modes: the user's profile folder's access list keeps the file private")
+	}
 	path := filepath.Join(t.TempDir(), "t.db")
 	s, err := Open(path)
 	if err != nil {

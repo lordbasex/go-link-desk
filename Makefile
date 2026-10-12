@@ -11,8 +11,8 @@
 .PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless \
 	device-darwin-universal device-dmg device-notarized e2e clean FORCE
 
-# The darwin and linux device targets are pattern rules (device-darwin-%,
-# device-linux-%): make does not apply pattern rules to .PHONY targets, so
+# The darwin, linux and windows device targets are pattern rules
+# (device-darwin-%, device-linux-%, device-windows-%): make does not apply pattern rules to .PHONY targets, so
 # they are not listed above.
 
 # Project
@@ -68,6 +68,7 @@ help:
 	@echo "  make device-linux-amd64     the Linux host, built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make linux-package-amd64    that host with its installer, menu entry and icons, in a .tar.gz (also -arm64)"
 	@echo "  make linux-packages-amd64   the same as .deb, .rpm and Arch packages (nFPM; also -arm64)"
+	@echo "  make device-windows-amd64   the Windows host (go-link-desk.exe), built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
 
@@ -229,6 +230,23 @@ linux-packages-%: linux-package-%
 		$(NFPM) package --config $(DEVICE_OUT)/nfpm-$*.yaml --packager $$p --target $(DEVICE_OUT)/ || exit 1; \
 	done
 	@echo "$(GREEN)✓ the $* packages are in $(DEVICE_OUT)$(NC)"
+
+# Windows builds in Docker too (llvm-mingw, for x86-64 or ARM64): one .exe
+# with libvpx, libopus and the C runtime inside, for Windows 10 and 11.
+win_arch = $(if $(filter arm64,$(1)),aarch64,x86_64)
+WINDOWS_BUILD = cd $(DEVICE_DIR) && docker buildx build --build-arg ARCH=$(call win_arch,$(1)) --build-arg GOARCH=$(1) \
+	--build-arg VERSION=$(VERSION) --build-arg SHORT_VERSION=$(SHORT_VERSION) $(2) \
+	-f build/windows.Dockerfile --output type=local,dest=$(3) .
+
+device-windows-%-headless:
+	@echo "$(YELLOW)Building the headless host for windows/$*...$(NC)"
+	$(call WINDOWS_BUILD,$*,--build-arg TAGS=headless,$(DEVICE_OUT)/windows-$*-headless)
+	@scripts/check-deps.sh windows $(DEVICE_OUT)/windows-$*-headless/go-link-desk.exe
+
+device-windows-%:
+	@echo "$(YELLOW)Building the host for windows/$*...$(NC)"
+	$(call WINDOWS_BUILD,$*,,$(DEVICE_OUT)/windows-$*)
+	@scripts/check-deps.sh windows $(DEVICE_OUT)/windows-$*/go-link-desk.exe
 
 # ---------------------------------------------------------------------------
 # End-to-end tests (e2e/global-setup.ts builds signalhub, the web and the

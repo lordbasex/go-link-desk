@@ -1,9 +1,10 @@
 # Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 #
 # Tests on every push and pull request: the host (Linux, with its C
-# libraries), the website, the story end to end (with signalhub from its
-# own repository, unchanged), the portable builds (no library outside the
-# operating system), and a scan for secrets in the history.
+# libraries, and Windows), the website, the story end to end (with
+# signalhub from its own repository, unchanged), the portable builds for
+# macOS, Linux and Windows (no library outside the operating system), and
+# a scan for secrets in the history.
 
 name: ci
 
@@ -43,6 +44,34 @@ jobs:
         run: go build -tags headless ./cmd/desk
       # The same version as the Makefile's check-go.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  # The host's code on Windows: vet and the tests, with MSYS2's compiler
+  # and libraries for cgo (the release links its own, in Docker).
+  device-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend-device
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-libvpx
+            mingw-w64-ucrt-x86_64-opus
+      - name: MSYS2's gcc and pkg-config for cgo
+        run: echo "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin" >> $env:GITHUB_PATH
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - run: go vet ./... && go vet -tags headless ./...
+      - run: go test ./...
 
   web:
     runs-on: ubuntu-latest
@@ -112,6 +141,20 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - run: make device-linux-amd64 VERSION=ci
       - run: scripts/check-deps.sh linux dist/desk/linux-amd64/go-link-desk
+
+  # The Windows host as it ships (llvm-mingw; libvpx, libopus and the C
+  # runtime inside): its import table may only list Windows' own DLLs.
+  deps-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - uses: docker/setup-buildx-action@v3
+      # make runs scripts/check-deps.sh windows on it.
+      - run: make device-windows-amd64 VERSION=ci
 
   # The macOS app as it ships (macOS 13+, libvpx and libopus built from
   # source and linked in): otool may only list /System/Library and /usr/lib.

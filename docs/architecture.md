@@ -207,7 +207,7 @@ The computer that shares can be a Linux desktop in an **X11 (Xorg)** or a **Wayl
 | macOS bundle ID | `org.go-link.desk` |
 | Binary | `go-link-desk` |
 | Configuration | `os.UserConfigDir()/go-link-desk/device.json` |
-| Logs | `~/go-link-desk/logs/desk.log` (when not started from a terminal) |
+| Logs | `~/go-link-desk/logs/desk.log`, on Windows `%LOCALAPPDATA%\go-link-desk\logs\desk.log` (when not started from a terminal) |
 | Browser storage keys | `go-link-desk.*` |
 
 ## The shared signaling server
