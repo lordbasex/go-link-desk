@@ -113,7 +113,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.BoolVar(&f.demoScreen, "test-demo-screen", false, "a demonstration host that shows this computer's real screen and takes the viewers' mouse and keyboard: only on a computer kept for it, locked down, with nothing of anyone's on it (needs --test-code-file and --source screen)")
 	fs.BoolVar(&f.relayOnly, "test-relay-only", false, "carry every session through the TURN relay, never straight to the viewer, so a firewall may let the computer reach the signaling server and the relay only (a demonstration host; needs --test-code-file)")
 	fs.StringVar(&f.filesDir, "test-files-folder", "", "the only folder viewers may browse, download from and send files to (DIR/Received), with small files only (a demonstration host; needs --test-code-file)")
-	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
+	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests, screenshots and a demonstration computer; needs --source testpattern or --test-demo-screen)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
 	fs.StringVar(&f.testViewer, "test-viewer", "", "run only the viewer, without a window, through join, claim or reach (automated tests only)")
@@ -167,8 +167,8 @@ func parseFlags(args []string) (flags, error) {
 	if f.filesDir != "" && f.codeFile == "" {
 		return f, errors.New("--test-files-folder needs --test-code-file")
 	}
-	if f.name != "" && f.source != "testpattern" {
-		return f, errors.New("--test-name needs --source testpattern")
+	if f.name != "" && f.source != "testpattern" && !f.demoScreen {
+		return f, errors.New("--test-name needs --source testpattern or --test-demo-screen")
 	}
 	if f.unattended && f.password == "" {
 		return f, errors.New("--test-unattended needs --test-unattended-password: unattended access always has a password")
