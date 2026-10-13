@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -98,9 +99,9 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		{Title: L("Appearance"), Rows: []remoteview.PrefRow{
 			{ID: "theme", Kind: "select", Label: L("Theme"), Value: cfg.Theme,
 				Options: []remoteview.PrefOption{{ID: "", Title: L("Dark")}, {ID: "light", Title: L("Light")}, {ID: "system", Title: L("Like the system")}}},
-			{ID: "app_icon", Kind: "select", Label: L("App icon"), Detail: L("The one in the Dock while go-link Desk is open."), Value: cfg.AppIcon,
+			{ID: "app_icon", Kind: "select", Label: L("App icon"), Detail: L(appIconDetail()), Value: cfg.AppIcon,
 				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
-			{ID: "tray_icon", Kind: "select", Label: L("Menu bar icon"), Detail: L("Next to the clock. It turns red while someone is connected."), Value: cfg.TrayIcon,
+			{ID: "tray_icon", Kind: "select", Label: L(trayIconLabel()), Detail: L(trayIconDetail()), Value: cfg.TrayIcon,
 				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
 		}},
 		u.serverSection(cfg),
@@ -505,4 +506,34 @@ func localIPs() []string {
 		out = append(out, n.IP.String())
 	}
 	return out
+}
+
+// The icons' rows in each system's words: the Mac's Dock and menu bar,
+// Windows' taskbar and notification area, a Linux desktop's dock or
+// taskbar and its system tray.
+func appIconDetail() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "The one in the taskbar while go-link Desk is open."
+	case "linux":
+		return "The one in the dock or taskbar while go-link Desk is open."
+	}
+	return "The one in the Dock while go-link Desk is open."
+}
+
+func trayIconLabel() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "Notification area icon"
+	case "linux":
+		return "System tray icon"
+	}
+	return "Menu bar icon"
+}
+
+func trayIconDetail() string {
+	if runtime.GOOS == "linux" {
+		return "In the panel, where the desktop has a system tray. It turns red while someone is connected."
+	}
+	return "Next to the clock. It turns red while someone is connected."
 }

@@ -78,7 +78,9 @@ func OpenMain(labels map[string]string, h Handler) error {
 	m.viewMode = a.Preferences().IntWithFallback("org.go-link.desk.view", 0)
 	m.win = a.NewWindow("go-link Desk")
 	m.win.SetPadded(false) // the content reaches the edges, as the Mac's
-	m.win.Resize(fyne.NewSize(1180, 760))
+	// The Mac's 1180 x 760 does not fit a 1366 x 768 laptop (or a
+	// 1280 x 800 screen) with its taskbar: a little smaller.
+	m.win.Resize(fyne.NewSize(1120, 680))
 	m.win.SetCloseIntercept(m.win.Hide) // it lives in the tray
 	m.build()
 	m.win.CenterOnScreen()
