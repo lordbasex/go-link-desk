@@ -4,12 +4,15 @@
 
 // The captured pictures of Linux and Windows: packed I420 frames shared by
 // reference count, and the scaler that makes them from the screen's 32-bit
-// pixels.
+// pixels (libyuv: its SIMD rows do a 1080p frame in about a millisecond,
+// where plain C took tens).
 
 #include "frame.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#include <libyuv.h>
 
 void dk_retain(dk_frame *f) { __atomic_add_fetch(&f->refs, 1, __ATOMIC_SEQ_CST); }
 
@@ -20,17 +23,18 @@ void dk_release(dk_frame *f) {
 	}
 }
 
-// BT.601 limited range, the encoders' and the test card's.
-static inline uint8_t yv(int r, int g, int b) { return (uint8_t)((66 * r + 129 * g + 25 * b + 128 + 4096) >> 8); }
-static inline uint8_t uv(int r, int g, int b) { return (uint8_t)((-38 * r - 74 * g + 112 * b + 128 + 32768) >> 8); }
-static inline uint8_t vv(int r, int g, int b) { return (uint8_t)((112 * r - 94 * g - 18 * b + 128 + 32768) >> 8); }
+// The scaled picture before its conversion, kept by each capture thread
+// (a frame's worth of memory taken and given back each time costs more
+// than the scaling).
+static _Thread_local uint8_t *scaled;
+static _Thread_local size_t scaled_cap;
 
-// Black bars where the shapes differ; each output pixel averages the
-// source pixels under it.
+// Black bars where the shapes differ. A smaller picture averages the
+// pixels under each of its own (a box filter: text stays readable); the
+// colors are BT.601 limited range, the encoders' and the test card's.
 dk_frame *dk_scale(const uint8_t *src, int bpl, int w, int h, int ow, int oh, int rgb) {
 	ow &= ~1;
 	oh &= ~1;
-	int ri = rgb ? 0 : 2, bi = rgb ? 2 : 0;
 	dk_frame *f = calloc(1, sizeof *f);
 	f->refs = 1;
 	f->w = ow;
@@ -38,53 +42,37 @@ dk_frame *dk_scale(const uint8_t *src, int bpl, int w, int h, int ow, int oh, in
 	size_t ysize = (size_t)ow * oh;
 	f->data = malloc(ysize * 3 / 2);
 	uint8_t *Y = f->data, *U = Y + ysize, *V = U + ysize / 4;
-	memset(Y, 16, ysize);
-	memset(U, 128, ysize / 2);
 
 	// The picture fitted in ow x oh, keeping its shape (even edges).
 	double s = (double)ow / w < (double)oh / h ? (double)ow / w : (double)oh / h;
 	int fw = ((int)(w * s)) & ~1, fh = ((int)(h * s)) & ~1;
 	int fx = ((ow - fw) / 2) & ~1, fy = ((oh - fh) / 2) & ~1;
-	if (fw < 2 || fh < 2) return f;
-	// Each output pixel averages the source pixels under it (a box filter:
-	// text stays readable when the picture is smaller than the screen).
-	int *x0 = malloc(sizeof(int) * (fw + 1));
-	for (int i = 0; i <= fw; i++) x0[i] = (int)((long long)i * w / fw);
-	for (int j = 0; j < fh; j += 2) {
-		for (int i = 0; i < fw; i += 2) {
-			int su = 0, sv = 0;
-			for (int dj = 0; dj < 2; dj++) {
-				int sy0 = (int)((long long)(j + dj) * h / fh), sy1 = (int)((long long)(j + dj + 1) * h / fh);
-				if (sy1 <= sy0) sy1 = sy0 + 1;
-				for (int di = 0; di < 2; di++) {
-					int sx0 = x0[i + di], sx1 = x0[i + di + 1];
-					if (sx1 <= sx0) sx1 = sx0 + 1;
-					// At most 4 x 4 samples: enough for any scale down to a quarter.
-					int stepx = (sx1 - sx0 + 3) / 4, stepy = (sy1 - sy0 + 3) / 4;
-					int r = 0, g = 0, b = 0, n = 0;
-					for (int yy = sy0; yy < sy1; yy += stepy) {
-						const uint8_t *row = src + (size_t)yy * bpl;
-						for (int xx = sx0; xx < sx1; xx += stepx) {
-							const uint8_t *p = row + xx * 4;
-							b += p[bi];
-							g += p[1];
-							r += p[ri];
-							n++;
-						}
-					}
-					r /= n;
-					g /= n;
-					b /= n;
-					Y[(size_t)(fy + j + dj) * ow + fx + i + di] = yv(r, g, b);
-					su += uv(r, g, b);
-					sv += vv(r, g, b);
-				}
-			}
-			size_t ci = (size_t)((fy + j) / 2) * (ow / 2) + (fx + i) / 2;
-			U[ci] = (uint8_t)(su / 4);
-			V[ci] = (uint8_t)(sv / 4);
-		}
+	if (fw != ow || fh != oh) {
+		memset(Y, 16, ysize);
+		memset(U, 128, ysize / 2);
 	}
-	free(x0);
+	if (fw < 2 || fh < 2) return f;
+	if (fw != w || fh != h) {
+		size_t need = (size_t)fw * fh * 4;
+		if (need > scaled_cap) {
+			free(scaled);
+			scaled = malloc(need);
+			scaled_cap = scaled ? need : 0;
+			if (!scaled) return f;
+		}
+		// The four bytes of a pixel are scaled alike whatever their order.
+		ARGBScale(src, bpl, w, h, scaled, fw * 4, fw, fh, kFilterBox);
+		src = scaled;
+		bpl = fw * 4;
+	}
+	uint8_t *y = Y + (size_t)fy * ow + fx;
+	uint8_t *u = U + (size_t)(fy / 2) * (ow / 2) + fx / 2;
+	uint8_t *v = V + (size_t)(fy / 2) * (ow / 2) + fx / 2;
+	// libyuv names formats by a 32-bit word: its ARGB is B, G, R, A in
+	// memory (BGRx), its ABGR is R, G, B, A (RGBx).
+	if (rgb)
+		ABGRToI420(src, bpl, y, ow, u, ow / 2, v, ow / 2, fw, fh);
+	else
+		ARGBToI420(src, bpl, y, ow, u, ow / 2, v, ow / 2, fw, fh);
 	return f;
 }

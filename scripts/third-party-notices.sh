@@ -21,6 +21,9 @@ trap 'rm -rf "$WORK"' EXIT
 # Must match backend-device/build/macos/static-libs.sh.
 OPUS_VERSION=1.6.1
 VPX_VERSION=1.17.0
+# Must match backend-device/build/windows.Dockerfile (the Linux build
+# links Debian stable's, under the same license).
+YUV_VERSION=0.0.1974.20261008
 
 license_file() { # dir
   find "$1" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'ofl.txt' \) | sort | head -1
@@ -79,12 +82,15 @@ echo "▶ Go modules"
     section "$path" "$version" "https://pkg.go.dev/$path" "$f"
   done
 
-echo "▶ libvpx and libopus (linked into the host)"
+echo "▶ libvpx, libopus and libyuv (linked into the host)"
 curl -fsSL "https://github.com/webmproject/libvpx/archive/refs/tags/v$VPX_VERSION.tar.gz" | tar xz -C "$WORK"
 cat "$WORK/libvpx-$VPX_VERSION/LICENSE" "$WORK/libvpx-$VPX_VERSION/PATENTS" > "$WORK/vpx.txt"
 section "libvpx" "$VPX_VERSION" "https://chromium.googlesource.com/webm/libvpx" "$WORK/vpx.txt"
 curl -fsSL "https://downloads.xiph.org/releases/opus/opus-$OPUS_VERSION.tar.gz" | tar xz -C "$WORK"
 section "libopus" "$OPUS_VERSION" "https://opus-codec.org" "$WORK/opus-$OPUS_VERSION/COPYING"
+curl -fsSL "https://deb.debian.org/debian/pool/main/liby/libyuv/libyuv_$YUV_VERSION.orig.tar.xz" | tar xJ -C "$WORK"
+cat "$WORK/libyuv-$YUV_VERSION/LICENSE" "$WORK/libyuv-$YUV_VERSION/PATENTS" > "$WORK/yuv.txt"
+section "libyuv" "$YUV_VERSION" "https://chromium.googlesource.com/libyuv/libyuv" "$WORK/yuv.txt"
 
 echo "▶ wlr-data-control (the Linux host's clipboard protocol, generated code)"
 awk '/Copyright ©/{f=1} f{sub(/^ \* ?/, ""); print} /THIS SOFTWARE\./{exit}' \

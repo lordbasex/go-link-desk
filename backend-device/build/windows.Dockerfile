@@ -1,7 +1,8 @@
 # Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
 # Cross-compiles the host for Windows 10 and 11 (x86-64 or ARM64) with
-# llvm-mingw. libvpx and libopus are built from source as static libraries,
+# llvm-mingw. libvpx, libopus and libyuv are built from source as static
+# libraries,
 # and the C runtime's threads and C++ library are linked in too, so the .exe
 # needs no DLL beyond Windows' own (scripts/check-deps.sh windows checks).
 # Its icon, manifest and version come from build/windows/desk.rc.
@@ -16,6 +17,9 @@ ARG OPUS_VERSION=1.6.1
 ARG OPUS_SHA256=6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
 ARG VPX_VERSION=1.17.0
 ARG VPX_SHA256=1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a
+# libyuv has no releases: Debian's tarball of a revision is a fixed one.
+ARG YUV_VERSION=0.0.1974.20261008
+ARG YUV_SHA256=9a2e5c3e450ee5fec02276c38bf2190a93b09d3cf977e2913e1430c84ad66ad8
 ENV HOST=${ARCH}-w64-mingw32 PREFIX=/deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl make pkg-config nasm yasm perl && rm -rf /var/lib/apt/lists/*
@@ -44,6 +48,17 @@ RUN curl -fsSL https://github.com/webmproject/libvpx/archive/refs/tags/v${VPX_VE
         --enable-vp8 --disable-vp9 && \
     make -j"$(nproc)" && make install
 
+# libyuv (the capture's scaling and color conversion), static, without
+# its JPEG decoder. Only the library: its tools are not needed.
+RUN curl -fsSL https://deb.debian.org/debian/pool/main/liby/libyuv/libyuv_${YUV_VERSION}.orig.tar.xz -o /tmp/yuv.tar.xz && \
+    echo "${YUV_SHA256}  /tmp/yuv.tar.xz" | sha256sum -c --quiet - && \
+    tar xJf /tmp/yuv.tar.xz -C /tmp && cd /tmp/libyuv-${YUV_VERSION} && \
+    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLIBYUV_DISABLE_JPEG=ON \
+      -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SYSTEM_PROCESSOR=$ARCH \
+      -DCMAKE_C_COMPILER=$HOST-clang -DCMAKE_CXX_COMPILER=$HOST-clang++ && \
+    cmake --build build --target yuv && \
+    cp build/libyuv.a $PREFIX/lib/ && cp -r include/libyuv include/libyuv.h $PREFIX/include/
+
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -63,7 +78,7 @@ RUN CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico &
 RUN SUBSYSTEM="-H windowsgui" && case " $TAGS " in *" headless "*) SUBSYSTEM="" ;; esac && \
     CGO_ENABLED=1 GOOS=windows GOARCH=$GOARCH CC=$HOST-clang CXX=$HOST-clang++ \
     PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig \
-    CGO_LDFLAGS="-static -lpthread" \
+    CGO_CFLAGS="-O2 -I$PREFIX/include" CGO_LDFLAGS="-static -lpthread -L$PREFIX/lib" \
     go build -trimpath -tags "$TAGS" -ldflags "-s -w $SUBSYSTEM -X main.version=$VERSION" \
       -o /out/go-link-desk.exe ./cmd/desk
 

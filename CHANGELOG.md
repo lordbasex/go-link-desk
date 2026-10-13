@@ -33,6 +33,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **Inter is the app's font** on both systems, its other windows included. It is set before anything measures text: Fyne keeps the faces it measured with, so fields had been measured in its own narrower font and their last characters were cut on Windows.
   - **Settings words the icon rows the way each system does:** taskbar and notification area on Windows; dock or taskbar and the system tray on Linux.
   - **The main window opens at 1120×680**, which fits a 1366×768 laptop or a 1280×800 screen with its taskbar.
+- **Sharper, steadier VP8** (Linux, and Windows without H.264):
+  - **Frames carry their times:** libvpx was told every frame came a sixtieth of a second after the last. A desktop changes far less often, so each frame got a fraction of the bits it had. Now each frame gets the bits of the time since the previous one; a test checks that frames 100 ms apart get about six times more.
+  - **No more restarts on bitrate changes:** a change of a tenth or more now applies while the encoder runs, at most once a second. Before, a change of a fifth or more started the encoder again with a keyframe, which made bursts the viewer saw as stalls.
+  - **WebRTC's short rate control buffer** (1 s, not libvpx's 6 s), so a busy screen does not send long bursts.
+  - **libvpx's screen content mode**, for sharper text and still areas left alone.
+  - **Threads no more than the computer's cores**, and six for pictures of 2560×1440 and larger.
+- **The screen's pictures are scaled and converted to I420 with libyuv** (BSD-3-Clause; Linux and Windows):
+  - Its SIMD code does a 1080p frame in about 2 ms. The plain C before took 28–37 ms, which alone held the capture to about 30 frames a second and took a core.
+  - Smaller pictures average every pixel under each of their own (a box filter), not up to sixteen samples.
+  - Linking: on Linux, Debian stable's static `libyuv.a`; on Windows, built from source in Docker without its JPEG decoder. Both are linked in, so no new runtime libraries are needed (checked by `check-deps.sh`).
+  - On Debian and Ubuntu, development builds need `libyuv-dev`.
 
 ## [1.1.0] - 2026-10-12
 
