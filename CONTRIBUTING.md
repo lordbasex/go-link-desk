@@ -10,7 +10,7 @@ Thanks for wanting to help! Every contribution is welcome: a bug report, an idea
 
 ## Getting started
 
-Requirements: Go (the version in `backend-device/go.mod`; `GOTOOLCHAIN=auto` fetches it), Node.js (the version in `frontend/.nvmrc`), `pkg-config`, libvpx and Opus (on macOS: `brew install libvpx opus pkg-config`; the release builds them from source and links them in). On Linux the screen capture also needs libyuv (`libyuv-dev` on Debian and Ubuntu).
+Requirements: Go (the version in `backend-device/go.mod`; `GOTOOLCHAIN=auto` fetches it), Node.js (the version in `frontend/.nvmrc`), `pkg-config`, libvpx and Opus (on macOS: `brew install libvpx opus pkg-config`; the release builds them from source and links them in). On Linux the screen capture also needs libyuv, and the GPU's H.264 encoder libva's headers (`libyuv-dev libva-dev` on Debian and Ubuntu; libva itself is loaded when a session uses it).
 
 On Windows, a C compiler and the libraries come from [MSYS2](https://www.msys2.org)'s UCRT64 environment: `pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-libvpx mingw-w64-ucrt-x86_64-opus mingw-w64-ucrt-x86_64-libyuv`, with `C:\msys64\ucrt64\bin` on the `PATH`. That build loads MSYS2's `libvpx-1.dll`, `libopus-0.dll`, `libyuv.dll` and `libwinpthread-1.dll`, so it runs only where they are; the release (`make device-windows-amd64`, in Docker) has them inside.
 

@@ -14,6 +14,13 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - Pre-releases are never offered.
   - The update reaches copies from 1.3.0 on: earlier ones are updated by hand once more.
 - **The Mac app shows computers that send VP8:** a Linux computer without an H.264 encoder on its GPU (and every virtual machine), or a Windows one without Media Foundation. It said "This computer sends its picture in a format this app cannot show yet" and pointed to the website. The app decodes VP8 with libvpx, which it already carried for its own screen, and draws it in the same layer as H.264; a frame that built on a lost one is not drawn, and a whole picture is asked for. Its knock now lists VP8 among the codecs it decodes, after H.264: the computer still sends H.264 when it has an encoder for it, and VP8 otherwise.
+- **H.264 on the GPU on Linux** (VA-API: Intel's and AMD's drivers), as macOS has with VideoToolbox.
+  - **How it encodes:** P frames only, one reference, picture order type 2 (a browser shows each frame as it decodes it), constant bitrate.
+  - **Bitrate:** changed as the encoder runs. The rate control is told the rate frames actually come at, since a desktop sends one only when it changes.
+  - **Loading:** libva (MIT) is loaded when a session uses it, so the program also runs where it is not installed. The packages recommend it (`libva-drm2`; `libva-drm.so.2` on RPM).
+  - **Picking the GPU:** the first render node (`/dev/dri/renderD128`…) whose driver encodes the profile, on the full encoder or the low-power one.
+  - **When it opens:** the driver writes the SPS and PPS itself. So H.264 is offered only after a test frame shows it does; otherwise (no GPU, a virtual machine, NVIDIA) sessions use VP8 as before.
+  - **Tests:** a test checks the IDR with its SPS and PPS, the P frames, an asked-for keyframe and a bitrate change at 720p, 1366×768 and 1080p, where a GPU is present. Elsewhere a test checks that it says why it did not open. Not tried on an Intel or AMD GPU yet: where it does not open, sessions keep using VP8.
 
 ## [1.2.0] - 2026-10-13
 

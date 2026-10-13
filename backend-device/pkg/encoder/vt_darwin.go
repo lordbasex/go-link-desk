@@ -330,3 +330,6 @@ func cbool(v bool) C.int {
 const hasSys = true
 
 const pixelBuffers = true
+
+// probeOutput: VideoToolbox always writes its parameter sets.
+const probeOutput = false
