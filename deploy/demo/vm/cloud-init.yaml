@@ -1,0 +1,127 @@
+#cloud-config
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# go-link Desk's demonstration computer: Ubuntu 24.04 (the cloud image)
+# with a small desktop that logs the user "demo" in by itself and opens
+# Minesweeper. demo has no password, no sudo, no network (nftables drops
+# everything it sends but to the computer itself), cannot shut the computer
+# down or log out, and there is no browser or terminal. go-link Desk runs
+# as "golink" and shares that desktop (deploy/demo/vm/README.md). Replace
+# SSH_PUBLIC_KEY with the administrator's key.
+hostname: desk-demo
+users:
+  - name: deskadmin
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - SSH_PUBLIC_KEY
+  - name: demo
+    shell: /bin/bash
+    lock_passwd: true
+  - name: golink
+    shell: /usr/sbin/nologin
+    lock_passwd: true
+ssh_pwauth: false
+# demo's files live in memory: whatever someone saves (an autostart
+# file…) is gone at the next start, which comes every night.
+mounts:
+  - [tmpfs, /home/demo, tmpfs, "rw,nosuid,nodev,noexec,size=128m,uid=demo,gid=demo,mode=0700", "0", "0"]
+package_update: true
+package_upgrade: true
+write_files:
+  # demo logs in by itself into Openbox (no session menu to leave it).
+  - path: /etc/lightdm/lightdm.conf.d/50-demo.conf
+    content: |
+      [Seat:*]
+      autologin-user=demo
+      autologin-user-timeout=0
+      autologin-session=openbox
+      user-session=openbox
+      allow-guest=false
+      greeter-hide-users=true
+  # No switching to a text console (Ctrl+Alt+F1…): the screen is the demo.
+  - path: /etc/X11/xorg.conf.d/10-demo.conf
+    content: |
+      Section "ServerFlags"
+          Option "DontVTSwitch" "true"
+          Option "DontZap" "true"
+      EndSection
+  # demo may do nothing that needs authorization: power, mounts, updates.
+  - path: /etc/polkit-1/rules.d/10-demo.rules
+    content: |
+      polkit.addRule(function(action, subject) {
+          if (subject.user == "demo") return polkit.Result.NO;
+      });
+  # demo reaches nothing outside the computer.
+  - path: /etc/nftables.conf
+    permissions: "0755"
+    content: |
+      #!/usr/sbin/nft -f
+      flush ruleset
+      table inet demo {
+          chain output {
+              type filter hook output priority 0; policy accept;
+              meta skuid "demo" oifname != "lo" drop
+          }
+      }
+  # The desktop: a background, Minesweeper, and the menu and panel
+  # with the three programs only.
+  - path: /etc/xdg/openbox/autostart
+    content: |
+      xhost +si:localuser:golink
+      xset s off -dpms s noblank
+      xsetroot -solid "#1b2735"
+      tint2 &
+      sleep 1 && gnome-mines &
+  - path: /etc/xdg/openbox/menu.xml
+    content: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <openbox_menu xmlns="http://openbox.org/3.4/menu">
+        <menu id="root-menu" label="go-link Desk demo">
+          <item label="Minesweeper"><action name="Execute"><command>gnome-mines</command></action></item>
+          <item label="Calculator"><action name="Execute"><command>galculator</command></action></item>
+          <item label="Text editor"><action name="Execute"><command>mousepad</command></action></item>
+        </menu>
+      </openbox_menu>
+  - path: /etc/xdg/tint2/tint2rc
+    content: |
+      panel_items = LTSC
+      panel_position = bottom center horizontal
+      panel_size = 100% 34
+      panel_background_id = 1
+      backgrounds = 1
+      background_color = #0f1720 100
+      rounded = 0
+      border_width = 0
+      launcher_item_app = /usr/share/applications/org.gnome.Mines.desktop
+      launcher_item_app = /usr/share/applications/galculator.desktop
+      launcher_item_app = /usr/share/applications/org.xfce.mousepad.desktop
+      launcher_icon_size = 24
+      taskbar_mode = single_desktop
+      task_font_color = #e6edf3 100
+      time1_format = %H:%M
+      clock_font_color = #e6edf3 100
+  - path: /etc/systemd/system/demo-nightly-reboot.service
+    content: |
+      [Unit]
+      Description=Restart the demo computer every night (its user's files live in memory)
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/systemctl reboot
+  - path: /etc/systemd/system/demo-nightly-reboot.timer
+    content: |
+      [Unit]
+      Description=Restart the demo computer every night
+      [Timer]
+      OnCalendar=*-*-* 07:00:00 UTC
+      [Install]
+      WantedBy=timers.target
+runcmd:
+  # Only what the desktop needs: no browser, no terminal, no file manager.
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends qemu-guest-agent xserver-xorg-core xserver-xorg-input-libinput x11-xserver-utils lightdm lightdm-gtk-greeter openbox tint2 gnome-mines galculator mousepad dbus-x11 fonts-dejavu-core adwaita-icon-theme nftables libx11-6 libxext6 libxfixes3 libxrandr2 libxtst6 libgl1 libwayland-client0 libpipewire-0.3-0t64 libpulse0 python3
+  - apt-get purge -y snapd || true
+  - systemctl enable --now qemu-guest-agent nftables demo-nightly-reboot.timer
+  - systemctl set-default graphical.target
+  - reboot

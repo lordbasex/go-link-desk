@@ -4,6 +4,8 @@
 
 The session code changes whenever the host reconnects to signalhub (the server makes a new one; a host cannot choose it), and the pairing code every few minutes and once used. The host writes the current ones, with the password, to a file (`--test-code-file`), and systemd uploads that file as `desk.go-link.org/demo.json` when it changes, which the page reads every 15 seconds.
 
+The public demo runs on a computer kept for it and locked down (`vm/README.md`), sharing its real screen (`--test-demo-screen`); what follows also runs a demo that shows the test card on any Linux computer.
+
 ## Pieces
 
 | File | What |

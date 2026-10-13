@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Publishes the demonstration computer's codes (pve-publish.sh), on the
+# Proxmox host.
+[Unit]
+Description=Publish the go-link Desk demo codes
+
+[Service]
+Type=oneshot
+EnvironmentFile=/root/.config/desk-demo/aws.env
+ExecStart=/usr/local/lib/desk-demo/pve-publish.sh
