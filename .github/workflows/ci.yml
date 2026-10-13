@@ -35,7 +35,7 @@ jobs:
       - name: C libraries (encoders and the Fyne window)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends pkg-config libvpx-dev libopus-dev \
+          sudo apt-get install -y --no-install-recommends pkg-config libvpx-dev libopus-dev libyuv-dev \
             libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols libpipewire-0.3-dev
       - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - run: go vet ./... && go vet -tags headless ./...
@@ -64,6 +64,7 @@ jobs:
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-libvpx
             mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-libyuv
       - name: MSYS2's gcc and pkg-config for cgo
         run: echo "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin" >> $env:GITHUB_PATH
       - uses: actions/setup-go@v7
@@ -132,8 +133,8 @@ jobs:
             e2e/playwright-report
             e2e/.state/*.log
 
-  # The Linux host as it ships (Debian stable's glibc, libvpx and libopus
-  # inside): ldd may only list the system's and the desktop's libraries.
+  # The Linux host as it ships (Debian stable's glibc; libvpx, libopus and
+  # libyuv inside): ldd may only list the system's and the desktop's libraries.
   deps-linux:
     runs-on: ubuntu-latest
     steps:
@@ -142,8 +143,8 @@ jobs:
       - run: make device-linux-amd64 VERSION=ci
       - run: scripts/check-deps.sh linux dist/desk/linux-amd64/go-link-desk
 
-  # The Windows host as it ships (llvm-mingw; libvpx, libopus and the C
-  # runtime inside): its import table may only list Windows' own DLLs.
+  # The Windows host as it ships (llvm-mingw; libvpx, libopus, libyuv and
+  # the C runtime inside): its import table may only list Windows' own DLLs.
   deps-windows:
     runs-on: ubuntu-latest
     steps:
