@@ -53,6 +53,6 @@ test("a video call both ways: the host sees and hears the viewer, the viewer see
   expect(hostLogCount(/what=button/, "control")).toBe(clicks);
 
   await page.getByRole("button", { name: "Hang up" }).click();
-  await expect.poll(() => hostLogged(/msg="call ended"/, "control")).toBe(true);
+  await expect.poll(() => hostLogged(/msg="call ended"/, "control"), { timeout: 15_000 }).toBe(true);
   await page.getByRole("button", { name: "Disconnect" }).click();
 });

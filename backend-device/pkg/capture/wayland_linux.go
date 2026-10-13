@@ -41,6 +41,11 @@ func RemoteControl() bool {
 	return s == nil || s.Control()
 }
 
+// AsksInputApart reports whether the desktop will ask, apart from the
+// screen, for the mouse and keyboard at the next session (GNOME's "Allow
+// Remote Interaction"): the connection request says so.
+func AsksInputApart() bool { return portal.AsksInputApart() }
+
 // waylandDisplays are the shared monitors while a session runs, else the
 // monitors as XWayland sees them (they match the desktop's at scale 1).
 func waylandDisplays() []Display {

@@ -5,6 +5,7 @@
 package fyneview
 
 import (
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ type mainWin struct {
 	win    fyne.Window
 	labels map[string]string
 	h      Handler
+	shown  bool // shown once: see ShowMain
 
 	mu       sync.Mutex
 	home     remoteview.Home
@@ -101,6 +103,21 @@ func ShowMain() {
 		m.win.Show()
 		styleFrame(m.win)
 		m.win.RequestFocus()
+		if !m.shown && runtime.GOOS == "linux" {
+			// GNOME maximizes a window that nearly fills the screen as it
+			// opens (1120 x 680 on a 1280 x 800 screen). Fyne takes the new
+			// size but goes on drawing at the old one, cut and with black
+			// bars, until the window is resized again: a pixel and back.
+			go func() {
+				time.Sleep(400 * time.Millisecond)
+				fyne.Do(func() {
+					size := m.win.Canvas().Size()
+					m.win.Resize(size.AddWidthHeight(1, 1))
+					m.win.Resize(size)
+				})
+			}()
+		}
+		m.shown = true
 	}
 }
 
