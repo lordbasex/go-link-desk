@@ -12,7 +12,10 @@ import (
 
 // VideoToolbox is macOS's, Media Foundation Windows' and VA-API Linux's:
 // elsewhere there is no system H.264 encoder (sessions use VP8).
-type sysEncoder struct{ hardware int }
+type sysEncoder struct {
+	hardware int
+	name     string
+}
 
 func newSys(Config, int, func([]byte, bool, time.Duration)) (*sysEncoder, error) {
 	return nil, errors.New("h264: VideoToolbox is only on macOS")

@@ -232,6 +232,7 @@ type sysEncoder struct {
 	handle   cgo.Handle
 	frameSz  int
 	hardware int // 1 yes, 0 no, -1 not reported
+	name     string
 }
 
 //export goVTFrame
