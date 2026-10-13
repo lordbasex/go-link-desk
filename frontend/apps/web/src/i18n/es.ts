@@ -373,6 +373,8 @@ export const es: Messages = {
         { q: "¿Alguien puede entrar a mi computadora sin que yo sepa?", a: "No. Cada sesión la acepta la persona frente a la computadora. El acceso desatendido lo activa ella misma, siempre con contraseña, y puede revocarlo." },
         { q: "Me llamaron pidiéndome que instale esto.", a: "Cortá. Ni tu banco, ni la policía, ni un soporte técnico te llaman para pedirte acceso a tu computadora." },
         { q: "¿Funciona fuera de mi casa?", a: "Sí. Las dos puntas se encuentran a través de internet; si no hay camino directo, los datos pasan por un relé que no puede leerlos." },
+        { q: "¿Qué computadora necesito?", a: "Cualquier computadora de 64 bits de los últimos diez años: con dos núcleos manda una pantalla Full HD fluida, y una Mac lo hace por hardware (macOS 13 o más nuevo). Los números, por procesador y tamaño de pantalla, están en la documentación, en Requisitos." },
+        { q: "¿Cuánta internet usa?", a: "Casi nada mientras la pantalla está quieta, y hasta 10 Mbps con una pantalla Full HD con mucho movimiento. Con menos, la imagen baja sola su tamaño y sus cuadros por segundo, hasta alrededor de medio megabit." },
       ],
     },
     footer: {
