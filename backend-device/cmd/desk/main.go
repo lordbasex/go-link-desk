@@ -77,6 +77,8 @@ type flags struct {
 	name       string
 	codeFile   string
 	filesDir   string
+	demoScreen bool
+	relayOnly  bool
 	picture    string
 	// connect opens a session to another computer at start (its 9-digit
 	// session code).
@@ -107,9 +109,11 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.picture, "test-picture", "", "a PNG or JPEG the session shows instead of the test card, still and silent (screenshots only; needs --source testpattern)")
-	fs.StringVar(&f.codeFile, "test-code-file", "", "a public demonstration host: keep the session and pairing codes (and the unattended password) in this JSON file as they change, for a web page that shows them (needs --test-input-log, --test-clipboard-file, --test-files-folder and --source testpattern)")
+	fs.StringVar(&f.codeFile, "test-code-file", "", "a public demonstration host: keep the session and pairing codes (and the unattended password) in this JSON file as they change, for a web page that shows them (needs --test-clipboard-file, --test-files-folder, and --test-input-log with --source testpattern or --test-demo-screen)")
+	fs.BoolVar(&f.demoScreen, "test-demo-screen", false, "a demonstration host that shows this computer's real screen and takes the viewers' mouse and keyboard: only on a computer kept for it, locked down, with nothing of anyone's on it (needs --test-code-file and --source screen)")
+	fs.BoolVar(&f.relayOnly, "test-relay-only", false, "carry every session through the TURN relay, never straight to the viewer, so a firewall may let the computer reach the signaling server and the relay only (a demonstration host; needs --test-code-file)")
 	fs.StringVar(&f.filesDir, "test-files-folder", "", "the only folder viewers may browse, download from and send files to (DIR/Received), with small files only (a demonstration host; needs --test-code-file)")
-	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
+	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests, screenshots and a demonstration computer; needs --source testpattern or --test-demo-screen)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
 	fs.StringVar(&f.testViewer, "test-viewer", "", "run only the viewer, without a window, through join, claim or reach (automated tests only)")
@@ -128,14 +132,18 @@ func parseFlags(args []string) (flags, error) {
 		return f, fmt.Errorf("--source must be screen or testpattern, not %q", f.source)
 	}
 	// Sessions need consent: skipping it is only for tests, which never
-	// show anyone a real screen.
-	if f.autoAccept && f.source != "testpattern" && !allowAutoAcceptScreen {
+	// show anyone a real screen, and a demonstration computer, whose
+	// screen is there to be shown.
+	if f.autoAccept && f.source != "testpattern" && !allowAutoAcceptScreen && !f.demoScreen {
 		return f, errors.New("--test-auto-accept needs --source testpattern")
+	}
+	if f.demoScreen && (f.codeFile == "" || f.source != "screen" || !f.autoAccept) {
+		return f, errors.New("--test-demo-screen needs --test-code-file, --test-auto-accept and --source screen")
 	}
 	if f.inputLog && !f.autoAccept {
 		return f, errors.New("--test-input-log needs --test-auto-accept")
 	}
-	if f.clipboardFile != "" && !f.inputLog {
+	if f.clipboardFile != "" && !f.inputLog && !f.demoScreen {
 		return f, errors.New("--test-clipboard-file needs --test-input-log")
 	}
 	if f.unattended && !f.autoAccept {
@@ -148,14 +156,19 @@ func parseFlags(args []string) (flags, error) {
 	// A public demonstration host: anyone connects, so nothing they reach
 	// is the computer's own (the input logged, the clipboard a file, a
 	// folder of its own).
-	if f.codeFile != "" && (!f.inputLog || f.clipboardFile == "" || f.filesDir == "" || f.source != "testpattern") {
-		return f, errors.New("--test-code-file needs --test-input-log, --test-clipboard-file, --test-files-folder and --source testpattern")
+	// (A demonstration computer's own screen and input are what it shows.)
+	testCard := f.inputLog && f.source == "testpattern"
+	if f.codeFile != "" && (f.clipboardFile == "" || f.filesDir == "" || !(testCard || f.demoScreen)) {
+		return f, errors.New("--test-code-file needs --test-clipboard-file, --test-files-folder, and --test-input-log with --source testpattern or --test-demo-screen")
+	}
+	if f.relayOnly && f.codeFile == "" {
+		return f, errors.New("--test-relay-only needs --test-code-file")
 	}
 	if f.filesDir != "" && f.codeFile == "" {
 		return f, errors.New("--test-files-folder needs --test-code-file")
 	}
-	if f.name != "" && f.source != "testpattern" {
-		return f, errors.New("--test-name needs --source testpattern")
+	if f.name != "" && f.source != "testpattern" && !f.demoScreen {
+		return f, errors.New("--test-name needs --source testpattern or --test-demo-screen")
 	}
 	if f.unattended && f.password == "" {
 		return f, errors.New("--test-unattended needs --test-unattended-password: unattended access always has a password")
@@ -276,7 +289,7 @@ func run(args []string) error {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs,
-		Welcome: meta, Source: source, Logger: logger,
+		Welcome: meta, Source: source, Logger: logger, RelayOnly: f.relayOnly,
 	}, ice)
 	if err != nil {
 		return err
@@ -315,6 +328,9 @@ func run(args []string) error {
 		}
 		if f.codeFile != "" {
 			session.SetConsent(services.AutoAcceptDemo)
+		}
+		if f.demoScreen {
+			logger.Warn("a demonstration computer: its real screen goes to every viewer (--test-demo-screen)")
 		}
 	}
 	var injector inject.Injector = inject.New()

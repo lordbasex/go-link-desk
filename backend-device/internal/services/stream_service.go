@@ -50,6 +50,10 @@ type StreamConfig struct {
 	// UDPPort, when set, carries every WebRTC connection on this single
 	// UDP port (ICE UDP mux), so one port forward on a router is enough.
 	UDPPort int
+	// RelayOnly carries every connection through the TURN relay, never
+	// straight to the viewer: a demonstration computer whose firewall lets
+	// it reach the signaling server and the relay only.
+	RelayOnly bool
 	// AnnounceIPs are extra addresses where browsers can reach UDPPort
 	// (the WAN side of a router that forwards it). Each one is sent as an
 	// additional host candidate.
@@ -882,7 +886,11 @@ func (s *StreamService) find(peerID string) *viewer {
 }
 
 func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) error {
-	pc, err := s.api.NewPeerConnection(webrtc.Configuration{ICEServers: s.iceServers()})
+	conf := webrtc.Configuration{ICEServers: s.iceServers()}
+	if s.cfg.RelayOnly {
+		conf.ICETransportPolicy = webrtc.ICETransportPolicyRelay
+	}
+	pc, err := s.api.NewPeerConnection(conf)
 	if err != nil {
 		return err
 	}
