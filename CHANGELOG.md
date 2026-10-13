@@ -45,6 +45,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **WebRTC's short rate control buffer** (1 s, not libvpx's 6 s), so a busy screen does not send long bursts.
   - **libvpx's screen content mode**, for sharper text and still areas left alone.
   - **Threads no more than the computer's cores**, and six for pictures of 2560×1440 and larger.
+  - **A fixed speed (6, WebRTC's)** instead of libvpx's own choice.
+    - **The problem:** on a busy screen, libvpx's own choice ran to its fastest settings, which there are slower and blow far past the bitrate.
+    - **The measurement** (`build/vbench`, 2 cores of a 1.8 GHz Xeon, text scrolling at 1080p): 22 fps at 45 Mbps (8 asked) before, 45 fps at 9 Mbps now. At 1280×800: 43 fps at 22 Mbps before, 80 fps at 7.7 Mbps now.
+    - **Why it mattered:** the overshoot was what the congestion control took for a full network, dropping a LAN session to 640×400.
 - **The screen's pictures are scaled and converted to I420 with libyuv** (BSD-3-Clause; Linux and Windows):
   - Its SIMD code does a 1080p frame in about 2 ms. The plain C before took 28–37 ms, which alone held the capture to about 30 frames a second and took a core.
   - Smaller pictures average every pixel under each of their own (a box filter), not up to sixteen samples.
