@@ -650,6 +650,7 @@ func (s *StreamService) newEncoder(v *viewer, w, h int) (videoEncoder, error) {
 	kbps := int(v.kbps.Load())
 	var e videoEncoder
 	var err error
+	attrs := []any{"peer_id", v.id, "codec", v.codec, "size", fmt.Sprintf("%dx%d", w, h), "kbps", kbps}
 	if v.codec == CodecVP8 {
 		e, err = newVP8Encoder(w, h, fps, kbps, v.out)
 	} else {
@@ -657,6 +658,12 @@ func (s *StreamService) newEncoder(v *viewer, w, h int) (videoEncoder, error) {
 		h264, err = newH264Encoder(w, h, fps, kbps, v.codec == CodecH264, v.out)
 		if err == nil {
 			hw, known := h264.enc.Hardware()
+			if known {
+				attrs = append(attrs, "hardware", hw)
+			}
+			if name := h264.enc.Name(); name != "" {
+				attrs = append(attrs, "encoder", name)
+			}
 			if known && !hw {
 				s.softwareH264.Do(func() {
 					s.log.Warn("H.264 runs on the software encoder: this computer has no hardware one", "peer_id", v.id)
@@ -668,7 +675,7 @@ func (s *StreamService) newEncoder(v *viewer, w, h int) (videoEncoder, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.log.Info("video encoder", "peer_id", v.id, "codec", v.codec, "size", fmt.Sprintf("%dx%d", w, h), "kbps", kbps)
+	s.log.Info("video encoder", attrs...)
 	return e, nil
 }
 

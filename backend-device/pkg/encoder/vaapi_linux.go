@@ -33,6 +33,7 @@ type sysEncoder struct {
 	interval time.Duration // the frames' average spacing (0: not known yet)
 	params
 	hardware int
+	name     string
 }
 
 // vaErrors names va_open's failures.

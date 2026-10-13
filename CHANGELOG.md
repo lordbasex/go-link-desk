@@ -4,8 +4,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Windows encodes H.264 on the graphics card** (AMD, Intel or NVIDIA), found by itself: it used Windows' own encoder on the processor only, as the encoders of the graphics cards' drivers are asynchronous transforms, which it did not look for.
+  - **Picking it:** the host asks Media Foundation for the hardware H.264 encoders first (the drivers register them), and the first that takes the configuration is tried once with a frame, which must come back as a keyframe with its SPS and PPS. Otherwise (no graphics card encoder, or one that fails the frame) Windows' own as before, and VP8 where there is neither.
+  - **How it runs:** it takes NV12 (converted from the capture's I420) and says by events when it wants a frame and has one encoded; a thread of its own reads them, and each frame's output is waited for so it leaves at once. Low latency, constant bitrate, no B-frames, keyframes when asked, the bitrate changed as it runs, as before.
+  - **If it stops** during a session (a driver reset, the card taken away), Windows' own takes over from a keyframe and the session goes on; the card's is not used again until go-link Desk restarts.
+  - **The log** (`video encoder`) names the encoder (for example `AMDh264Encoder`) and says whether it is hardware.
+
 ### Fixed
 
+- **Windows: the computer's sound crackled and played slow** while something played. The reader kept the sound's pace with GetTickCount and Sleep, which move by 15.6 ms steps, and filled a packet that seemed late (they come every 10 ms) with silence: short gaps in the sound, and more of it than there was, so the viewer played it slower and later. Now times come from the performance counter, naps from a high-resolution timer, and silence is added only when the stream has given nothing for three device periods (at least 30 ms), which is when nothing plays.
 - **The picture no longer drops to 640×360 for good on a fast network.** Seen on a LAN between a Windows PC and a Mac: 1080p at 6 Mbps, then 640×360 at 300 kbps within 11 seconds, without a packet lost, and it never came back. Google Congestion Control lowers its estimate to 85% of what it received when the delay grows, and raises it to at most 1.5 times that: a burst of delay on Wi-Fi during a quiet scene (the encoder sending far less than the network carries) brought it down to what that scene needed, the picture shrank, the encoder sent even less, and the estimate could not climb. Every host (macOS, Windows, Linux) now counts a drop only when the encoder was filling the estimate and the figure comes from that traffic, or the viewer reports loss; and an estimate held under 4 Mbps without loss is tried half again higher every 30 seconds, as browsers probe, so a network that cannot carry it says so.
 
 ## [1.3.0] - 2026-10-13
