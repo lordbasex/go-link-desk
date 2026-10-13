@@ -30,7 +30,10 @@ def sign(key: bytes, msg: str) -> bytes:
 
 def put(body: bytes) -> None:
     access, secret = os.environ["AWS_ACCESS_KEY_ID"], os.environ["AWS_SECRET_ACCESS_KEY"]
-    host = f"{BUCKET}.s3.{REGION}.amazonaws.com"
+    # Path style: the bucket's name has dots, which the virtual host's
+    # certificate (*.s3.<region>.amazonaws.com) does not cover.
+    host = f"s3.{REGION}.amazonaws.com"
+    path = f"/{BUCKET}/{KEY}"
     now = datetime.datetime.now(datetime.timezone.utc)
     amz_date, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
     payload = hashlib.sha256(body).hexdigest()
@@ -44,7 +47,7 @@ def put(body: bytes) -> None:
     }
     signed = ";".join(sorted(headers))
     canonical = "\n".join(
-        ["PUT", "/" + KEY, "", "".join(f"{k}:{headers[k]}\n" for k in sorted(headers)), signed, payload]
+        ["PUT", path, "", "".join(f"{k}:{headers[k]}\n" for k in sorted(headers)), signed, payload]
     )
     scope = f"{day}/{REGION}/s3/aws4_request"
     to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
@@ -53,7 +56,7 @@ def put(body: bytes) -> None:
         k = sign(k, part)
     signature = hmac.new(k, to_sign.encode(), hashlib.sha256).hexdigest()
     headers["authorization"] = f"AWS4-HMAC-SHA256 Credential={access}/{scope}, SignedHeaders={signed}, Signature={signature}"
-    req = urllib.request.Request(f"https://{host}/{KEY}", data=body, method="PUT", headers=headers)
+    req = urllib.request.Request(f"https://{host}{path}", data=body, method="PUT", headers=headers)
     with urllib.request.urlopen(req, timeout=20) as r:
         if r.status != 200:
             raise RuntimeError(f"S3 answered {r.status}")
