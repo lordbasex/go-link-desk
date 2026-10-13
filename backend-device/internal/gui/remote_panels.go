@@ -69,6 +69,7 @@ func (r *remote) windowTitle(what string) string {
 func (c *remoteChat) show() {
 	c.win.SetTitle(c.r.windowTitle(L("Chat")))
 	c.win.Show()
+	styleWindow(c.win)
 }
 
 func (c *remoteChat) submit() {
@@ -212,6 +213,7 @@ func (r *remote) filesWindow() *remoteFiles {
 func (f *remoteFiles) show() {
 	f.win.SetTitle(f.r.windowTitle(L("Files")))
 	f.win.Show()
+	styleWindow(f.win)
 	if f.entries == nil {
 		f.open(f.path)
 	}

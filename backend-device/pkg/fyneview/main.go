@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
@@ -114,15 +115,23 @@ func SetHome(h remoteview.Home) {
 // System).
 func SetTheme(mode int) {
 	p := dark
+	setVariant(theme.VariantDark, true)
 	switch mode {
 	case remoteview.ThemeLight:
 		p = light
+		setVariant(theme.VariantLight, true)
 	case remoteview.ThemeSystem:
-		if fyne.CurrentApp() != nil && fyne.CurrentApp().Settings().ThemeVariant() == 1 { // theme.VariantLight
+		setVariant(0, false)
+		if fyne.CurrentApp() != nil && fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantLight {
 			p = light
 		}
 	}
 	setPalette(p)
+	// The other windows take the new variant (the theme is the same,
+	// with the same fonts: set again, Fyne redraws them).
+	if a := fyne.CurrentApp(); a != nil {
+		UseTheme(a)
+	}
 	if m := current(); m != nil {
 		m.build()
 		styleFrame(m.win)

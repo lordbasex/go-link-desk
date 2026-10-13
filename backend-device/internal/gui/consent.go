@@ -53,6 +53,7 @@ func (u *ui) Ask(ctx context.Context, req services.ConsentRequest) (models.Permi
 	fyne.Do(func() {
 		r = u.newRequest(req, deadline, func(err error) { answered <- err })
 		r.win.Show()
+		styleWindow(r.win)
 		floatWindow(r.win.Title(), true)
 	})
 	tick := time.NewTicker(time.Second)

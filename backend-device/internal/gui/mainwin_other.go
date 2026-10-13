@@ -27,3 +27,4 @@ func mainSetIcon(png []byte)                     { fyneview.SetIcon(png) }
 func mainAbout(version, text string)             { fyneview.ShowAbout(version, text) }
 func mainSetMenu(map[string]string)              {}
 func useAppTheme(a fyne.App)                     { fyneview.UseTheme(a) }
+func styleWindow(w fyne.Window)                  { fyneview.StyleWindow(w) }

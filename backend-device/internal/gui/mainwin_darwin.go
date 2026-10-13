@@ -27,3 +27,6 @@ func mainSetMenu(labels map[string]string)       { remoteview.SetAppMenu(labels)
 
 // useAppTheme: the Mac keeps Fyne's theme for its few Fyne windows.
 func useAppTheme(fyne.App) {}
+
+// styleWindow: macOS draws the windows' frames in its appearance.
+func styleWindow(fyne.Window) {}
