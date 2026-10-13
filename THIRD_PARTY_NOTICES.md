@@ -2610,3 +2610,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ```
+
+## Inter (fonts, Windows' main window)
+
+`backend-device/pkg/fyneview/assets/Inter-*.ttf`: Inter 4.1 by The Inter Project Authors (https://github.com/rsms/inter), its Latin letters only, with tabular figures by default. SIL Open Font License 1.1; the full text is in `backend-device/pkg/fyneview/assets/Inter-LICENSE.txt`.
+
+## Lucide (icons, Windows' main window)
+
+`backend-device/pkg/fyneview/assets/icons/*.svg` (all but `gear.svg`): Lucide 1.55.0 (https://lucide.dev). ISC License, Copyright (c) Lucide Icons and Contributors; the full text is in `backend-device/pkg/fyneview/assets/Lucide-LICENSE.txt`.

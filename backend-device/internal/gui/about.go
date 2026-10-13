@@ -12,8 +12,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
-
-	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 )
 
 // aboutText says what go-link Desk is, under its name and version.
@@ -32,7 +30,7 @@ func (u *ui) version() string {
 // elsewhere.
 func (u *ui) showAbout() {
 	if u.native {
-		remoteview.ShowAbout(u.version(), u.aboutText())
+		mainAbout(u.version(), u.aboutText())
 		return
 	}
 	if u.about == nil {

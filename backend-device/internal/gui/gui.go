@@ -26,7 +26,6 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
-	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/trayicon"
 )
 
@@ -124,6 +123,7 @@ func Run(opts Options) {
 		_ = os.Setenv("RESOURCE_NAME", appID)
 	}
 	a := app.NewWithID(appID)
+	useAppTheme(a) // before anything measures text
 	icon := trayicon.AppPNG()
 	if opts.Settings != nil {
 		cfg := opts.Settings.Get()
@@ -131,7 +131,7 @@ func Run(opts Options) {
 	}
 	a.SetIcon(fyne.NewStaticResource("go-link-desk.png", icon))
 	u := newUI(a, opts)
-	if opts.Remotes != nil && remoteview.Supported {
+	if opts.Remotes != nil && hasMain {
 		u.openMain()
 	}
 	u.setupTray()
@@ -182,7 +182,7 @@ func Run(opts Options) {
 		}
 	}()
 	if u.native {
-		remoteview.ShowMain()
+		mainShow()
 		for _, c := range strings.Split(opts.Connect, ",") {
 			if code := digits(c); len(code) == 9 {
 				go u.connect(viewer.Door{Kind: viewer.DoorJoin, Code: code})
@@ -433,7 +433,7 @@ func (u *ui) setupTray() {
 // showMain brings the main window to the front.
 func (u *ui) showMain() {
 	if u.native {
-		remoteview.ShowMain()
+		mainShow()
 		return
 	}
 	u.win.Show()

@@ -7,6 +7,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -86,6 +87,7 @@ func (u *ui) agent() string {
 // connect opens a session to another computer, in a new tab.
 func (u *ui) connect(door viewer.Door) {
 	if !remoteview.Supported {
+		u.connectInBrowser(door)
 		return
 	}
 	cfg := models.Config{}
@@ -755,4 +757,25 @@ func downloadsDir() string {
 		return filepath.Join(me.HomeDir, "Downloads")
 	}
 	return "."
+}
+
+// connectInBrowser opens the session in the browser, where this build
+// has no window of its own for it (Windows, for now): a code at
+// <web>/c/<code>, a linking code at <web>/link/<code>. A computer linked
+// here is not linked in the browser: its page is /web.
+func (u *ui) connectInBrowser(door viewer.Door) {
+	web := strings.TrimRight(u.opts.WebURL, "/")
+	if web == "" {
+		return
+	}
+	target := web + "/web"
+	switch {
+	case door.Kind == viewer.DoorClaim && door.Code != "":
+		target = web + "/link/" + door.Code
+	case door.Kind == viewer.DoorJoin && door.Code != "":
+		target = web + "/c/" + door.Code
+	}
+	if link, err := url.Parse(target); err == nil {
+		fyne.Do(func() { _ = u.app.OpenURL(link) })
+	}
 }
