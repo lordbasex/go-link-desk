@@ -1726,6 +1726,9 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 - (void)about:(id)s {
 	action(self.handle, @"about", @"");
 }
+- (void)updates:(id)s {
+	action(self.handle, @"updates", @"");
+}
 - (void)allow:(NSButton *)s {
 	action(self.handle, @"allow", s.identifier);
 }
@@ -1865,7 +1868,8 @@ void rv_about(const char *version, const char *credits) {
 	});
 }
 
-// rv_app_menu puts "About go-link Desk" and "Settings…" (⌘,) first in the
+// rv_app_menu puts "About go-link Desk", "Check for Updates…" and
+// "Settings…" (⌘,) first in the
 // app menu, in place of what the toolkit put there, with the app's name.
 void rv_app_menu(const char *labelsJSON) {
 	NSData *json = [NSData dataWithBytes:labelsJSON length:strlen(labelsJSON)];
@@ -1883,6 +1887,8 @@ void rv_app_menu(const char *labelsJSON) {
 		NSMenu *menu = [[NSMenu alloc] initWithTitle:@"go-link Desk"];
 		NSMenuItem *ab = [menu addItemWithTitle:a action:@selector(about:) keyEquivalent:@""];
 		ab.target = gMain;
+		NSMenuItem *up = [menu addItemWithTitle:l[@"updates"] ?: @"Check for Updates…" action:@selector(updates:) keyEquivalent:@""];
+		up.target = gMain;
 		[menu addItem:NSMenuItem.separatorItem];
 		NSMenuItem *pr = [menu addItemWithTitle:st action:@selector(settings:) keyEquivalent:@","];
 		pr.target = gMain;

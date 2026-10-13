@@ -102,13 +102,16 @@ type ui struct {
 	call     *callWindow     // nil without a call
 	settings *settingsWindow // nil without Settings
 	about    fyne.Window     // the About window, off macOS
+	upd      *updates        // the update check and its window
 	// native: the main window is the system's own (Home and the
 	// sessions' tabs), not win.
-	native   bool
-	lastSt   models.Status
-	homeMu   sync.Mutex
-	homeLast string // the last Home sent, to send only changes
-	prefs    prefsState
+	native bool
+	lastSt models.Status
+	// lastActive: someone was in session at the last render.
+	lastActive bool
+	homeMu     sync.Mutex
+	homeLast   string // the last Home sent, to send only changes
+	prefs      prefsState
 
 	remotesMu sync.Mutex
 	remotes   []*remote // sessions to other computers
@@ -136,6 +139,7 @@ func Run(opts Options) {
 	}
 	u.setupTray()
 	u.render(opts.Status.Snapshot())
+	u.upd.start()
 	if opts.Woken != nil {
 		go func() {
 			for {
@@ -290,6 +294,7 @@ func newUI(a fyne.App, opts Options) *ui {
 	u.win.SetContent(container.NewPadded(container.NewVBox(items...)))
 	u.win.Resize(fyne.NewSize(460, 360))
 	u.panel = u.newSessionPanel()
+	u.upd = u.newUpdates()
 	if opts.Settings != nil {
 		u.settings = u.newSettings()
 	}
@@ -341,6 +346,10 @@ func (u *ui) render(st models.Status) {
 		active = st.Session.Active
 	}
 	u.panel.render(active)
+	if active == nil && u.lastActive {
+		u.upd.sessionEnded()
+	}
+	u.lastActive = active != nil
 	if u.settings != nil {
 		u.settings.renderCode(st)
 	}
@@ -424,7 +433,8 @@ func (u *ui) setupTray() {
 	if u.settings != nil {
 		u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("Settings…"), u.showSettings))
 	}
-	u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
+	u.upd.trayItem = fyne.NewMenuItem(u.upd.trayLabel(), u.upd.ask)
+	u.trayMenu.Items = append(u.trayMenu.Items, u.upd.trayItem, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", u.trayPNG()))
 	u.win.SetCloseIntercept(u.win.Hide)

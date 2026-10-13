@@ -72,6 +72,7 @@ func (u *ui) openMain() {
 	u.native = true
 	mainSetMenu(map[string]string{
 		"about":      L("About go-link Desk"),
+		"updates":    L("Check for Updates…"),
 		"settings":   L("Settings…"),
 		"services":   L("Services"),
 		"hide":       L("Hide go-link Desk"),
@@ -207,6 +208,8 @@ func (u *ui) MainAction(name, arg string) {
 		fyne.Do(u.showSettings)
 	case "about":
 		fyne.Do(u.showAbout)
+	case "updates":
+		fyne.Do(u.upd.ask)
 	case "setting":
 		fyne.Do(func() { u.setting(arg) })
 	case "allow":

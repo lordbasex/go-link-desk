@@ -30,8 +30,8 @@ type UpdateConfig struct {
 }
 
 // UpdateService checks now and then whether a newer go-link Desk was released,
-// so the window and the linked browsers can offer the download. It only
-// reads the public releases list; nothing is downloaded or installed.
+// so the window can offer it. It only reads the public releases list;
+// internal/updater downloads and installs.
 type UpdateService struct{ cfg UpdateConfig }
 
 // NewUpdateService makes the checker; Run starts it.
@@ -84,6 +84,8 @@ type release struct {
 	TagName string `json:"tag_name"`
 	HTMLURL string `json:"html_url"`
 	Draft   bool   `json:"draft"`
+	// A pre-release is for testers: never offered.
+	Prerelease bool `json:"prerelease"`
 }
 
 // Check asks for the releases and returns the newest one when it is newer
@@ -112,7 +114,7 @@ func (u *UpdateService) Check(ctx context.Context) (models.UpdateInfo, error) {
 	var bestV [3]int
 	for _, r := range list {
 		v, ok := parseVersion(r.TagName)
-		if r.Draft || !ok {
+		if r.Draft || r.Prerelease || !ok {
 			continue
 		}
 		if best.TagName == "" || newer(v, bestV) {
