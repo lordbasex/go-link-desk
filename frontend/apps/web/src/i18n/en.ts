@@ -303,6 +303,7 @@ export const en = {
       today: "Today",
       macHost: "macOS 13+ · Intel and Apple silicon",
       linuxHost: "Linux · X11 and Wayland (GNOME, KDE Plasma…)",
+      winHost: "Windows 10 and 11 · 64-bit",
       soon: "Coming soon",
     },
     steps: {
@@ -362,10 +363,10 @@ export const en = {
       mac: { title: "macOS", text: "Shares this Mac and connects to others.", meta: "Intel and Apple silicon · macOS 13+ · signed and notarized", button: "Download .dmg" },
       ios: { title: "iPhone and iPad", text: "Connects to your computers, with Face ID for the linked ones.", meta: "iOS and iPadOS 26+ · in App Store review", button: "Coming to the App Store" },
       android: { title: "Android", text: "Phones and tablets, with your fingerprint or screen lock.", meta: "Android 11+ · coming to Google Play", button: "Coming to Google Play" },
+      windows: { title: "Windows", text: "Shares this PC's screen; Connect opens the others in your browser.", meta: "Windows 10 and 11 · x86-64 and ARM64 · installer or portable .zip", button: "Download installer" },
       linux: { title: "Linux", text: "Shares this computer's screen, on X11 or Wayland: GNOME, KDE Plasma and more.", meta: "x86-64 and ARM64 · glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora…)", button: "Download .tar.gz" },
       noInstall: "Nothing to install?",
       openWeb: "Open {web} in any browser.",
-      hostsSoon: "Windows to share your screen: coming soon",
     },
     faq: {
       eyebrow: "Questions",
@@ -389,7 +390,7 @@ export const en = {
       macApp: "Mac app",
       ios: "iPhone and iPad",
       android: "Android",
-      winLinux: "Windows",
+      winLinux: "Windows app",
       linuxApp: "Linux app",
       review: "Review",
       soon: "Soon",

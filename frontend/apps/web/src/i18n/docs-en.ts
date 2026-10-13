@@ -29,7 +29,7 @@ export const docsEn: Docs = {
         {
           t: "list",
           items: [
-            "**The computer you share:** macOS 13 or newer, or Linux (X11 and Wayland). Windows is coming.",
+            "**The computer you share:** macOS 13 or newer, Windows 10 and 11, or Linux (X11 and Wayland).",
             "**Where you connect from:** any browser at [desk.go-link.org/web](/web), the iPhone and iPad app, the Android app, or the Mac app.",
             "**In a session:** the screen and its sound, mouse and keyboard by position (any language), the clipboard both ways, files, chat and a video call.",
             "**Your own computers:** link them once and open them later without anyone there, always with a password. See [Unattended access](/docs/unattended).",
@@ -107,7 +107,10 @@ export const docsEn: Docs = {
               label: "Windows",
               os: "windows",
               blocks: [
-                { t: "note", tone: "info", text: "Sharing a Windows computer is coming soon. From Windows you can already connect to other computers with any browser at [desk.go-link.org/web](/web)." },
+                { t: "steps", items: ["Download `go-link-desk-vX.Y.Z-windows-amd64-setup.exe` (Windows 10 and 11, 64-bit; `arm64` for ARM computers).", "Run it. It installs for your user only, without administrator rights, and adds go-link Desk to the Start menu.", "Open go-link Desk. Its window shows your code, and its icon appears in the notification area."] },
+                { t: "note", tone: "warn", text: "The installer is not signed yet, so the first time Windows shows **Windows protected your PC**. Click **More info**, then **Run anyway**. Check the file against `SHA256SUMS` first if you like (see below)." },
+                { t: "p", text: "No installer? The `.zip` has the same program: unpack it anywhere and open `go-link-desk.exe`. Remove the installed one from **Settings › Apps**; your settings stay." },
+                { t: "note", tone: "info", text: "The first time someone connects, Windows' firewall may ask whether go-link Desk can use the network: allow it on **private networks** for direct connections (without it, sessions go through the relay). Windows lets no ordinary program use a window running as administrator, a UAC prompt or the lock screen: the viewer sees the last picture while one is up." },
               ],
             },
             {
@@ -147,7 +150,7 @@ export const docsEn: Docs = {
           head: ["", "The computer you share", "To connect from it"],
           rows: [
             ["macOS", "13 or newer, Intel or Apple silicon", "The app or a browser"],
-            ["Windows", "10 or 11, 64-bit (from version 1.2)", "A browser"],
+            ["Windows", "10 or 11, 64-bit", "A browser"],
             ["Linux", "glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or newer), X11 or Wayland", "A browser"],
             ["iPhone, iPad", "—", "The app (iOS and iPadOS 26) or Safari"],
             ["Android", "—", "The app (Android 11) or Chrome"],

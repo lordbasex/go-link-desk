@@ -301,6 +301,7 @@ export const es: Messages = {
       today: "Hoy",
       macHost: "macOS 13+ · Intel y Apple silicon",
       linuxHost: "Linux · X11 y Wayland (GNOME, KDE Plasma…)",
+      winHost: "Windows 10 y 11 · 64 bits",
       soon: "Próximamente",
     },
     steps: {
@@ -360,10 +361,10 @@ export const es: Messages = {
       mac: { title: "macOS", text: "Comparte esta Mac y se conecta a otras.", meta: "Intel y Apple silicon · macOS 13+ · firmada y notarizada", button: "Descargar .dmg" },
       ios: { title: "iPhone y iPad", text: "Se conecta a tus computadoras, con Face ID para las vinculadas.", meta: "iOS y iPadOS 26+ · en revisión en la App Store", button: "Pronto en la App Store" },
       android: { title: "Android", text: "Celulares y tablets, con la huella o el bloqueo de pantalla.", meta: "Android 11+ · pronto en Google Play", button: "Pronto en Google Play" },
+      windows: { title: "Windows", text: "Comparte la pantalla de esta PC; Conectar abre las otras en tu navegador.", meta: "Windows 10 y 11 · x86-64 y ARM64 · instalador o .zip portable", button: "Descargar instalador" },
       linux: { title: "Linux", text: "Comparte la pantalla de esta computadora, en X11 o Wayland: GNOME, KDE Plasma y más.", meta: "x86-64 y ARM64 · glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora…)", button: "Descargar .tar.gz" },
       noInstall: "¿Sin instalar nada?",
       openWeb: "Abrí {web} en cualquier navegador.",
-      hostsSoon: "Windows para compartir tu pantalla: próximamente",
     },
     faq: {
       eyebrow: "Preguntas",
@@ -387,7 +388,7 @@ export const es: Messages = {
       macApp: "App de Mac",
       ios: "iPhone y iPad",
       android: "Android",
-      winLinux: "Windows",
+      winLinux: "App de Windows",
       linuxApp: "App de Linux",
       review: "Revisión",
       soon: "Pronto",
