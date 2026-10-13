@@ -5,7 +5,8 @@
 ; %LOCALAPPDATA%\Programs\go-link Desk, adds a Start menu entry and an
 ; entry in Settings > Apps (with its uninstaller), and starts the app.
 ; Uninstalling removes all of it and the "start with Windows" entry, and
-; keeps the user's settings and pairings.
+; keeps the user's settings and pairings. The app updates itself by
+; running a newer one with /S /UPDATE (silent, then it opens the app).
 ;
 ; build/windows.Dockerfile runs it:
 ;   makensis -DVERSION=v1.2.3 -DVERSION4=1.2.3.0 -DARCH=amd64 -DOUT=... installer.nsi
@@ -17,6 +18,7 @@ ManifestDPIAware true
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
 
 !define APP "go-link Desk"
 !define EXE "go-link-desk.exe"
@@ -132,6 +134,15 @@ Section "go-link Desk"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" 40000
+
+  ; The app's own update runs this silently with /UPDATE: open the new
+  ; version, as the finish page's checkbox does otherwise.
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  ${IfNot} ${Errors}
+    Exec '"$INSTDIR\${EXE}"'
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"

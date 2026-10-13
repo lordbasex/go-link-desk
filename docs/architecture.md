@@ -235,6 +235,19 @@ ALLOWED_ORIGINS=https://go-link.org,https://play.go-link.org,https://desk.go-lin
 
 Without `go-link-desk` in `ALLOWED_APPS`, the host's `register` gets `app not allowed`. `MAX_ROOMS_PER_SESSION` and the rate limits are global to all apps; a Desk host uses one room, and `join`, `claim` and `reach` share 5 attempts per minute per IP, so viewers must not retry faster than that.
 
+## Updates
+
+The app looks for a newer release when it opens (after 30 s) and every 6 hours (`services.UpdateService`, the GitHub releases list; drafts and pre-releases are skipped), and on **Check for Updates…** (the Mac's app menu, the tray's menu, the About window off the Mac). A release found on its own opens the update window once, and not during a session: then when it ends. **Update** (`internal/updater`):
+
+1. **Download and check.** It fetches the release's `SHA256SUMS` and `SHA256SUMS.sig`, an Ed25519 signature by the update key, whose public half is in the program and whose private half never leaves the release computer (`make release-sums`, `build/signsums`). Then it fetches the one file this copy needs, checks its hash against the signed list and throws it away otherwise. The release's host (GitHub) is not trusted with what gets installed.
+2. **Install, by how this copy was installed:**
+   - **macOS:** the disk image is mounted, the app in it must carry a valid signature by the same developer team as the running app (`codesign`), and it is copied next to the running bundle and swapped in by two renames. A development build (ad hoc signature) or an app in a folder the user may not write is updated by hand.
+   - **Windows:** the installer runs silently with `/S /UPDATE`. It closes the app, installs over it for the user (no administrator) and opens the new one. A portable copy (the .zip) is updated by hand.
+   - **Linux:** a copy of the user's own (the .tar.gz's `install.sh`, in `~/.local/bin`) runs the new `install.sh`; a package in `/usr/bin` is installed with its package manager through `pkexec` (`dpkg -i`, `rpm -U` or `pacman -U`), so the desktop asks for the administrator's password. Any other copy is updated by hand.
+3. **Open the new version.** The app quits; on macOS and Linux a shell of its own waits for it to exit and opens the new one, and on Windows the installer does.
+
+"By hand" opens the release's page instead. `DESK_UPDATE_BASE` points the downloads at a test server; the signature is still required.
+
 ## A portable host
 
 The host is one self-contained program: no installer, no administrator rights, no program or library that the operating system does not already have.

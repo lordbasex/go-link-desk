@@ -4,6 +4,16 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The app updates itself** (macOS, Windows and Linux):
+  - **It says so:** it looks for a new version when it opens and every 6 hours, and a small window says "go-link Desk 1.3.1 is available" with **What's new**, **Later** and **Update**. Once per version, and never in the middle of a session: then when it ends. The tray's menu reads "Update to 1.3.1…" meanwhile.
+  - **Check for Updates…** in the Mac's app menu, the tray's menu on every system and the About window on Windows and Linux; it also says when there is nothing new.
+  - **Update** downloads the file for this computer with a progress bar, checks it, installs it and opens the new version: the Mac's app in place (same developer's signature required), Windows' installer silently (`/S /UPDATE`, no administrator), and on Linux the user's own copy (`install.sh`) or the package through the desktop's password prompt (`pkexec`). A copy that cannot replace itself (the Windows .zip, a development build) opens the release's page.
+  - **Signed:** each release's `SHA256SUMS` carries an Ed25519 signature by an update key that only the release computer holds (`make release-sums`); the app installs nothing else. A file that does not match is thrown away.
+  - Pre-releases are never offered.
+  - The update reaches copies from 1.3.0 on: earlier ones are updated by hand once more.
+
 ## [1.2.0] - 2026-10-13
 
 go-link Desk for Windows: a Windows 10 or 11 PC shares its screen as a Mac and Linux do, with an installer that needs no administrator. Also the Mac app's window on Windows and Linux, sharper VP8, the measured system requirements, and fixes.

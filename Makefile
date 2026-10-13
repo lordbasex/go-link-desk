@@ -8,7 +8,7 @@
 #   make e2e          end-to-end tests: signalhub + headless host + browser
 #   make help         everything else
 
-.PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless \
+.PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless release-sums \
 	device-darwin-universal device-dmg device-notarized e2e clean FORCE
 
 # The darwin, linux and windows device targets are pattern rules
@@ -70,6 +70,7 @@ help:
 	@echo "  make linux-packages-amd64   the same as .deb, .rpm and Arch packages (nFPM; also -arm64)"
 	@echo "  make device-windows-amd64   the Windows host (go-link-desk.exe), built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make windows-package-amd64  its installer (-setup.exe, for the user) and portable .zip (also -arm64)"
+	@echo "  make release-sums           SHA256SUMS of the release's files, signed with the update key (SHA256SUMS.sig)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
 
@@ -263,6 +264,23 @@ windows-package-%:
 	cd $(DEVICE_OUT) && rm -f $(WINDOWS_PKG).zip && zip -qr $(WINDOWS_PKG).zip $(WINDOWS_PKG)
 	cd $(DEVICE_OUT) && for f in $(WINDOWS_PKG)-setup.exe $(WINDOWS_PKG).zip; do shasum -a 256 $$f > $$f.sha256; done
 	@echo "$(GREEN)✓ $(DEVICE_OUT)/$(WINDOWS_PKG)-setup.exe and .zip$(NC)"
+
+# The release's SHA256SUMS, signed with the update key: the app installs
+# an update only when this list carries the key's signature and the
+# file's hash (internal/updater). The key never leaves this computer.
+UPDATE_KEY ?= $(HOME)/.go-link-signing/update-ed25519.key
+RELEASE_FILES = go-link-desk-$(VERSION)-macos-universal.dmg \
+	go-link-desk-$(VERSION)-windows-amd64-setup.exe go-link-desk-$(VERSION)-windows-amd64.zip \
+	go-link-desk-$(VERSION)-windows-arm64-setup.exe go-link-desk-$(VERSION)-windows-arm64.zip \
+	go-link-desk-$(VERSION)-linux-amd64.tar.gz go-link-desk-$(VERSION)-linux-arm64.tar.gz \
+	go-link-desk_$(SHORT_VERSION)_amd64.deb go-link-desk_$(SHORT_VERSION)_arm64.deb \
+	go-link-desk-$(SHORT_VERSION)-1.x86_64.rpm go-link-desk-$(SHORT_VERSION)-1.aarch64.rpm \
+	go-link-desk-$(SHORT_VERSION)-1-x86_64.pkg.tar.zst go-link-desk-$(SHORT_VERSION)-1-aarch64.pkg.tar.zst
+release-sums:
+	@test -f "$(UPDATE_KEY)" || { echo "$(RED)✗ no update key at $(UPDATE_KEY)$(NC)"; exit 1; }
+	cd $(DEVICE_OUT) && shasum -a 256 $(RELEASE_FILES) > SHA256SUMS
+	cd $(DEVICE_DIR) && go run ./build/signsums -key "$(UPDATE_KEY)" $(abspath $(DEVICE_OUT))/SHA256SUMS
+	@echo "$(GREEN)✓ $(DEVICE_OUT)/SHA256SUMS and SHA256SUMS.sig$(NC)"
 
 # ---------------------------------------------------------------------------
 # End-to-end tests (e2e/global-setup.ts builds signalhub, the web and the
