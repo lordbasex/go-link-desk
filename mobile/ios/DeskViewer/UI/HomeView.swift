@@ -87,6 +87,21 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
             .disabled(!ready)
+            // No other computer at hand: go-link Desk's demo, always on.
+            Button {
+                focused = false
+                app.tryDemo()
+            } label: {
+                HStack(spacing: 8) {
+                    if app.demoLoading { ProgressView() } else { Image(systemName: "play.circle") }
+                    Text("Try the demo")
+                }
+                .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 4)
+            }
+            .buttonStyle(.bordered)
+            .tint(Theme.accent)
+            .disabled(app.demoLoading || app.session != nil)
+            .accessibilityHint(Text("Connects to a demo computer with Minesweeper"))
         }
         .padding(18)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 20))

@@ -39,55 +39,62 @@ export function DemoPage({ load = loadDemo }: { load?: () => Promise<DemoCode> }
   const live = demo && demo !== "error" && demo.online && demo.code ? demo : null;
   const path = live ? demoPath(live.link) : undefined;
   return (
-    <section className="join">
-      <h1 className="join-title">{t.demo.title}</h1>
-      <p>{t.demo.intro}</p>
-      {demo === null && <p className="muted">{t.demo.loading}</p>}
-      {demo !== null && !live && <p className="notice">{t.demo.offline}</p>}
-      {live && (
-        <>
-          <p className="muted">{t.demo.codeOf.replace("{name}", live.name || t.demo.title)}</p>
-          <p className="demo-code mono" aria-label={t.demo.codeLabel}>
-            {live.code}
-          </p>
-          <div className="join-row">
-            {path && (
-              <Link to={path} className="button button-primary">
-                {t.demo.open}
-              </Link>
-            )}
-          </div>
-        </>
-      )}
-      <h2>{t.demo.howTitle}</h2>
-      <ol>
-        {t.demo.how.map((s) => (
-          <li key={s}>{s}</li>
-        ))}
-      </ol>
-      {live?.pairing && live.password && (
-        <>
-          <h2>{t.demo.linkTitle}</h2>
-          <p>{t.demo.linkIntro}</p>
-          <dl className="demo-link">
-            <dt>{t.demo.pairingLabel}</dt>
-            <dd className="mono">{live.pairing}</dd>
-            <dt>{t.demo.passwordLabel}</dt>
-            <dd className="mono">{live.password}</dd>
-          </dl>
+    <section className="demo">
+      <div className="demo-main">
+        <h1 className="demo-title">{t.demo.title}</h1>
+        <p className="demo-intro">{t.demo.intro}</p>
+        <div className="demo-card demo-now" aria-live="polite">
+          {demo === null && <p className="muted">{t.demo.loading}</p>}
+          {demo !== null && !live && <p className="notice">{t.demo.offline}</p>}
+          {live && (
+            <>
+              <p className="muted">{t.demo.codeOf.replace("{name}", live.name || t.demo.title)}</p>
+              <p className="demo-code mono" aria-label={t.demo.codeLabel}>
+                {live.code}
+              </p>
+              {path && (
+                <Link to={path} className="button button-primary demo-open">
+                  {t.demo.open}
+                </Link>
+              )}
+            </>
+          )}
+        </div>
+        <p className="muted demo-note">{t.demo.note}</p>
+      </div>
+      <div className="demo-side">
+        <div className="demo-card">
+          <h2>{t.demo.howTitle}</h2>
           <ol>
-            {t.demo.linkHow.map((s) => (
+            {t.demo.how.map((s) => (
               <li key={s}>{s}</li>
             ))}
           </ol>
-        </>
-      )}
-      <p className="muted">{t.demo.note}</p>
+        </div>
+        {live?.pairing && live.password && (
+          <div className="demo-card">
+            <h2>{t.demo.linkTitle}</h2>
+            <p>{t.demo.linkIntro}</p>
+            <dl className="demo-link">
+              <dt>{t.demo.pairingLabel}</dt>
+              <dd className="mono">{live.pairing}</dd>
+              <dt>{t.demo.passwordLabel}</dt>
+              <dd className="mono">{live.password}</dd>
+            </dl>
+            <ol>
+              {t.demo.linkHow.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-async function loadDemo(): Promise<DemoCode> {
+/** Reads demo.json, the demo computer's current codes. */
+export async function loadDemo(): Promise<DemoCode> {
   const r = await fetch("/demo.json", { cache: "no-store" });
   if (!r.ok) throw new Error(String(r.status));
   return (await r.json()) as DemoCode;

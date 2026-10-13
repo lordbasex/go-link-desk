@@ -149,7 +149,7 @@ var symbols = map[string]string{
 	"lock.shield": "lock-keyhole", "hand.raised": "hand", "xmark": "x", "info.circle": "info",
 	"folder": "folder", "bubble.left.and.bubble.right": "message-square", "slider.horizontal.3": "sliders-horizontal",
 	"speaker.wave.2": "volume-2", "command": "command", "arrow.up.left.and.arrow.down.right": "maximize-2",
-	"xmark.circle.fill": "circle-x",
+	"xmark.circle.fill": "circle-x", "play.circle": "circle-play",
 }
 
 // appTheme gives Fyne's own widgets (fields, lists, menus, dialogs) the

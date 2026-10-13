@@ -12,6 +12,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
+	"image/png"
+	"os"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -29,6 +33,7 @@ func main() {
 	devices := flag.Bool("devices", false, "with linked computers and recent sessions")
 	view := flag.Int("view", 0, "0 cards, 1 list, 2 detailed list")
 	iconSheet := flag.Bool("icons", false, "only the icons, to check how they draw")
+	shot := flag.String("shot", "", "save the main window to this PNG and quit")
 	flag.Parse()
 	a := app.NewWithID("org.go-link.desk.uipreview")
 	fyneview.UseTheme(a)
@@ -44,7 +49,7 @@ func main() {
 		"thisComputer": "Esta computadora", "copy": "Copiar", "copied": "Copiado", "newCode": "Nuevo código",
 		"hint":     "Compartí este código solo con alguien que conozcas. Nadie legítimo te va a llamar para pedirte acceso a tu computadora.",
 		"settings": "Ajustes", "address": "Su código de 9 dígitos", "doorSession": "Sesión", "doorLink": "Vincular (desatendido)",
-		"connect": "Conectar", "myComputers": "Mis equipos", "favorites": "Favoritos", "recents": "Sesiones recientes",
+		"connect": "Conectar", "demo": "Probar la demo", "myComputers": "Mis equipos", "favorites": "Favoritos", "recents": "Sesiones recientes",
 		"clear": "Borrar", "empty": "Las computadoras que vincules con su código de vinculación aparecen acá, para conectarte sin código.",
 		"colName": "Nombre", "colCode": "Código", "colSystem": "Sistema", "colWhen": "Última conexión",
 		"emptyRecents":   "Las computadoras a las que te conectás con un código aparecen acá.",
@@ -66,5 +71,28 @@ func main() {
 	}
 	fyneview.SetHome(h)
 	fyneview.ShowMain()
+	if *shot != "" {
+		go func() {
+			time.Sleep(2 * time.Second)
+			fyne.Do(func() {
+				for _, w := range a.Driver().AllWindows() {
+					if err := savePNG(*shot, w.Canvas().Capture()); err != nil {
+						fmt.Println(err)
+					}
+					break
+				}
+				a.Quit()
+			})
+		}()
+	}
 	a.Run()
+}
+
+func savePNG(path string, img image.Image) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return png.Encode(f, img)
 }

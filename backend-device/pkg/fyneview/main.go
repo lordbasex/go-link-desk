@@ -223,10 +223,12 @@ func (m *mainWin) build() {
 				pad(0, 0, 0, 4, container.NewVBox(layout.NewSpacer(), holder, layout.NewSpacer())))),
 	)
 	connect := newButton(m.L("connect"), "arrow.right", true, m.connect).trailingSymbol()
+	// No other computer at hand: go-link Desk's demo, always on.
+	demo := newButton(m.L("demo"), "play.circle", false, func() { m.h.MainAction("demo", "") })
 	settings := newButton("", "gearshape", false, func() { m.h.MainAction("settings", "") })
 	settings.fill = transparent
 	settings.restyle()
-	bar := container.New(&topBarLayout{}, field, connect, settings)
+	bar := container.New(&topBarLayout{}, field, connect, settings, demo)
 
 	homeTab := m.tab("go-link Desk", "house.fill", true)
 	tabs := pad(0, 10, 0, 10, row(2, homeTab))

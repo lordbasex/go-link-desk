@@ -63,11 +63,28 @@ func (t *sizedTheme) Size(n fyne.ThemeSizeName) float32 {
 // next to it, Settings at the right end; 30 high.
 type topBarLayout struct{}
 
+// topBarLayout: the code field, Connect, Settings at the end, and Try the
+// demo after Connect when there is room for it.
 func (topBarLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	field, connect, settings := objs[0], objs[1], objs[2]
 	cw := connect.MinSize().Width
 	sw := settings.MinSize().Width
-	fw := size.Width - cw - sw - 16
+	var demo fyne.CanvasObject
+	dw := float32(0)
+	if len(objs) > 3 {
+		demo, dw = objs[3], objs[3].MinSize().Width
+		if size.Width-cw-sw-dw-24 < 160 { // too narrow: no demo button
+			demo.Hide()
+			dw = 0
+		} else {
+			demo.Show()
+		}
+	}
+	extra := float32(0)
+	if dw > 0 {
+		extra = dw + 8
+	}
+	fw := size.Width - cw - sw - extra - 16
 	if fw > 520 {
 		fw = 520
 	}
@@ -78,6 +95,10 @@ func (topBarLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	field.Resize(fyne.NewSize(fw, 30))
 	connect.Move(fyne.NewPos(fw+8, 0))
 	connect.Resize(fyne.NewSize(cw, 30))
+	if demo != nil && dw > 0 {
+		demo.Move(fyne.NewPos(fw+8+cw+8, 0))
+		demo.Resize(fyne.NewSize(dw, 30))
+	}
 	settings.Move(fyne.NewPos(size.Width-sw, 0))
 	settings.Resize(fyne.NewSize(sw, 30))
 }

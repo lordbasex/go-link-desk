@@ -230,7 +230,7 @@ export const es: Messages = {
   },
   demo: {
     title: "Probá go-link Desk",
-    intro: "Una computadora siempre prendida para que cualquiera pruebe go-link Desk: muestra una imagen de prueba (un reloj, barras de color y un tono) y te deja entrar sin preguntar. Lo que escribas ahí no llega a ningún lado.",
+    intro: "Una computadora siempre prendida para que cualquiera pruebe go-link Desk: un escritorio chico con el Buscaminas, una calculadora y un editor de texto, que te deja entrar sin preguntar. No tiene internet y no guarda nada: arranca de cero todas las noches.",
     loading: "Buscando la computadora de demostración…",
     offline: "La computadora de demostración se está reconectando. Esta página muestra su nuevo código en unos segundos.",
     codeOf: "El código de {name} ahora:",
@@ -436,6 +436,8 @@ export const es: Messages = {
     connectTitle: "Conectarse a otra computadora",
     codeLabel: "Su código de 9 dígitos",
     connect: "Conectar",
+    tryDemo: "Probar la demo",
+    demoUnavailable: "La computadora de demostración no está disponible en este momento. Probá de nuevo en un minuto.",
     invalid: "Eso no es un código de 9 dígitos ni un link de go-link Desk.",
     myComputers: "Mis computadoras",
     link: "Vincular",

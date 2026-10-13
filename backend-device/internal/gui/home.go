@@ -40,6 +40,7 @@ func (u *ui) openMain() {
 		"doorLink":       L("Link (unattended)"),
 		"doorTip":        L("Session: the person there accepts this time. Link: with its pairing code, to come back without a code."),
 		"connect":        L("Connect"),
+		"demo":           L("Try the demo"),
 		"myComputers":    L("My computers"),
 		"recents":        L("Recent sessions"),
 		"clear":          L("Clear"),
@@ -232,6 +233,8 @@ func (u *ui) MainAction(name, arg string) {
 		if len(door.Code) == 9 {
 			go u.connect(door)
 		}
+	case "demo":
+		go u.tryDemo()
 	case "device":
 		if d, ok := remotes.Device(arg); ok {
 			go u.connect(viewer.Door{Kind: viewer.DoorReach, Device: &d})

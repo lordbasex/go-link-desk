@@ -117,9 +117,6 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .join-title { margin: 0; font-family: var(--font-title); font-size: 28px; }
 .join-row { display: flex; gap: 8px; align-items: center; }
 .join-row .input { font-family: var(--font-mono); letter-spacing: 0.08em; text-align: center; }
-.demo-link { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
-.demo-link dd { margin: 0; font-size: 20px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
-.demo-code { margin: 0; font-size: 44px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; color: var(--color-text); }
 .error-text { margin: 0; color: var(--color-danger-text); font-size: 13px; }
 .notice { padding: 14px 16px; border-radius: var(--radius-card); background: var(--tint-accent-bg); border: 1px solid var(--tint-accent-border); color: var(--color-text-2); }
 
@@ -286,4 +283,25 @@ code, kbd, .mono { font-family: var(--font-mono); }
 @media (max-width: 560px) {
   .consent { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: calc(100% - 32px); }
   .consent-btn { flex: 1; }
+}
+/* /demo: two columns on a wide screen, one on a phone. */
+.demo { box-sizing: border-box; width: 100%; max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.demo-main, .demo-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.demo-title { margin: 0; font-family: var(--font-title); font-size: clamp(28px, 4vw, 40px); text-wrap: balance; }
+.demo-intro { margin: 0; max-width: 60ch; color: var(--color-text-2); font-size: 16px; line-height: 1.55; }
+.demo-card { box-sizing: border-box; padding: 20px 22px; border-radius: var(--radius-card); background: var(--color-surface); border: 1px solid var(--color-border); min-width: 0; }
+.demo-card h2 { margin: 0 0 10px; font-size: 18px; }
+.demo-card ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+.demo-card p { margin: 0 0 10px; }
+.demo-now { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.demo-now p { margin: 0; }
+.demo-open { align-self: stretch; text-align: center; }
+.demo-note { margin: 0; font-size: 13px; }
+.demo-link { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0 0 14px; }
+.demo-link dt { color: var(--color-text-2); font-size: 13px; }
+.demo-link dd { margin: 0 0 10px; font-size: 22px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.demo-code { margin: 0; font-size: clamp(36px, 7vw, 56px); font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; color: var(--color-text); }
+@media (min-width: 900px) {
+  .demo { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; padding-top: 8px; }
+  .demo-open { align-self: flex-start; }
 }
