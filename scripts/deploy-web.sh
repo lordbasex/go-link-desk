@@ -30,7 +30,8 @@ aws() { command aws --profile "$PROFILE" "$@"; }
 aws s3 sync "$DIST/assets" "s3://$BUCKET/assets" --cache-control "public, max-age=31536000, immutable" --only-show-errors
 aws s3 sync "$DIST" "s3://$BUCKET" --exclude "assets/*" --cache-control "no-cache" --only-show-errors
 # Old assets stay a while for pages already open; the rest goes.
-aws s3 sync "$DIST" "s3://$BUCKET" --delete --exclude "assets/*" --only-show-errors
+# demo.json is the demonstration host's, not the build's (deploy/demo).
+aws s3 sync "$DIST" "s3://$BUCKET" --delete --exclude "assets/*" --exclude "demo.json" --only-show-errors
 
 id=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*" --query Invalidation.Id --output text)
 echo "published to https://$BUCKET (invalidation $id)"

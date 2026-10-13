@@ -228,6 +228,22 @@ export const pt: Messages = {
     unnamed: "Computador",
     thumbOf: "A tela de {name} da última vez",
   },
+  demo: {
+    title: "Experimente o go-link Desk",
+    intro: "Um computador sempre ligado para qualquer pessoa experimentar o go-link Desk: ele mostra uma imagem de teste (um relógio, barras de cor e um tom) e deixa você entrar sem perguntar. O que você digitar lá não vai a lugar nenhum.",
+    loading: "Procurando o computador de demonstração…",
+    offline: "O computador de demonstração está se reconectando. Esta página mostra o novo código em alguns segundos.",
+    codeOf: "O código de {name} agora:",
+    codeLabel: "Código da sessão",
+    open: "Conectar neste navegador",
+    howTitle: "Pelos apps",
+    how: [
+      "Abra o go-link Desk em um iPhone, iPad, Android, Mac, Windows ou Linux.",
+      "Digite o código acima e conecte.",
+      "O computador de demonstração aceita na hora: você vê a tela e pode mover o ponteiro, digitar e conversar.",
+    ],
+    note: "O código muda sempre que o computador de demonstração se reconecta; esta página sempre tem o atual.",
+  },
   privacy: {
     title: "Privacidade",
     updated: "go-link Desk: o app de computador, este site e os apps para iPhone, iPad e Android. Outubro de 2026.",

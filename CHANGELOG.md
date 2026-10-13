@@ -4,6 +4,12 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **A demonstration computer at desk.go-link.org/demo**, for anyone to try go-link Desk and for the App Store and Google Play reviewers: a computer that is always on, shows the test card (a clock, color bars, a tone), lets every viewer in without asking, only logs their mouse and keyboard, and gives no clipboard or files. Its code changes whenever it reconnects to signalhub, so the page always shows the current one (read every 15 seconds), with a button to connect in the browser.
+  - **The host:** `--test-code-file` keeps the code and link in a JSON file as they change (it needs `--test-input-log` and `--source testpattern`), and its viewers get the mouse and keyboard (logged) and the sound only.
+  - **Running it:** `deploy/demo` has the systemd units and `publish.py`, which uploads the file as `demo.json` with an AWS key that may write that one object only; `scripts/deploy-web.sh` leaves it in the bucket.
+
 ## [1.3.1] - 2026-10-13
 
 Windows encodes H.264 on the graphics card (AMD, Intel, NVIDIA) and its sound no longer crackles; on every system the picture no longer drops to 640×360 for good after a quiet scene.

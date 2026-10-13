@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Publishes the demonstration host's code whenever it changes.
+[Unit]
+Description=Publish the go-link Desk demo code
+
+[Path]
+PathChanged=%h/.config/go-link-desk-demo/demo.json
+
+[Install]
+WantedBy=default.target

@@ -230,6 +230,22 @@ export const en = {
     unnamed: "Computer",
     thumbOf: "The screen of {name} last time",
   },
+  demo: {
+    title: "Try go-link Desk",
+    intro: "A computer that is always on, for anyone to try go-link Desk: it shows a test card (a clock, color bars and a tone) and lets you in without asking. What you type there goes nowhere.",
+    loading: "Looking for the demo computer…",
+    offline: "The demo computer is reconnecting. This page shows its new code in a few seconds.",
+    codeOf: "The code of {name} right now:",
+    codeLabel: "Session code",
+    open: "Connect in this browser",
+    howTitle: "From the apps",
+    how: [
+      "Open go-link Desk on an iPhone, iPad, Android phone, Mac, Windows or Linux computer.",
+      "Type the code above and connect.",
+      "The demo computer accepts at once: you see its screen and can move its pointer, type and chat.",
+    ],
+    note: "The code changes whenever the demo computer reconnects; this page always has the current one.",
+  },
   privacy: {
     title: "Privacy",
     updated: "go-link Desk: the computer app, this website and the iPhone, iPad and Android apps. October 2026.",

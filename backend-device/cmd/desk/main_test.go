@@ -31,6 +31,16 @@ func TestInputLogOnlyWithAutoAccept(t *testing.T) {
 	}
 }
 
+// A demonstration host shows the test card and only logs the input.
+func TestCodeFileOnlyOnADemonstrationHost(t *testing.T) {
+	if _, err := parseFlags([]string{"--test-code-file", "x", "--test-auto-accept", "--source", "testpattern"}); err == nil {
+		t.Fatal("a code file without the input log was allowed")
+	}
+	if f, err := parseFlags([]string{"--test-code-file", "x", "--test-input-log", "--test-auto-accept", "--source", "testpattern"}); err != nil || f.codeFile != "x" {
+		t.Fatalf("%+v %v", f, err)
+	}
+}
+
 func TestClipboardFileOnlyWithInputLog(t *testing.T) {
 	if _, err := parseFlags([]string{"--test-clipboard-file", "x", "--test-auto-accept", "--source", "testpattern"}); err == nil {
 		t.Fatal("a clipboard file without the input log was allowed")

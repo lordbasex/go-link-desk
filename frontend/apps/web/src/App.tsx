@@ -11,6 +11,7 @@ import { DocsPage } from "./pages/DocsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkPage } from "./pages/LinkPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import { DemoPage } from "./pages/DemoPage";
 import { SessionPage } from "./pages/SessionPage";
 import { WebHomePage } from "./pages/WebHomePage";
 
@@ -46,6 +47,7 @@ export function App() {
       <Route path="/devices" element={<Navigate to="/web" replace />} />
       <Route path="/d/:deviceId" element={<DevicePage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/demo" element={<DemoPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
