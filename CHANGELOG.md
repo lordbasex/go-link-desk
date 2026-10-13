@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-13
+
+Windows encodes H.264 on the graphics card (AMD, Intel, NVIDIA) and its sound no longer crackles; on every system the picture no longer drops to 640×360 for good after a quiet scene.
+
 ### Added
 
 - **Windows encodes H.264 on the graphics card** (AMD, Intel or NVIDIA), found by itself: it used Windows' own encoder on the processor only, as the encoders of the graphics cards' drivers are asynchronous transforms, which it did not look for.
