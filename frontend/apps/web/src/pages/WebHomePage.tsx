@@ -8,6 +8,7 @@ import { chatSoundOn, setChatSound } from "../session/chatSound";
 import { safeStorage, signalUrl } from "../session/useSession";
 import { setTheme, useTheme } from "../theme";
 import { deviceName } from "./DevicePage";
+import { demoPath, loadDemo, type DemoCode } from "./DemoPage";
 import "../styles/webapp.css";
 
 /** When something happened, in the page's language. */
@@ -109,9 +110,24 @@ const MONITOR = "M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 
 const LOCK = "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3";
 const CHEVRON = "M9 6l6 6-6 6";
 
-/** The code card: grouped as typed, and the button lights up once it is a code. */
-function ConnectCard() {
+/**
+ * The code card: grouped as typed, and the button lights up once it is a
+ * code. Try the demo connects to the demo computer (desk.go-link.org/demo)
+ * with its current code.
+ */
+function ConnectCard({ loadDemoCode = loadDemo }: { loadDemoCode?: () => Promise<DemoCode> }) {
   const navigate = useNavigate();
+  const [demo, setDemo] = useState<"idle" | "loading" | "unavailable">("idle");
+  const tryDemo = () => {
+    setDemo("loading");
+    loadDemoCode()
+      .then((d) => {
+        const path = d.online ? demoPath(d.link) : undefined;
+        if (!path) throw new Error("offline");
+        navigate(path);
+      })
+      .catch(() => setDemo("unavailable"));
+  };
   const [field, setField] = useState<CodeEdit>({ text: "", caret: 0 });
   const [tried, setTried] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
@@ -151,6 +167,14 @@ function ConnectCard() {
       <button type="submit" className="ios-primary" disabled={!target}>
         {t.web.connect}
       </button>
+      <button type="button" className="ios-secondary" onClick={tryDemo} disabled={demo === "loading"}>
+        {t.web.tryDemo}
+      </button>
+      {demo === "unavailable" && (
+        <p className="ios-error" role="alert">
+          {t.web.demoUnavailable}
+        </p>
+      )}
     </form>
   );
 }

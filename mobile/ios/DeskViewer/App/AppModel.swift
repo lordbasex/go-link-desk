@@ -26,6 +26,8 @@ final class AppModel: ObservableObject {
     let links = LinkStore()
     /** Why the last link or unlock failed, for Home. */
     @Published var linkError: String?
+    /** The demo computer's code is being read (Try the demo). */
+    @Published private(set) var demoLoading = false
 
     init() {
         name = defaults.string(forKey: "name") ?? ""
@@ -68,6 +70,26 @@ final class AppModel: ObservableObject {
     func connect(code: String) {
         guard let digits = Recents.digits(code) else { return }
         open(.join(digits), label: CodeInput.group(digits))
+    }
+
+    /**
+     * Try the demo: connects to go-link Desk's demonstration computer, whose
+     * current code is at desk.go-link.org/demo.json (it changes whenever
+     * that computer reconnects). It accepts at once and shows a small
+     * desktop with Minesweeper.
+     */
+    func tryDemo() {
+        guard session == nil, !demoLoading else { return }
+        demoLoading = true
+        Task {
+            defer { demoLoading = false }
+            do {
+                let code = try await DemoCode.fetch()
+                connect(code: code)
+            } catch {
+                linkError = String(localized: "The demo computer is not available right now. Try again in a minute.")
+            }
+        }
     }
 
     /** Links this device to a computer with its pairing code (Settings › Unattended access there). */
@@ -144,5 +166,25 @@ final class AppModel: ObservableObject {
         #else
         return false
         #endif
+    }
+}
+
+/** The demonstration computer's current code (desk.go-link.org/demo). */
+enum DemoCode {
+    static let url = URL(string: "https://desk.go-link.org/demo.json")!
+
+    private struct File: Decodable {
+        let online: Bool
+        let code: String?
+    }
+
+    static func fetch() async throws -> String {
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        let f = try JSONDecoder().decode(File.self, from: data)
+        guard f.online, let code = f.code, Recents.digits(code) != nil else { throw URLError(.resourceUnavailable) }
+        return code
     }
 }

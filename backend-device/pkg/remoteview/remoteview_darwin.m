@@ -427,6 +427,7 @@ static RVMain *gMain;
 @property(nonatomic, strong) NSTextField *address;
 @property(nonatomic, strong) NSPopUpButton *door;
 @property(nonatomic, strong) RVButton *connect;
+@property(nonatomic, strong) RVButton *demo;
 @property(nonatomic, strong) NSView *grid; // the tiles' document view
 @property(nonatomic, strong) NSScrollView *scroll;
 @property(nonatomic, strong) NSArray *devices, *recents;
@@ -1267,6 +1268,9 @@ static NSImage *thumbOf(NSDictionary *t) {
 	self.connect = [RVButton withTitle:[self L:@"connect"] symbol:@"arrow.right" target:self action:@selector(connect:) primary:YES];
 	self.connect.imagePosition = NSImageTrailing;
 	self.connect.translatesAutoresizingMaskIntoConstraints = NO;
+	// No other computer at hand: go-link Desk's demo, always on.
+	self.demo = [RVButton withTitle:[self L:@"demo"] symbol:@"play.circle" target:self action:@selector(demo:) primary:NO];
+	self.demo.translatesAutoresizingMaskIntoConstraints = NO;
 	[field addSubview:glyph];
 	[field addSubview:self.address];
 	[field addSubview:self.door];
@@ -1277,6 +1281,7 @@ static NSImage *thumbOf(NSDictionary *t) {
 	settings.translatesAutoresizingMaskIntoConstraints = NO;
 	[top addSubview:field];
 	[top addSubview:self.connect];
+	[top addSubview:self.demo];
 	[top addSubview:settings];
 	[NSLayoutConstraint activateConstraints:@[
 		[field.leadingAnchor constraintEqualToAnchor:top.leadingAnchor constant:86],
@@ -1286,7 +1291,10 @@ static NSImage *thumbOf(NSDictionary *t) {
 		[self.connect.leadingAnchor constraintEqualToAnchor:field.trailingAnchor constant:8],
 		[self.connect.centerYAnchor constraintEqualToAnchor:field.centerYAnchor],
 		[self.connect.heightAnchor constraintEqualToConstant:30],
-		[settings.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.connect.trailingAnchor constant:8],
+		[self.demo.leadingAnchor constraintEqualToAnchor:self.connect.trailingAnchor constant:8],
+		[self.demo.centerYAnchor constraintEqualToAnchor:field.centerYAnchor],
+		[self.demo.heightAnchor constraintEqualToConstant:30],
+		[settings.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.demo.trailingAnchor constant:8],
 		[settings.trailingAnchor constraintEqualToAnchor:top.trailingAnchor constant:-12],
 		[settings.centerYAnchor constraintEqualToAnchor:field.centerYAnchor],
 		[glyph.leadingAnchor constraintEqualToAnchor:field.leadingAnchor constant:10],
@@ -1734,6 +1742,9 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 }
 - (void)clearRecents:(id)s {
 	action(self.handle, @"clear", @"");
+}
+- (void)demo:(id)s {
+	action(self.handle, @"demo", @"");
 }
 - (void)connect:(id)s {
 	NSString *digits = [[self.address.stringValue componentsSeparatedByCharactersInSet:NSCharacterSet.decimalDigitCharacterSet.invertedSet] componentsJoinedByString:@""];

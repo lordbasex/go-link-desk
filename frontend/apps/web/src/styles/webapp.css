@@ -59,6 +59,8 @@
 .ios-code::placeholder { color: var(--ios-3); }
 .ios-error { margin: 0; font-size: 13px; color: var(--ios-danger); }
 .ios-primary { font: 600 17px/1 inherit; font-family: inherit; color: #000; background: var(--ios-accent); border: 0; border-radius: 12px; padding: 15px; cursor: pointer; }
+.ios-secondary { font: 600 15px/1 inherit; font-family: inherit; color: var(--ios-accent); background: transparent; border: 1px solid var(--ios-accent); border-radius: 12px; padding: 12px; cursor: pointer; }
+.ios-secondary:disabled { opacity: 0.5; cursor: default; }
 .ios-primary:disabled { background: var(--ios-field); color: var(--ios-3); cursor: default; }
 
 .ios-sec { display: grid; gap: 10px; }

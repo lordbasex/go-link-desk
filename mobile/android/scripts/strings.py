@@ -22,6 +22,8 @@ EN = {
     "connect_to_another": "Connect to another computer",
     "its_code": "Its 9-digit code",
     "connect": "Connect",
+    "try_demo": "Try the demo",
+    "demo_unavailable": "The demo computer is not available right now. Try again in a minute.",
     "home_note": "Ask the person at the other computer for the 9-digit code go-link Desk shows there. They accept the session on their screen.",
     "my_computers": "My computers",
     "link": "Link",

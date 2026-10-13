@@ -7,6 +7,8 @@
     <string name="connect_to_another">Conectarse a otra computadora</string>
     <string name="its_code">Su código de 9 dígitos</string>
     <string name="connect">Conectar</string>
+    <string name="try_demo">Probar la demo</string>
+    <string name="demo_unavailable">La computadora de demostración no está disponible en este momento. Probá de nuevo en un minuto.</string>
     <string name="home_note">Pedile a la persona de la otra computadora el código de 9 dígitos que muestra go-link Desk ahí. Esa persona acepta la sesión en su pantalla.</string>
     <string name="my_computers">Mis computadoras</string>
     <string name="link">Vincular</string>

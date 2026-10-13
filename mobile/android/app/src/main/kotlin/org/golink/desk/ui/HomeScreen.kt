@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Monitor
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -114,6 +117,21 @@ fun HomeScreen(app: AppModel) {
                         colors = ButtonDefaults.buttonColors(containerColor = Theme.accent, contentColor = Theme.onAccent),
                     ) {
                         Text(stringResource(R.string.connect), fontWeight = FontWeight.SemiBold, fontSize = 17.sp, modifier = Modifier.padding(vertical = 6.dp))
+                    }
+                    // No other computer at hand: go-link Desk's demo, always on.
+                    OutlinedButton(
+                        onClick = { app.tryDemo() },
+                        enabled = !app.demoLoading && app.session == null,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Theme.accent),
+                    ) {
+                        if (app.demoLoading) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = Theme.accent, strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Outlined.PlayCircle, null, Modifier.size(20.dp))
+                        }
+                        Text(stringResource(R.string.try_demo), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(start = 8.dp, top = 2.dp, bottom = 2.dp))
                     }
                 }
                 Computers(app) { linking = true }

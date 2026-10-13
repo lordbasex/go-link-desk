@@ -12,7 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.golink.desk.core.CodeInput
 import org.golink.desk.core.DeviceLink
 import org.golink.desk.core.Door
@@ -58,6 +60,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
 
     /** Why the last link or unlock failed, for Home. */
     var linkError by mutableStateOf<String?>(null)
+
+    /** The demo computer's code is being read (Try the demo). */
+    var demoLoading by mutableStateOf(false)
+        private set
 
     fun updateName(v: String) {
         name = v
@@ -109,6 +115,26 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun connect(code: String) {
         val digits = Recents.digits(code) ?: return
         open(Door.Join(digits), CodeInput.group(digits))
+    }
+
+    /**
+     * Try the demo: connects to go-link Desk's demonstration computer, whose
+     * current code is at desk.go-link.org/demo.json (it changes whenever
+     * that computer reconnects). It accepts at once and shows a small
+     * desktop with Minesweeper.
+     */
+    fun tryDemo() {
+        if (session != null || demoLoading) return
+        demoLoading = true
+        viewModelScope.launch {
+            try {
+                connect(withContext(Dispatchers.IO) { DemoCode.fetch() })
+            } catch (e: Exception) {
+                linkError = text(R.string.demo_unavailable)
+            } finally {
+                demoLoading = false
+            }
+        }
     }
 
     /** Links this device to a computer with its pairing code (Settings › Unattended access there). */

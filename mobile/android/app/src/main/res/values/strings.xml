@@ -8,6 +8,8 @@
     <string name="connect_to_another">Connect to another computer</string>
     <string name="its_code">Its 9-digit code</string>
     <string name="connect">Connect</string>
+    <string name="try_demo">Try the demo</string>
+    <string name="demo_unavailable">The demo computer is not available right now. Try again in a minute.</string>
     <string name="home_note">Ask the person at the other computer for the 9-digit code go-link Desk shows there. They accept the session on their screen.</string>
     <string name="my_computers">My computers</string>
     <string name="link">Link</string>

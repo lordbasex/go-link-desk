@@ -82,7 +82,7 @@ type Config struct {
 
 // MainHandler hears the main window's actions: "copy", "newcode",
 // "settings", "allow" (arg: the permission's id), "connect" (arg:
-// "join:<code>" or "claim:<code>"), "device" and "favorite", "forget"
+// "join:<code>" or "claim:<code>"), "demo" (Try the demo), "device" and "favorite", "forget"
 // (arg: a linked computer's id), "rename" (arg: id, a line break, the new
 // name), "recent" (arg: its code), "clear".
 type MainHandler interface {

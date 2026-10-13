@@ -232,7 +232,7 @@ export const en = {
   },
   demo: {
     title: "Try go-link Desk",
-    intro: "A computer that is always on, for anyone to try go-link Desk: it shows a test card (a clock, color bars and a tone) and lets you in without asking. What you type there goes nowhere.",
+    intro: "A computer that is always on, for anyone to try go-link Desk: a small desktop with Minesweeper, a calculator and a text editor, which lets you in without asking. It has no internet and keeps nothing: it starts afresh every night.",
     loading: "Looking for the demo computer…",
     offline: "The demo computer is reconnecting. This page shows its new code in a few seconds.",
     codeOf: "The code of {name} right now:",
@@ -438,6 +438,8 @@ export const en = {
     connectTitle: "Connect to another computer",
     codeLabel: "Its 9-digit code",
     connect: "Connect",
+    tryDemo: "Try the demo",
+    demoUnavailable: "The demo computer is not available right now. Try again in a minute.",
     invalid: "That is not a 9-digit code or a go-link Desk link.",
     myComputers: "My computers",
     link: "Link",

@@ -163,3 +163,6 @@
 "The computer" = "O computador";
 "Message sound" = "Som das mensagens";
 "A short sound when the person at the computer writes to you in the chat." = "Um som curto quando a pessoa no computador escreve para você no chat.";
+"Try the demo" = "Experimentar a demo";
+"Connects to a demo computer with Minesweeper" = "Conecta a um computador de demonstração com o Campo Minado";
+"The demo computer is not available right now. Try again in a minute." = "O computador de demonstração não está disponível agora. Tente de novo em um minuto.";
