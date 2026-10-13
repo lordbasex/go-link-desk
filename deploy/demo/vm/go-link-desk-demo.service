@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# go-link Desk on the demonstration computer (deploy/demo/vm): shares the
+# desktop the user "demo" is logged into (X display :0, which demo's
+# session opens to golink with xhost), lets every viewer in, always
+# through the relay (the firewall lets this computer reach the signaling
+# server and the relay only). The codes go to /var/lib/go-link-demo/
+# demo.json, which the Proxmox host reads and publishes; no credential is
+# kept here.
+[Unit]
+Description=go-link Desk demonstration host
+After=display-manager.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=golink
+Environment=DISPLAY=:0
+EnvironmentFile=/etc/go-link-demo/demo.env
+ExecStartPre=/bin/sh -c 'until [ -S /tmp/.X11-unix/X0 ]; do sleep 2; done'
+ExecStart=/opt/go-link-desk-demo/go-link-desk --headless \
+  --config /home/golink/.config/go-link-desk-demo/device.json \
+  --source screen --test-auto-accept --test-demo-screen --test-relay-only \
+  --test-clipboard-file /home/golink/.config/go-link-desk-demo/clipboard.txt \
+  --test-files-folder /home/golink/files \
+  --test-unattended --test-unattended-password ${DEMO_PASSWORD} \
+  --test-name "go-link Desk Demo" \
+  --test-code-file /var/lib/go-link-demo/demo.json
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/golink /var/lib/go-link-demo
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=graphical.target

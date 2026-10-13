@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# /etc/pve/firewall/106.fw: the demonstration computer may reach the
+# signaling server and the relay (54.208.64.177) and DNS, nothing else:
+# not the local network, not the rest of the internet. In: SSH from the
+# local network (keys only). net0 needs firewall=1, and the datacenter's
+# firewall on (cluster.fw), with its policies left at ACCEPT so nothing
+# else changes.
+[OPTIONS]
+enable: 1
+policy_in: DROP
+policy_out: DROP
+macfilter: 1
+ipfilter: 1
+dhcp: 0
+ndp: 0
+radv: 0
+
+[IPSET ipfilter-net0] # the only address it may send from (ipfilter)
+172.17.0.42
+
+[RULES]
+IN ACCEPT -source 172.17.0.0/24 -p tcp -dport 22 -log nolog
+OUT ACCEPT -dest 54.208.64.177 -log nolog
+OUT ACCEPT -dest 8.8.8.8 -p udp -dport 53 -log nolog
+OUT ACCEPT -dest 8.8.8.8 -p tcp -dport 53 -log nolog

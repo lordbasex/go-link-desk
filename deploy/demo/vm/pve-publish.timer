@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Every 15 seconds: the page reads the codes every 15 seconds too.
+[Unit]
+Description=Publish the go-link Desk demo codes
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

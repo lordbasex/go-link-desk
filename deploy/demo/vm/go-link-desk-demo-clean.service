@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Deletes what viewers sent more than 10 minutes ago.
+[Unit]
+Description=Empty the go-link Desk demo's received files
+
+[Service]
+Type=oneshot
+User=golink
+ExecStart=/usr/bin/find /home/golink/files/Received -mindepth 1 -mmin +10 -delete
