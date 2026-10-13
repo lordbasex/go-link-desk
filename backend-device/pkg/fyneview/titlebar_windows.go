@@ -10,6 +10,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
+	"fyne.io/fyne/v2/theme"
 	"golang.org/x/sys/windows"
 )
 
@@ -43,24 +44,41 @@ func colorRef(c color.NRGBA) uint32 { return uint32(c.R) | uint32(c.G)<<8 | uint
 
 // styleFrame colors a shown window's frame with the palette.
 func styleFrame(w fyne.Window) {
+	p := c()
+	paintFrame(w, p == dark, p.surface, p.text, p.border)
+}
+
+// StyleWindow colors the frame of one of the app's other windows (the
+// connection request, the session) like its insides: Fyne's background
+// and text in the windows' variant.
+func StyleWindow(w fyne.Window) {
+	v := windowVariant()
+	th := theme.DefaultTheme()
+	nrgba := func(n fyne.ThemeColorName) color.NRGBA {
+		return color.NRGBAModel.Convert(th.Color(n, v)).(color.NRGBA)
+	}
+	paintFrame(w, v == theme.VariantDark, nrgba(theme.ColorNameBackground), nrgba(theme.ColorNameForeground), nrgba(theme.ColorNameSeparator))
+}
+
+// paintFrame asks DWM for a dark or light frame and its colors.
+func paintFrame(w fyne.Window, night bool, caption, title, border color.NRGBA) {
 	nw, ok := w.(driver.NativeWindow)
 	if !ok {
 		return
 	}
-	p := c()
 	nw.RunNative(func(ctx any) {
 		wc, ok := ctx.(driver.WindowsWindowContext)
 		if !ok || wc.HWND == 0 {
 			return
 		}
-		night := uint32(0)
-		if p == dark {
-			night = 1
+		on := uint32(0)
+		if night {
+			on = 1
 		}
-		setAttribute(wc.HWND, dwmwaDarkModeOld, night)
-		setAttribute(wc.HWND, dwmwaDarkMode, night)
-		setAttribute(wc.HWND, dwmwaCaptionColor, colorRef(p.surface))
-		setAttribute(wc.HWND, dwmwaTextColor, colorRef(p.text))
-		setAttribute(wc.HWND, dwmwaBorderColor, colorRef(p.border))
+		setAttribute(wc.HWND, dwmwaDarkModeOld, on)
+		setAttribute(wc.HWND, dwmwaDarkMode, on)
+		setAttribute(wc.HWND, dwmwaCaptionColor, colorRef(caption))
+		setAttribute(wc.HWND, dwmwaTextColor, colorRef(title))
+		setAttribute(wc.HWND, dwmwaBorderColor, colorRef(border))
 	})
 }

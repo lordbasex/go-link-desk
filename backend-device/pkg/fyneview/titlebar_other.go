@@ -9,3 +9,6 @@ import "fyne.io/fyne/v2"
 // styleFrame leaves the frame to the system: macOS draws it in the
 // app's appearance, and on Linux the window manager draws its own.
 func styleFrame(fyne.Window) {}
+
+// StyleWindow: the system draws the other windows' frames too.
+func StyleWindow(fyne.Window) {}

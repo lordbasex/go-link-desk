@@ -54,6 +54,7 @@ func (u *ui) AskCall(ctx context.Context, name string, video bool) (services.Cal
 		win.SetFixedSize(true)
 		win.SetCloseIntercept(func() { finish(services.CallAnswer{}) })
 		win.Show()
+		styleWindow(win)
 		floatWindow(win.Title(), true)
 	})
 	select {
@@ -144,6 +145,7 @@ func (w *callWindow) render(st services.CallStatus) {
 	}
 	if !w.shown {
 		w.win.Show()
+		styleWindow(w.win)
 		w.shown = true
 	}
 }
