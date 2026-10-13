@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-13
+
+Try go-link Desk without a second computer: a Try the demo button in every app (Mac, Windows, Linux, iPhone, iPad, Android and the web) connects to a locked-down demonstration computer, whose codes are always at desk.go-link.org/demo.
+
 ### Added
 
 - **Try the demo**, everywhere: a button next to Connect (the Mac app, Windows and Linux), under it (iPhone, iPad, Android) and on the web app's Home connects to go-link Desk's demonstration computer with its current code (desk.go-link.org/demo.json), for anyone without another computer at hand and for app reviewers; when it is not there the apps say so (the computer apps open its page). desk.go-link.org/demo has two columns on a wide screen and one on a phone, and says what the demo is now: a small desktop with Minesweeper.
