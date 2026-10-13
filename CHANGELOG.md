@@ -36,6 +36,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **Not yet:** sessions do not open in the app's own tabs. Connect opens the viewer in the browser.
   - The small code window is gone on both systems.
   - **On Windows, the frame takes the app's colors:** the title bar in the top bar's color, its title in the text's, and the border in the lines'. Windows draws them (DWM), with its own minimize, maximize and close buttons. Windows 11 takes the exact colors; Windows 10 takes only a dark or light frame.
+  - **On Linux too, where the desktop lets a window ask:** KDE Plasma draws the title bar in the app's exact colors (a color scheme hint, `_KDE_NET_WM_COLOR_SCHEME`; on Wayland the windows go through XWayland for it), and GNOME up to 43 dark or light (`_GTK_THEME_VARIANT`). GNOME 44 and later draw every title bar in the system's own style (Settings › Appearance).
   - **No margin around the content:** the windows no longer have Fyne's own margin, which showed as a white frame.
   - **Inter is the app's font** on both systems, its other windows included. It is set before anything measures text: Fyne keeps the faces it measured with, so fields had been measured in its own narrower font and their last characters were cut on Windows.
   - **Settings words the icon rows the way each system does:** taskbar and notification area on Windows; dock or taskbar and the system tray on Linux.
