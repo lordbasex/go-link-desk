@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+//go:build !headless
+
 // Command uipreview opens the Fyne main window (pkg/fyneview) with sample
 // data, on any system: to compare it with the Mac app's while it is
 // built.
