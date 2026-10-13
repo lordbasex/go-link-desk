@@ -74,6 +74,7 @@ func (u *ui) openMain() {
 	mainSetMenu(map[string]string{
 		"about":      L("About go-link Desk"),
 		"updates":    L("Check for Updates…"),
+		"network":    L("Test My Connection…"),
 		"settings":   L("Settings…"),
 		"services":   L("Services"),
 		"hide":       L("Hide go-link Desk"),
@@ -235,6 +236,8 @@ func (u *ui) MainAction(name, arg string) {
 		}
 	case "demo":
 		go u.tryDemo()
+	case "network":
+		go u.testConnection()
 	case "device":
 		if d, ok := remotes.Device(arg); ok {
 			go u.connect(viewer.Door{Kind: viewer.DoorReach, Device: &d})

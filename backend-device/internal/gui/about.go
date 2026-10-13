@@ -51,7 +51,10 @@ func (u *ui) showAbout() {
 		if web, err := url.Parse(strings.TrimRight(u.opts.WebURL, "/")); err == nil && web.Host != "" {
 			items = append(items, container.NewCenter(widget.NewHyperlink(web.Host, web)))
 		}
-		items = append(items, container.NewCenter(widget.NewButton(L("Check for Updates…"), u.upd.ask)))
+		items = append(items, container.NewCenter(container.NewHBox(
+			widget.NewButton(L("Check for Updates…"), u.upd.ask),
+			widget.NewButton(L("Test My Connection…"), func() { go u.testConnection() }),
+		)))
 		copyright := widget.NewLabelWithStyle("© 2026 Federico Pereira", fyne.TextAlignCenter, fyne.TextStyle{})
 		copyright.Importance = widget.LowImportance
 		items = append(items, copyright)

@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Test My Connection… in the computer app** (macOS, Windows, Linux): in the Mac's app menu, the tray's menu on every system and the About window off the Mac. It finds what a browser cannot (`pkg/netprobe`): this computer's local address, its router (the default gateway), the router's own outside address over NAT-PMP or UPnP IGD (both only read; nothing is opened on the router) and the first three hops toward the signaling server, from the system's own traceroute (`traceroute`, `tracepath` or `tracert`, no administrator rights), since many routers answer neither UPnP nor NAT-PMP. Then it opens desk.go-link.org/network with them after `#d=`, never sent to a server, where the test shows the routers in cascade and the provider's modem. The Mac asks once to let it reach the local network.
+
 ## [1.3.2] - 2026-10-13
 
 Try go-link Desk without a second computer: a Try the demo button in every app (Mac, Windows, Linux, iPhone, iPad, Android and the web) connects to a locked-down demonstration computer, whose codes are always at desk.go-link.org/demo.
