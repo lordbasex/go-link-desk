@@ -63,9 +63,10 @@ var AutoAcceptAll = ConsentFunc(func(context.Context, ConsentRequest) (models.Pe
 })
 
 // AutoAcceptDemo lets every viewer of a public demonstration host in
-// (--test-code-file): the test card, its sound, and the mouse and keyboard
-// that the host only logs (--test-input-log). Never the clipboard or
-// files: anyone may connect.
+// (--test-code-file) with everything, none of it the computer's own: the
+// test card, the mouse and keyboard only logged (--test-input-log), a
+// clipboard kept in a file (--test-clipboard-file), and files in a folder
+// of their own (--test-files-folder).
 var AutoAcceptDemo = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
-	return models.Permissions{View: true, Control: true, Audio: true}, nil
+	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}, nil
 })

@@ -1,20 +1,25 @@
 # Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 #
 # go-link Desk's public demonstration host (desk.go-link.org/demo): the
-# test card, every viewer let in without asking, their input only logged,
-# no clipboard or files. A user unit (~/.config/systemd/user), with its own
-# settings folder, so it runs beside a normal go-link Desk on the same
-# computer. See README.md.
+# test card, every viewer let in without asking, and nothing of the
+# computer's own: the input only logged, the clipboard a file, files in a
+# folder of their own (emptied by go-link-desk-demo-clean.timer), linking
+# with the password in demo.env. A user unit (~/.config/systemd/user),
+# with its own settings folder, so it runs beside a normal go-link Desk on
+# the same computer. See README.md.
 [Unit]
 Description=go-link Desk demonstration host
 After=network-online.target
 Wants=network-online.target
 
 [Service]
+EnvironmentFile=%h/.config/go-link-desk-demo/demo.env
 ExecStart=%h/go-link-desk-demo/go-link-desk --headless \
   --config %h/.config/go-link-desk-demo/device.json \
   --source testpattern --test-auto-accept --test-input-log \
   --test-clipboard-file %h/.config/go-link-desk-demo/clipboard.txt \
+  --test-files-folder %h/go-link-desk-demo/files \
+  --test-unattended --test-unattended-password ${DEMO_PASSWORD} \
   --test-name "go-link Desk Demo" \
   --test-code-file %h/.config/go-link-desk-demo/demo.json
 Restart=always

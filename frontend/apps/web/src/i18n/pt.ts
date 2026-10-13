@@ -240,9 +240,18 @@ export const pt: Messages = {
     how: [
       "Abra o go-link Desk em um iPhone, iPad, Android, Mac, Windows ou Linux.",
       "Digite o código acima e conecte.",
-      "O computador de demonstração aceita na hora: você vê a tela e pode mover o ponteiro, digitar e conversar.",
+      "O computador de demonstração aceita na hora: você vê a tela e pode mover o ponteiro, digitar, conversar e enviar e receber arquivos.",
     ],
-    note: "O código muda sempre que o computador de demonstração se reconecta; esta página sempre tem o atual.",
+    note: "Os códigos mudam sempre que o computador de demonstração se reconecta (o de vinculação também a cada poucos minutos e ao ser usado); esta página sempre tem os atuais. Os arquivos que você enviar para lá são apagados em poucos minutos.",
+    linkTitle: "Vincule, para o acesso sem ninguém do outro lado",
+    linkIntro: "Seus próprios computadores são vinculados uma vez e depois abertos sem ninguém do outro lado. Experimente com o computador de demonstração:",
+    pairingLabel: "Código de vinculação",
+    passwordLabel: "Senha do acesso sem ninguém do outro lado",
+    linkHow: [
+      "No app, toque em Vincular (Meus computadores), digite o código de vinculação e toque em Vincular e conectar.",
+      "Quando pedir a senha, digite a de cima.",
+      "A partir daí o computador de demonstração fica em Meus computadores: abra por lá, sem código.",
+    ],
   },
   privacy: {
     title: "Privacidade",

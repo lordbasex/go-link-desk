@@ -6,8 +6,8 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Added
 
-- **A demonstration computer at desk.go-link.org/demo**, for anyone to try go-link Desk and for the App Store and Google Play reviewers: a computer that is always on, shows the test card (a clock, color bars, a tone), lets every viewer in without asking, only logs their mouse and keyboard, and gives no clipboard or files. Its code changes whenever it reconnects to signalhub, so the page always shows the current one (read every 15 seconds), with a button to connect in the browser.
-  - **The host:** `--test-code-file` keeps the code and link in a JSON file as they change (it needs `--test-input-log` and `--source testpattern`), and its viewers get the mouse and keyboard (logged) and the sound only.
+- **A demonstration computer at desk.go-link.org/demo**, for anyone to try go-link Desk and for the App Store and Google Play reviewers: a computer that is always on, shows the test card (a clock, color bars, a tone) and lets every viewer in without asking, with every feature and none of the computer's own things: the mouse and keyboard only logged, the clipboard a file, files in a folder of their own (emptied every few minutes, 25 MB at most), and linking for unattended access with a password the page shows. Its codes change (the session code whenever it reconnects to signalhub, the pairing code every few minutes), so the page always shows the current ones (read every 15 seconds), with a button to connect in the browser.
+  - **The host:** `--test-code-file` keeps the session and pairing codes, the link and the password in a JSON file as they change; it needs `--test-input-log`, `--test-clipboard-file`, `--test-files-folder` (the only folder viewers browse, download from and send to, with files of 25 MB at most) and `--source testpattern`.
   - **Running it:** `deploy/demo` has the systemd units and `publish.py`, which uploads the file as `demo.json` with an AWS key that may write that one object only; `scripts/deploy-web.sh` leaves it in the bucket.
 
 ## [1.3.1] - 2026-10-13

@@ -66,11 +66,18 @@ def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
         return 2
-    with open(sys.argv[1], "rb") as f:
-        body = f.read()
-    json.loads(body)  # only a whole, valid file goes up
-    put(body)
-    print(f"published {sys.argv[1]} to https://{BUCKET}/{KEY}")
+    # The host may write it again while this one goes up (two changes in
+    # a second): upload until what went up is what the file says.
+    body = None
+    for _ in range(5):
+        with open(sys.argv[1], "rb") as f:
+            now = f.read()
+        if now == body:
+            break
+        json.loads(now)  # only a whole, valid file goes up
+        put(now)
+        body = now
+        print(f"published {sys.argv[1]} to https://{BUCKET}/{KEY}")
     return 0
 
 

@@ -22,6 +22,13 @@ describe("DemoPage", () => {
     expect(open.getAttribute("href")).toBe("/c/s7tR9tkyBRp0lv81CpHNDw");
   });
 
+  it("shows the pairing code and the password to link it", async () => {
+    show(async () => ({ online: true, code: "287 200 020", link: "https://desk.go-link.org/c/s7tR9tkyBRp0lv81CpHNDw", pairing: "113 134 323", password: "demo-desk-2026" }));
+    expect(await screen.findByText("113 134 323")).toBeTruthy();
+    expect(screen.getByText("demo-desk-2026")).toBeTruthy();
+    expect(screen.getByText(en.demo.linkTitle)).toBeTruthy();
+  });
+
   it("says the computer is reconnecting while it has no code", async () => {
     show(async () => ({ online: false }));
     expect(await screen.findByText(en.demo.offline)).toBeTruthy();

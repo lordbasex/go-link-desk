@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Empties the demo's received files every 5 minutes.
+[Unit]
+Description=Empty the go-link Desk demo's received files
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

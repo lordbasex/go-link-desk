@@ -1,0 +1,11 @@
+Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+
+go-link Desk demonstration computer
+
+This file is here for you to download: you just did, through go-link Desk's
+file transfer (end-to-end encrypted, straight between the two computers).
+
+Files you send to this computer land in Received and are deleted within
+minutes. It only takes files up to 25 MB.
+
+https://desk.go-link.org

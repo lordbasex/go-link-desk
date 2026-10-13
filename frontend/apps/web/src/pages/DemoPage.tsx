@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { t } from "../i18n";
 
 /** demo.json, written by the demonstration host (--test-code-file). */
-export type DemoCode = { online: boolean; code?: string; link?: string; name?: string; updated?: string };
+export type DemoCode = { online: boolean; code?: string; link?: string; name?: string; pairing?: string; password?: string; updated?: string };
 
 /** How often the page reads the code again: it changes when the host reconnects. */
 const REFRESH_MS = 15_000;
@@ -65,6 +65,23 @@ export function DemoPage({ load = loadDemo }: { load?: () => Promise<DemoCode> }
           <li key={s}>{s}</li>
         ))}
       </ol>
+      {live?.pairing && live.password && (
+        <>
+          <h2>{t.demo.linkTitle}</h2>
+          <p>{t.demo.linkIntro}</p>
+          <dl className="demo-link">
+            <dt>{t.demo.pairingLabel}</dt>
+            <dd className="mono">{live.pairing}</dd>
+            <dt>{t.demo.passwordLabel}</dt>
+            <dd className="mono">{live.password}</dd>
+          </dl>
+          <ol>
+            {t.demo.linkHow.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ol>
+        </>
+      )}
       <p className="muted">{t.demo.note}</p>
     </section>
   );

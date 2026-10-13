@@ -242,9 +242,18 @@ export const en = {
     how: [
       "Open go-link Desk on an iPhone, iPad, Android phone, Mac, Windows or Linux computer.",
       "Type the code above and connect.",
-      "The demo computer accepts at once: you see its screen and can move its pointer, type and chat.",
+      "The demo computer accepts at once: you see its screen and can move its pointer, type, chat, and send and receive files.",
     ],
-    note: "The code changes whenever the demo computer reconnects; this page always has the current one.",
+    note: "The codes change whenever the demo computer reconnects (the pairing code also every few minutes and once used); this page always has the current ones. Files you send there are deleted within minutes.",
+    linkTitle: "Link it, for unattended access",
+    linkIntro: "Your own computers can be linked once and opened later without anyone there. Try it with the demo computer:",
+    pairingLabel: "Pairing code",
+    passwordLabel: "Unattended access password",
+    linkHow: [
+      "In the app, tap Link (My computers), type the pairing code and tap Link and connect.",
+      "When it asks for the password, type the one above.",
+      "From then on the demo computer is in My computers: open it from there, without a code.",
+    ],
   },
   privacy: {
     title: "Privacy",

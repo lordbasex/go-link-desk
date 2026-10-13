@@ -68,10 +68,11 @@ type Transfer struct {
 //	viewer  {"type":"done","id":"d1"} or {"type":"cancel","id":"d1"}
 //	host    {"type":"download_error","id":"d1","error":"…"}  /  {"type":"files_error","id":"l1","error":"…"}
 type FilesService struct {
-	home     string // what a viewer may browse
-	received string // where uploads land
-	send     func(peerID string, isString bool, data []byte) bool
-	log      *slog.Logger
+	home      string // what a viewer may browse
+	received  string // where uploads land
+	maxUpload int64  // the largest upload (MaxUpload, less on a demonstration host)
+	send      func(peerID string, isString bool, data []byte) bool
+	log       *slog.Logger
 
 	mu        sync.Mutex
 	allowed   map[string]bool
@@ -99,6 +100,14 @@ type download struct {
 	timer *time.Timer
 }
 
+// SetMaxUpload lowers the largest file a viewer may send (a public
+// demonstration host takes small files only).
+func (f *FilesService) SetMaxUpload(n int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.maxUpload = n
+}
+
 // NewFilesService builds the service: home is the folder a viewer may
 // browse, received where its files land (created when the first comes).
 func NewFilesService(home, received string, send func(peerID string, isString bool, data []byte) bool, log *slog.Logger) *FilesService {
@@ -106,7 +115,7 @@ func NewFilesService(home, received string, send func(peerID string, isString bo
 		log = slog.Default()
 	}
 	return &FilesService{
-		home: filepath.Clean(home), received: received, send: send, log: log,
+		home: filepath.Clean(home), received: received, maxUpload: MaxUpload, send: send, log: log,
 		allowed: map[string]bool{}, uploads: map[string]*upload{}, downloads: map[string]*download{},
 	}
 }
@@ -253,8 +262,8 @@ func (f *FilesService) begin(peerID string, m filesMsg) {
 		f.uploads[peerID] = &upload{id: m.ID, failed: err} // swallow its chunks
 		f.mu.Unlock()
 	}
-	if m.Size < 0 || m.Size > MaxUpload {
-		fail(fmt.Errorf("files are limited to %d GB", MaxUpload>>30))
+	if m.Size < 0 || m.Size > f.maxUpload {
+		fail(fmt.Errorf("files are limited to %d MB", f.maxUpload>>20))
 		return
 	}
 	if err := os.MkdirAll(f.received, 0o755); err != nil {

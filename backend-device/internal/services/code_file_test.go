@@ -58,3 +58,20 @@ func TestCodeFileFollowsTheCode(t *testing.T) {
 		t.Fatalf("%+v", d)
 	}
 }
+
+// The pairing code and the password go in with the session code, and a
+// new pairing code rewrites the file.
+func TestCodeFileHasThePairingCode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "demo.json")
+	c := &CodeFile{Path: path, WebURL: "https://desk.go-link.org", Password: "demo-pass", Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	st := models.Status{Session: &models.SessionStatus{Code: "915355636", Invite: "abcdefghijklmnopqrstuv"}, Pairing: models.PairingStatus{Code: "113 134 323"}}
+	c.Update(st)
+	if d := readCodeFile(t, path); d.Pairing != "113 134 323" || d.Password != "demo-pass" {
+		t.Fatalf("%+v", d)
+	}
+	st.Pairing.Code = "222 333 444"
+	c.Update(st)
+	if d := readCodeFile(t, path); d.Pairing != "222 333 444" {
+		t.Fatalf("%+v", d)
+	}
+}

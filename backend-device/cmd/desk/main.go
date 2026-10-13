@@ -76,6 +76,7 @@ type flags struct {
 	password   string
 	name       string
 	codeFile   string
+	filesDir   string
 	picture    string
 	// connect opens a session to another computer at start (its 9-digit
 	// session code).
@@ -87,6 +88,9 @@ type flags struct {
 	testViewerPassword string
 	testViewerFrames   int
 }
+
+// demoMaxUpload is the largest file a demonstration host takes.
+const demoMaxUpload = 25 << 20
 
 func parseFlags(args []string) (flags, error) {
 	var f flags
@@ -103,7 +107,8 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.clipboardFile, "test-clipboard-file", "", "keep the host's clipboard in this file instead of the computer's (automated tests only; needs --test-input-log)")
 	fs.BoolVar(&f.unattended, "test-unattended", false, "turn unattended access on (automated tests only; needs --test-auto-accept)")
 	fs.StringVar(&f.picture, "test-picture", "", "a PNG or JPEG the session shows instead of the test card, still and silent (screenshots only; needs --source testpattern)")
-	fs.StringVar(&f.codeFile, "test-code-file", "", "a public demonstration host: keep the session code and link in this JSON file as they change, for a web page that shows them, and give viewers no clipboard or files (needs --test-input-log and --source testpattern)")
+	fs.StringVar(&f.codeFile, "test-code-file", "", "a public demonstration host: keep the session and pairing codes (and the unattended password) in this JSON file as they change, for a web page that shows them (needs --test-input-log, --test-clipboard-file, --test-files-folder and --source testpattern)")
+	fs.StringVar(&f.filesDir, "test-files-folder", "", "the only folder viewers may browse, download from and send files to (DIR/Received), with small files only (a demonstration host; needs --test-code-file)")
 	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
 	fs.StringVar(&f.connect, "connect", "", "connect to other computers with their 9-digit session codes at start (separated by commas)")
@@ -140,8 +145,14 @@ func parseFlags(args []string) (flags, error) {
 		return f, errors.New("--test-picture needs --source testpattern")
 	}
 	// A public demonstration host: the test card, input only logged.
-	if f.codeFile != "" && (!f.inputLog || f.source != "testpattern") {
-		return f, errors.New("--test-code-file needs --test-input-log and --source testpattern")
+	// A public demonstration host: anyone connects, so nothing they reach
+	// is the computer's own (the input logged, the clipboard a file, a
+	// folder of its own).
+	if f.codeFile != "" && (!f.inputLog || f.clipboardFile == "" || f.filesDir == "" || f.source != "testpattern") {
+		return f, errors.New("--test-code-file needs --test-input-log, --test-clipboard-file, --test-files-folder and --source testpattern")
+	}
+	if f.filesDir != "" && f.codeFile == "" {
+		return f, errors.New("--test-files-folder needs --test-code-file")
 	}
 	if f.name != "" && f.source != "testpattern" {
 		return f, errors.New("--test-name needs --source testpattern")
@@ -290,7 +301,7 @@ func run(args []string) error {
 		web = f.webURL
 	}
 	if f.codeFile != "" {
-		codes := &services.CodeFile{Path: f.codeFile, WebURL: web, Name: meta.Name, Log: logger}
+		codes := &services.CodeFile{Path: f.codeFile, WebURL: web, Name: meta.Name, Password: f.password, Log: logger}
 		status.OnChange(codes.Update)
 		codes.Update(status.Snapshot())
 	}
@@ -339,6 +350,10 @@ func run(args []string) error {
 		return err
 	}
 	files := services.NewFilesService(home, filepath.Join(home, "Downloads", services.ReceivedFolder), stream.SendFiles, logger)
+	if f.filesDir != "" {
+		files = services.NewFilesService(f.filesDir, filepath.Join(f.filesDir, "Received"), stream.SendFiles, logger)
+		files.SetMaxUpload(demoMaxUpload)
+	}
 	stream.OnFiles(files.Handle)
 	// The video call: the computer's camera and microphone with the real
 	// screen, a test card and a tone with the test card.

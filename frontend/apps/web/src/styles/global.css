@@ -117,6 +117,8 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .join-title { margin: 0; font-family: var(--font-title); font-size: 28px; }
 .join-row { display: flex; gap: 8px; align-items: center; }
 .join-row .input { font-family: var(--font-mono); letter-spacing: 0.08em; text-align: center; }
+.demo-link { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
+.demo-link dd { margin: 0; font-size: 20px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
 .demo-code { margin: 0; font-size: 44px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; color: var(--color-text); }
 .error-text { margin: 0; color: var(--color-danger-text); font-size: 13px; }
 .notice { padding: 14px 16px; border-radius: var(--radius-card); background: var(--tint-accent-bg); border: 1px solid var(--tint-accent-border); color: var(--color-text-2); }

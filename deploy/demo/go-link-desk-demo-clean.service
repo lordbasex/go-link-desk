@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Deletes what viewers sent the demonstration host more than 10 minutes
+# ago (files/Received). Run by go-link-desk-demo-clean.timer.
+[Unit]
+Description=Empty the go-link Desk demo's received files
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find %h/go-link-desk-demo/files/Received -mindepth 1 -mmin +10 -delete
