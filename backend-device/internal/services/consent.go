@@ -61,3 +61,12 @@ var AutoAccept = ConsentFunc(func(context.Context, ConsentRequest) (models.Permi
 var AutoAcceptAll = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
 	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}, nil
 })
+
+// AutoAcceptDemo lets every viewer of a public demonstration host in
+// (--test-code-file) with everything, none of it the computer's own: the
+// test card, the mouse and keyboard only logged (--test-input-log), a
+// clipboard kept in a file (--test-clipboard-file), and files in a folder
+// of their own (--test-files-folder).
+var AutoAcceptDemo = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
+	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}, nil
+})

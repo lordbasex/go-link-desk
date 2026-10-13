@@ -100,6 +100,20 @@ func TestUploadsLandWithoutOverwriting(t *testing.T) {
 	}
 }
 
+// A demonstration host takes small files only.
+func TestSetMaxUploadRefusesLargerFiles(t *testing.T) {
+	f, _, w := newFiles(t)
+	f.SetMaxUpload(10)
+	f.Handle("P", true, msg(map[string]any{"type": "begin", "id": "u1", "name": "big", "size": 11}))
+	if r := w.last(); r["ok"] != false {
+		t.Fatalf("%v", r)
+	}
+	sendFile(f, "u2", "small", []byte("0123456789"))
+	if r := w.last(); r["ok"] != true {
+		t.Fatalf("%v", r)
+	}
+}
+
 func TestFilesNeedThePermission(t *testing.T) {
 	f, home, w := newFiles(t)
 	f.Allow("P", false)

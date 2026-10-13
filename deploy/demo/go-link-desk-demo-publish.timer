@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Publishes the demo code every minute too, in case a change slipped past
+# the path unit.
+[Unit]
+Description=Publish the go-link Desk demo code
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
