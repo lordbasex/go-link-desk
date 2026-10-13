@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **The picture no longer drops to 640×360 for good on a fast network.** Seen on a LAN between a Windows PC and a Mac: 1080p at 6 Mbps, then 640×360 at 300 kbps within 11 seconds, without a packet lost, and it never came back. Google Congestion Control lowers its estimate to 85% of what it received when the delay grows, and raises it to at most 1.5 times that: a burst of delay on Wi-Fi during a quiet scene (the encoder sending far less than the network carries) brought it down to what that scene needed, the picture shrank, the encoder sent even less, and the estimate could not climb. Every host (macOS, Windows, Linux) now counts a drop only when the encoder was filling the estimate and the figure comes from that traffic, or the viewer reports loss; and an estimate held under 4 Mbps without loss is tried half again higher every 30 seconds, as browsers probe, so a network that cannot carry it says so.
+
 ## [1.3.0] - 2026-10-13
 
 go-link Desk updates itself: it says when there is a new version and installs it, on macOS, Windows and Linux. Also the Mac app shows computers that send VP8, and Linux encodes H.264 on Intel and AMD GPUs.

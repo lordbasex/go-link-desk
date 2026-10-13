@@ -166,6 +166,9 @@ type viewer struct {
 	kbps atomic.Int64
 	// sendCap bounds the estimate by what actually got through.
 	sendCap sendCap
+	// path is GCC's estimate, with its drops while the encoder sent
+	// little undone (path_estimate.go).
+	path    pathEstimate
 	playout playoutLadder // under mu
 
 	mu        sync.Mutex
@@ -685,7 +688,9 @@ func (s *StreamService) followBandwidth() {
 	worst := 0
 	now := time.Now()
 	for _, v := range s.viewers {
-		est := effectiveKbps(estimateKbps(v.pc), v.sendCap.update(now))
+		capKbps := v.sendCap.update(now)
+		sent, loss := v.sendCap.recent(now)
+		est := effectiveKbps(v.path.update(estimateKbps(v.pc), sent, loss, now), capKbps)
 		kbps := max(min(ceiling, est*9/10), minKbps)
 		if worst == 0 || est < worst {
 			worst = est
@@ -761,7 +766,7 @@ func (s *StreamService) sendStreamStats(window time.Duration) {
 		st := streamStats{
 			Type: "stream_stats", FPS: round1(float64(frames) / window.Seconds()),
 			Kbps: round1(float64(bytes) * 8 / 1000 / window.Seconds()), Codec: codecLabel(v.codec),
-			TargetKbps: int(v.kbps.Load()), EstimateKbps: effectiveKbps(estimateKbps(v.pc), v.sendCap.current()),
+			TargetKbps: int(v.kbps.Load()), EstimateKbps: effectiveKbps(v.path.current(), v.sendCap.current()),
 		}
 		st.Width, st.Height = s.sizes[id][0], s.sizes[id][1]
 		stats[id] = st

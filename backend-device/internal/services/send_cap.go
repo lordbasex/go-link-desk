@@ -51,6 +51,7 @@ type sendCap struct {
 	lossAt    time.Time
 	grewAt    time.Time
 	droppedAt time.Time
+	lastSent  float64 // what update last saw sent (kbps, -1: not known)
 }
 
 // sent counts bytes the encoder sent.
@@ -90,6 +91,7 @@ func (c *sendCap) update(now time.Time) int {
 		c.grewAt, c.droppedAt = now, now
 	}
 	sent := c.sentKbps(now)
+	c.lastSent = sent
 	loss := 0.0
 	if !c.lossAt.IsZero() && now.Sub(c.lossAt) < capLossFresh {
 		loss = c.loss
@@ -113,6 +115,20 @@ func (c *sendCap) update(now time.Time) int {
 	}
 	c.kbps = max(c.kbps, float64(minKbps))
 	return int(c.kbps)
+}
+
+// recent is what the encoder sent over the last moments, as update last
+// saw it (kbps, -1: not known yet), and the viewer's fresh loss (%).
+func (c *sendCap) recent(now time.Time) (sentKbps int, loss float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.kbps == 0 {
+		return -1, 0
+	}
+	if !c.lossAt.IsZero() && now.Sub(c.lossAt) < capLossFresh {
+		loss = c.loss
+	}
+	return int(c.lastSent), loss
 }
 
 // current is the cap now, without moving it (0: none yet).
