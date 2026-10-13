@@ -65,7 +65,7 @@ type Options struct {
 	// Connect opens sessions to these session codes at start (separated
 	// by commas).
 	Connect string
-	// Woken receives when the app is opened again while it runs (Windows):
+	// Woken receives when the app is opened again while it runs (Windows, Linux):
 	// the main window comes forward.
 	Woken <-chan struct{}
 	// Autostart replaces the system's login item (tests).
