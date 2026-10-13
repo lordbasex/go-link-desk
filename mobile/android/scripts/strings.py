@@ -63,6 +63,9 @@ EN = {
     "server_not_address": "That is not a server address: it starts with wss://.",
     "server_no_answer": "That server did not answer.",
     "version": "Version",
+    "connection": "Connection",
+    "test_connection": "Test my connection",
+    "connection_footer": "Is your connection direct or through the relay? The test shows the path through your routers and how to improve it.",
     "about_footer": "Free and open source software (MIT license). The picture, sound and controls go straight between the devices, encrypted end to end.",
     # The session
     "st_connecting": "Connecting…",

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.golink.desk.AppModel
 import org.golink.desk.BuildConfig
+import org.golink.desk.NetworkProbe
 import org.golink.desk.R
 import org.golink.desk.core.Protocol
 import org.golink.desk.core.SignalClient
@@ -124,6 +125,11 @@ fun SettingsSheet(app: AppModel, onDismiss: () -> Unit) {
                         server = ""
                         serverError = ""
                     }
+                }
+            }
+            Section(stringResource(R.string.connection), stringResource(R.string.connection_footer)) {
+                ActionRow(stringResource(R.string.test_connection)) {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkProbe.url(context))))
                 }
             }
             Section(footer = stringResource(R.string.about_footer)) {

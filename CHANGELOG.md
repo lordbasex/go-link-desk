@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Test my connection in the iPhone, iPad and Android apps**, in Settings: it opens desk.go-link.org/network with this device's address on its network and whether it is on Wi-Fi, mobile data (almost always the provider's CGNAT) or Ethernet, and on Android its router too, after `#d=` (never sent to a server).
+
 ## [1.3.2] - 2026-10-13
 
 Try go-link Desk without a second computer: a Try the demo button in every app (Mac, Windows, Linux, iPhone, iPad, Android and the web) connects to a locked-down demonstration computer, whose codes are always at desk.go-link.org/demo.
