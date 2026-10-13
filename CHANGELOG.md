@@ -26,6 +26,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **The website and the README say Windows is available** (English, Spanish and Portuguese): the home page lists Windows among the computers you can share and has a Windows download (the installer or the portable .zip), and the docs' Installation has Windows' steps: the installer for the user, SmartScreen's warning while the installer is not signed, the firewall's question and what Windows does not let any program share (a window running as administrator, UAC prompts, the lock screen).
 - **The connection request on GNOME (Wayland) says what comes next:** the desktop then asks too, with "Allow Remote Interaction" off by default, and without it the viewer can only watch. Shown until the desktop remembers a choice that includes the mouse and keyboard.
 - **Settings' words:** on Windows the Theme's third choice reads "Use system setting", as Windows' own settings do; the announced address's example reads "For example: 192.168.1.20", so it no longer looks like a value already set.
 - **`docs/architecture.md` covers phase 7:** a section on the Windows host (capture, H.264, control, one copy at a time, the window, the release), libyuv and the VP8 tuning in the picture, Fyne's window on Windows and Linux, and the measured hardware.

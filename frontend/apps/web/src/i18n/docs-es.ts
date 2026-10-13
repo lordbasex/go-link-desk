@@ -28,7 +28,7 @@ export const docsEs: Docs = {
         {
           t: "list",
           items: [
-            "**La computadora que se comparte:** macOS 13 o más nuevo, o Linux (X11 y Wayland). Windows llega pronto.",
+            "**La computadora que se comparte:** macOS 13 o más nuevo, Windows 10 y 11, o Linux (X11 y Wayland).",
             "**Desde dónde te conectás:** cualquier navegador en [desk.go-link.org/web](/web), la app para iPhone y iPad, la app para Android o la app de Mac.",
             "**En una sesión:** la pantalla y su sonido, el mouse y el teclado por posición (en cualquier idioma), el portapapeles en los dos sentidos, archivos, chat y videollamada.",
             "**Tus propias computadoras:** vinculalas una vez y abrilas después sin nadie del otro lado, siempre con contraseña. Mirá [Acceso desatendido](/docs/unattended).",
@@ -106,7 +106,10 @@ export const docsEs: Docs = {
               label: "Windows",
               os: "windows",
               blocks: [
-                { t: "note", tone: "info", text: "Compartir una computadora con Windows llega pronto. Desde Windows ya podés conectarte a otras computadoras con cualquier navegador en [desk.go-link.org/web](/web)." },
+                { t: "steps", items: ["Descargá `go-link-desk-vX.Y.Z-windows-amd64-setup.exe` (Windows 10 y 11, de 64 bits; `arm64` para computadoras ARM).", "Ejecutalo. Se instala solo para tu usuario, sin permisos de administrador, y agrega go-link Desk al menú Inicio.", "Abrí go-link Desk. Su ventana muestra tu código, y su ícono aparece en el área de notificación."] },
+                { t: "note", tone: "warn", text: "El instalador todavía no está firmado, así que la primera vez Windows muestra **Windows protegió su PC**. Hacé clic en **Más información** y después en **Ejecutar de todas formas**. Si querés, primero comprobá el archivo con `SHA256SUMS` (ver más abajo)." },
+                { t: "p", text: "¿Sin instalador? El `.zip` trae el mismo programa: descomprimilo donde quieras y abrí `go-link-desk.exe`. El instalado se quita desde **Configuración › Aplicaciones**; tu configuración queda." },
+                { t: "note", tone: "info", text: "La primera vez que alguien se conecta, el firewall de Windows puede preguntar si go-link Desk puede usar la red: permitilo en **redes privadas** para las conexiones directas (sin eso, las sesiones pasan por el relay). Windows no deja que un programa común use una ventana que corre como administrador, un aviso de UAC ni la pantalla de bloqueo: mientras hay uno, el visor ve la última imagen." },
               ],
             },
             {
@@ -146,7 +149,7 @@ export const docsEs: Docs = {
           head: ["", "La computadora que compartís", "Para conectarte desde ella"],
           rows: [
             ["macOS", "13 o más nuevo, Intel o Apple silicon", "La app o un navegador"],
-            ["Windows", "10 u 11, de 64 bits (desde la versión 1.2)", "Un navegador"],
+            ["Windows", "10 u 11, de 64 bits", "Un navegador"],
             ["Linux", "glibc 2.34 o más nuevo (Ubuntu 22.04, Debian 12, Fedora 35 o más nuevos), X11 o Wayland", "Un navegador"],
             ["iPhone, iPad", "—", "La app (iOS y iPadOS 26) o Safari"],
             ["Android", "—", "La app (Android 11) o Chrome"],
