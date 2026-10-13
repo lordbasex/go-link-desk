@@ -272,7 +272,36 @@ func windowVariant() fyne.ThemeVariant {
 }
 
 func (t fontTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
-	return t.Theme.Color(n, windowVariant())
+	return readableColor(t.Theme, n, windowVariant())
+}
+
+// readableColor is the theme's color, but for faint text: Fyne draws
+// labels of low importance (the request's "the name and the browser are
+// what the other side says", its countdown, the chat's times) in the
+// disabled color, nearly the background's (#39393a on #171717). A grey
+// that reads (4.5:1 or more) and still looks secondary.
+func readableColor(th fyne.Theme, n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	if n == theme.ColorNameDisabled {
+		if v == theme.VariantLight {
+			return color.NRGBA{R: 0x76, G: 0x76, B: 0x76, A: 0xff}
+		}
+		return color.NRGBA{R: 0x8e, G: 0x8e, B: 0x93, A: 0xff}
+	}
+	return th.Color(n, v)
+}
+
+// readableTheme is Fyne's own theme with faint text that reads: the
+// Mac's Fyne windows, which otherwise keep Fyne's look and follow the
+// system's appearance.
+type readableTheme struct{ fyne.Theme }
+
+func (t readableTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	return readableColor(t.Theme, n, v)
+}
+
+// UseReadableTheme is UseTheme for the Mac: only the faint text changes.
+func UseReadableTheme(a fyne.App) {
+	a.Settings().SetTheme(readableTheme{theme.DefaultTheme()})
 }
 
 func (t fontTheme) Font(s fyne.TextStyle) fyne.Resource {

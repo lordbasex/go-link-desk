@@ -34,6 +34,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **Settings words the icon rows the way each system does:** taskbar and notification area on Windows; dock or taskbar and the system tray on Linux.
   - **The main window opens at 1120×680**, which fits a 1366×768 laptop or a 1280×800 screen with its taskbar.
   - **The other windows look as on the Mac:** the connection request, the session, the call, the chat and the files. They keep Fyne's own look, in the variant of the app's Theme setting (dark by default) rather than the system's: a light Windows drew them white next to the dark main window. On Windows their title bar takes their background's color.
+- **Faint text that reads in Fyne's windows** (also on the Mac):
+  - **Which text:** labels of low importance, such as the request's note that "the name and the browser are what the other side says", its countdown and the chat's times.
+  - **The problem:** Fyne drew them in its disabled color, nearly the background's (#39393a on #171717 in the dark variant).
+  - **The fix:** a grey that reads (4.5:1 or more) and still looks secondary.
+- **The connection request opens centered on the screen**, as on the Mac. On Windows it opened in the top-left corner.
 - **Sharper, steadier VP8** (Linux, and Windows without H.264):
   - **Frames carry their times:** libvpx was told every frame came a sixtieth of a second after the last. A desktop changes far less often, so each frame got a fraction of the bits it had. Now each frame gets the bits of the time since the previous one; a test checks that frames 100 ms apart get about six times more.
   - **No more restarts on bitrate changes:** a change of a tenth or more now applies while the encoder runs, at most once a second. Before, a change of a fifth or more started the encoder again with a keyframe, which made bursts the viewer saw as stalls.

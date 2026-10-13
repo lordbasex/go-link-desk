@@ -143,6 +143,7 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	r.win.SetContent(container.NewPadded(container.NewVBox(items...)))
 	r.win.Resize(fyne.NewSize(440, 0))
 	r.win.SetFixedSize(true)
+	r.win.CenterOnScreen()
 	// Closing the window is a no.
 	r.win.SetCloseIntercept(func() { r.finish(services.ErrDeclined) })
 	r.tick(time.Now())
