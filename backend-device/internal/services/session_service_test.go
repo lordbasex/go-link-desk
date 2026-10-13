@@ -479,22 +479,31 @@ func TestPermissionsFollowTheSession(t *testing.T) {
 		seen = append(seen, fmt.Sprintf("%s:%v", peer, p.Control))
 		mu.Unlock()
 	})
-	perms := func() []string {
-		mu.Lock()
-		defer mu.Unlock()
-		return slices.Clone(seen)
+	// perms waits a moment for the n-th call: it may come just after the
+	// reply goes out (it did on a busy Windows runner).
+	perms := func(n int) []string {
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			mu.Lock()
+			got := slices.Clone(seen)
+			mu.Unlock()
+			if len(got) >= n || time.Now().After(deadline) {
+				return got
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 	join(s, "P")
 	signalFrom(s, "P", `{"kind":"knock","name":"Ana"}`)
 	c.request(t)
 	c.answers <- nil
 	reply(t, snd, "P")
-	if got := perms(); len(got) != 1 || got[0] != "P:true" {
+	if got := perms(1); len(got) != 1 || got[0] != "P:true" {
 		t.Fatalf("permissions %v", got)
 	}
 	// The person at the host takes control away: the viewer is told.
 	s.SetPermissions(models.Permissions{View: true})
-	if got := perms(); len(got) != 2 || got[1] != "P:false" {
+	if got := perms(2); len(got) != 2 || got[1] != "P:false" {
 		t.Fatalf("permissions %v", got)
 	}
 	if c := v.snapshot().controls; len(c) != 1 || !strings.Contains(c[0], `"type":"permissions"`) || !strings.Contains(c[0], `"control":false`) {
@@ -505,7 +514,7 @@ func TestPermissionsFollowTheSession(t *testing.T) {
 	}
 	// The end of the session takes everything.
 	s.End(models.EndHost)
-	if got := perms(); len(got) != 3 || got[2] != "P:false" {
+	if got := perms(3); len(got) != 3 || got[2] != "P:false" {
 		t.Fatalf("permissions %v", got)
 	}
 }
