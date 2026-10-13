@@ -26,6 +26,8 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **The connection request on GNOME (Wayland) says what comes next:** the desktop then asks too, with "Allow Remote Interaction" off by default, and without it the viewer can only watch. Shown until the desktop remembers a choice that includes the mouse and keyboard.
+- **Settings' words:** on Windows the Theme's third choice reads "Use system setting", as Windows' own settings do; the announced address's example reads "For example: 192.168.1.20", so it no longer looks like a value already set.
 - **Windows and Linux get the Mac app's window** (`pkg/fyneview`, drawn with Fyne):
   - **The main window:** the address field with Session/Link, Connect and Settings; the "This computer" panel with the code, the link and the permissions; the filters; the linked computers and recent sessions as cards, a list or a detailed list, with their menus (favorite, rename, forget, copy code).
   - **Settings**, with the same pages and rows.

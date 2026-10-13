@@ -18,6 +18,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 )
 
 // scamWarningKey remembers, in Fyne's preferences, that the person at the
@@ -128,6 +129,14 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 		items = append(items, link)
 	}
 	items = append(append(items, widget.NewSeparator(), perms), r.perms.objects()...)
+	if screencap.AsksInputApart() {
+		// GNOME asks for the mouse and keyboard apart, off by default:
+		// without it the viewer can only watch, and it asks again.
+		input := widget.NewLabel(L("Then your desktop asks too. So they can use the mouse and keyboard, turn on “Allow Remote Interaction” there."))
+		input.Wrapping = fyne.TextWrapWord
+		input.Importance = widget.LowImportance
+		items = append(items, input)
+	}
 	// The first time, the warning about the phone scam: whoever calls and
 	// asks for this is not who they say.
 	if !u.app.Preferences().Bool(scamWarningKey) {
