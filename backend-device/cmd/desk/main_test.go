@@ -53,6 +53,17 @@ func TestCodeFileOnlyOnADemonstrationHost(t *testing.T) {
 			t.Fatalf("a demonstration host without %s was allowed", drop)
 		}
 	}
+	// A demonstration computer shows its real screen and takes the input.
+	screen := []string{"--test-code-file", "x", "--test-clipboard-file", "c", "--test-files-folder", "d", "--test-auto-accept", "--source", "screen", "--test-demo-screen"}
+	if f, err := parseFlags(screen); err != nil || !f.demoScreen || f.inputLog {
+		t.Fatalf("%+v %v", f, err)
+	}
+	if _, err := parseFlags(screen[:len(screen)-1]); err == nil && !allowAutoAcceptScreen {
+		t.Fatal("the real screen to everyone without --test-demo-screen was allowed")
+	}
+	if _, err := parseFlags([]string{"--test-demo-screen", "--test-auto-accept", "--source", "screen"}); err == nil {
+		t.Fatal("--test-demo-screen outside a demonstration host was allowed")
+	}
 	if _, err := parseFlags([]string{"--test-files-folder", "d", "--test-auto-accept", "--source", "testpattern"}); err == nil {
 		t.Fatal("a files folder outside a demonstration host was allowed")
 	}
