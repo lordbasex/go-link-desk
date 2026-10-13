@@ -6,7 +6,7 @@ package remoteview
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc -fblocks -mmacosx-version-min=13.0
-#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework QuartzCore
+#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -23,6 +23,7 @@ void rv_title(void *ref, const char *title);
 void rv_overlay(void *ref, const char *text, int password, const char *button, int spinner);
 void rv_hud(void *ref, const char *text);
 void rv_video(void *ref, const uint8_t *data, int n);
+void rv_picture(void *ref, int w, int h, const uint8_t *y, const uint8_t *u, const uint8_t *v, int sy, int suv);
 void rv_cursor_shape(void *ref, const uint8_t *png, int n, double hotX, double hotY, double wFrac, double hFrac);
 void rv_cursor_pos(void *ref, double x, double y, int visible);
 void rv_control(void *ref, int on);
@@ -212,6 +213,18 @@ func (v *View) Video(au []byte) {
 	}
 	v.with(func(ref unsafe.Pointer) {
 		C.rv_video(ref, (*C.uint8_t)(unsafe.Pointer(&au[0])), C.int(len(au)))
+	})
+}
+
+// Picture draws a decoded I420 picture (VP8's). The planes are copied
+// before it returns.
+func (v *View) Picture(w, h int, y, u, vv []byte, strideY, strideUV int) {
+	if w <= 0 || h <= 0 || len(y) < strideY*(h-1)+w || len(u) < strideUV*((h+1)/2-1)+(w+1)/2 || len(vv) < len(u) {
+		return
+	}
+	v.with(func(ref unsafe.Pointer) {
+		C.rv_picture(ref, C.int(w), C.int(h), (*C.uint8_t)(unsafe.Pointer(&y[0])), (*C.uint8_t)(unsafe.Pointer(&u[0])),
+			(*C.uint8_t)(unsafe.Pointer(&vv[0])), C.int(strideY), C.int(strideUV))
 	})
 }
 

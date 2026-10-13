@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The Mac app shows computers that send VP8:** a Linux computer without an H.264 encoder on its GPU (and every virtual machine), or a Windows one without Media Foundation. It said "This computer sends its picture in a format this app cannot show yet" and pointed to the website. The app decodes VP8 with libvpx, which it already carried for its own screen, and draws it in the same layer as H.264; a frame that built on a lost one is not drawn, and a whole picture is asked for. Its knock now lists VP8 among the codecs it decodes, after H.264: the computer still sends H.264 when it has an encoder for it, and VP8 otherwise.
+
 ## [1.2.0] - 2026-10-13
 
 go-link Desk for Windows: a Windows 10 or 11 PC shares its screen as a Mac and Linux do, with an installer that needs no administrator. Also the Mac app's window on Windows and Linux, sharper VP8, the measured system requirements, and fixes.
