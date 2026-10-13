@@ -87,6 +87,7 @@ go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 
 
 ### Fixed
 
+- **Hanging up a video call is told at once:** the host says the call ended (to the viewer, its window and its log) before stopping its camera and sound, which can take a moment. The end-to-end test of the call waited 5 seconds for it and failed now and then on CI's Linux runner.
 - **The code was nearly invisible in the host's window with a light theme** (Linux, Fyne): it took the dark theme's white at start; it now follows the theme.
 - **The connection request could stay behind the other windows** (macOS) when it came while the main thread was busy, as right after a session ended: it was brought to the front only within 200 ms of being asked. Now it is looked for until it is on screen (up to 5 s), and put over the app in front even when that app keeps the focus.
 

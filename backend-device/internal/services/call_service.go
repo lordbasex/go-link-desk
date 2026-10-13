@@ -393,6 +393,12 @@ func (c *CallService) End() {
 	}
 	c.status.HostCamera, c.status.HostMic, c.status.ViewerCamera, c.status.ViewerMic = false, false, false, false
 	c.mu.Unlock()
+	// Said first: stopping the camera and the sound can take a while, and
+	// the viewer and the window should not wait for it.
+	if was == CallRinging || was == CallActive {
+		c.log.Info("call ended")
+		c.changed()
+	}
 	if cancel != nil {
 		cancel()
 	}
@@ -407,10 +413,6 @@ func (c *CallService) End() {
 	}
 	if mic != nil {
 		mic.Close()
-	}
-	if was == CallRinging || was == CallActive {
-		c.log.Info("call ended")
-		c.changed()
 	}
 }
 
