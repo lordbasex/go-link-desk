@@ -98,3 +98,38 @@ func TestAutoAcceptCall(t *testing.T) {
 	c.SetPeer("", "") // the session ended
 	waitState(t, states, CallEnded)
 }
+
+// busyCamera sends frames as fast as it can, and its stop does not wait
+// for the frame being handed over: a camera's frame can be encoding while
+// the call ends.
+type busyCamera struct{ TestCallMedia }
+
+func (busyCamera) StartCamera(onFrame func(Frame)) (func(), error) {
+	ctx, stop := context.WithCancel(context.Background())
+	go func() {
+		frame := Frame{I420: make([]byte, callCamWidth*callCamHeight*3/2), Width: callCamWidth, Height: callCamHeight}
+		for i := 0; ctx.Err() == nil; i++ {
+			frame.PTS = time.Duration(i) * time.Millisecond
+			onFrame(frame)
+		}
+	}()
+	return stop, nil
+}
+
+// Ending a call never frees the camera's encoder under a frame that is
+// still encoding (it crashed the host now and then).
+func TestCallEndsWhileTheCameraEncodes(t *testing.T) {
+	c, _, states := newCall(t)
+	c.media = busyCamera{}
+	c.SetConsent(AutoAcceptCall)
+	for i := 0; i < 5; i++ {
+		c.HandleControl("P", "call_request", []byte(`{"video":true,"audio":false}`))
+		waitState(t, states, CallActive)
+		time.Sleep(50 * time.Millisecond)
+		c.SetCamera(false)
+		c.SetCamera(true)
+		time.Sleep(50 * time.Millisecond)
+		c.HandleControl("P", "call_end", nil)
+		waitState(t, states, CallEnded)
+	}
+}

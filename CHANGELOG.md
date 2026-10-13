@@ -91,6 +91,7 @@ go-link Desk for Linux: a Linux desktop shares its screen as a Mac does, on X11 
 
 ### Fixed
 
+- **The host could crash when a video call ended** (seen on Linux, where the call's camera uses VP8): the camera's encoder was closed while a frame was still encoding in it, and libvpx's memory freed under it. Frames and the closing now take turns. The host also says the call ended (to the viewer, its window and its log) before stopping its camera and sound, so nobody waits for that. CI keeps the hosts' logs of a failed end-to-end run.
 - **Linux: the main window drawn whole when GNOME maximizes it as it opens** (it does so with a window that nearly fills the screen, such as 1120×680 on 1280×800). Fyne took the new size but went on drawing at the old one, cut at the top and with black bars, until the window was resized again; it is now resized by a pixel and back once it shows.
 - **The code was nearly invisible in the host's window with a light theme** (Linux, Fyne): it took the dark theme's white at start; it now follows the theme.
 - **The connection request could stay behind the other windows** (macOS) when it came while the main thread was busy, as right after a session ended: it was brought to the front only within 200 ms of being asked. Now it is looked for until it is on screen (up to 5 s), and put over the app in front even when that app keeps the focus.

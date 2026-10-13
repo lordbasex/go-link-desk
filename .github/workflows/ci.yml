@@ -129,6 +129,7 @@ jobs:
         if: failure()
         with:
           name: playwright-report
+          include-hidden-files: true # the hosts' logs in e2e/.state
           path: |
             e2e/playwright-report
             e2e/.state/*.log
