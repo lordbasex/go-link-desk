@@ -98,7 +98,7 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		}},
 		{Title: L("Appearance"), Rows: []remoteview.PrefRow{
 			{ID: "theme", Kind: "select", Label: L("Theme"), Value: cfg.Theme,
-				Options: []remoteview.PrefOption{{ID: "", Title: L("Dark")}, {ID: "light", Title: L("Light")}, {ID: "system", Title: L("Like the system")}}},
+				Options: []remoteview.PrefOption{{ID: "", Title: L("Dark")}, {ID: "light", Title: L("Light")}, {ID: "system", Title: L(themeSystemLabel())}}},
 			{ID: "app_icon", Kind: "select", Label: L("App icon"), Detail: L(appIconDetail()), Value: cfg.AppIcon,
 				Options: []remoteview.PrefOption{{ID: "", Title: L("Color")}, {ID: "dark", Title: L("Dark")}}},
 			{ID: "tray_icon", Kind: "select", Label: L(trayIconLabel()), Detail: L(trayIconDetail()), Value: cfg.TrayIcon,
@@ -475,7 +475,7 @@ func (u *ui) directSection(cfg models.Config) remoteview.PrefSection {
 		{Kind: "info", Label: L("This computer's address"), Value: strings.Join(local, ", ")},
 		{ID: "udp_port", Kind: "text", Label: L("UDP port"), Value: port, Placeholder: L("Random"),
 			Detail: L("Every connection on one port, to open it in a router.")},
-		{ID: "announce_ips", Kind: "text", Label: L("Announced address"), Value: strings.Join(cfg.AnnounceIPs, ", "), Placeholder: "192.168.1.20",
+		{ID: "announce_ips", Kind: "text", Label: L("Announced address"), Value: strings.Join(cfg.AnnounceIPs, ", "), Placeholder: Lf("For example: %s", "192.168.1.20"),
 			Detail: L("Where viewers reach that port through the router: its address on their network. Several, with commas.")},
 	}
 	if u.prefs.netErr != "" {
@@ -511,6 +511,15 @@ func localIPs() []string {
 // The icons' rows in each system's words: the Mac's Dock and menu bar,
 // Windows' taskbar and notification area, a Linux desktop's dock or
 // taskbar and its system tray.
+// themeSystemLabel words the Theme setting's third choice as the system's
+// own settings do.
+func themeSystemLabel() string {
+	if runtime.GOOS == "windows" {
+		return "Use system setting"
+	}
+	return "Like the system"
+}
+
 func appIconDetail() string {
 	switch runtime.GOOS {
 	case "windows":

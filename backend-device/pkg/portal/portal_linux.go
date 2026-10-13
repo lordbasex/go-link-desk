@@ -63,6 +63,15 @@ func Wayland() bool {
 	return os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
+// AsksInputApart reports whether the desktop will ask the person at the
+// computer for the mouse and keyboard apart from the screen, in its own
+// dialog, at the next session: GNOME, whose "Allow Remote Interaction" is
+// off by default, with no permission remembered yet.
+func AsksInputApart() bool {
+	desktop := strings.ToUpper(os.Getenv("XDG_CURRENT_DESKTOP"))
+	return Wayland() && strings.Contains(desktop, "GNOME") && Available() && loadToken() == ""
+}
+
 var available struct {
 	once sync.Once
 	ok   bool
