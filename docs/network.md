@@ -48,7 +48,7 @@ Nothing is stored. The page's guides (bridge mode, DMZ, UPnP, asking the provide
 A browser cannot see the device's local address or ask the router anything. The go-link Desk apps can, and open the page with what they found after `#d=`, a base64url JSON object. The fragment is never sent to a server; the page shows only fields that parse as addresses or known words, and starts the test by itself.
 
 ```json
-{ "src": "desktop", "lan": "192.168.0.12", "gw": "192.168.0.1", "wan": "192.168.1.2", "upnp": true, "pmp": false, "net": "ethernet" }
+{ "src": "desktop", "lan": "172.17.0.5", "gw": "172.17.0.1", "hops": ["172.17.0.1", "192.168.1.1", "200.51.241.1"], "upnp": false, "pmp": false, "net": "ethernet" }
 ```
 
 | Field | Meaning |
@@ -57,6 +57,7 @@ A browser cannot see the device's local address or ask the router anything. The 
 | `lan` | The device's address on its network. |
 | `gw` | Its router (the default gateway). |
 | `wan` | The router's own outside address, as the router says over UPnP IGD or NAT-PMP. A private or `100.64.0.0/10` address, or a public one other than what STUN saw, means another router (or the provider's CGNAT) is in front of it. |
+| `hops` | The first routers toward signal.go-link.org (up to 3), from the system's own traceroute (`traceroute`, `tracepath` or `tracert`, no administrator rights). Many routers do not answer UPnP or NAT-PMP, but every router answers here: after this device's router, each hop on a home network (`192.168.0.0/16`, `172.16.0.0/12`) is another router in cascade, and a `100.64.0.0/10` hop is the provider's CGNAT. A `10.x` hop may be the provider's own network, so it does not count. The second hop is also the provider's modem, whose page the double-router guide links. |
 | `upnp`, `pmp` | Whether the router answers UPnP IGD or NAT-PMP / PCP. |
 | `net` | `wifi`, `cellular`, `ethernet` or `other`. Mobile data counts as CGNAT. |
 

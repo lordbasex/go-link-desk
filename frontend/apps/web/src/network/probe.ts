@@ -92,6 +92,8 @@ export type Native = {
   gw?: string;
   /** The router's own outside address, as the router says (UPnP or NAT-PMP). */
   wan?: string;
+  /** The first routers toward go-link Desk's server (traceroute), when the router said nothing. */
+  hops?: string[];
   /** The router answers UPnP (IGD) or NAT-PMP / PCP. */
   upnp?: boolean;
   pmp?: boolean;
@@ -125,6 +127,12 @@ export function parseNative(hash: string): Native | null {
   if (lan) n.lan = lan;
   if (gw) n.gw = gw;
   if (wan) n.wan = wan;
+  if (Array.isArray(o.hops)) {
+    const hops = o.hops.slice(0, 4).map(ipOrUndefined);
+    const upTo = hops.findIndex((h) => !h);
+    const ok = (upTo < 0 ? hops : hops.slice(0, upTo)) as string[];
+    if (ok.length) n.hops = ok;
+  }
   if (typeof o.upnp === "boolean") n.upnp = o.upnp;
   if (typeof o.pmp === "boolean") n.pmp = o.pmp;
   if (o.net === "wifi" || o.net === "cellular" || o.net === "ethernet" || o.net === "other") n.net = o.net;
@@ -154,19 +162,45 @@ export type Report = {
   native?: Native;
 };
 
-/** Routers between this device and the internet, when the app could tell. */
+const homeNetwork = (ip: string) => /^(192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip);
+
+/**
+ * Routers between this device and the internet, when the app could tell:
+ * from the router's own outside address (UPnP, NAT-PMP), else from the
+ * first hops. After this device's router, each hop on a home network
+ * (192.168/16, 172.16/12) is another router in cascade; a 10.x hop may be
+ * the provider's own network, so it does not count.
+ */
 export function routersOf(r: Pick<Report, "native" | "publicIP">): number | undefined {
   const n = r.native;
-  if (!n?.wan) return undefined;
-  const k = ipKind(n.wan);
-  if (k === "private" || k === "cgnat") return 2; // the router's outside is another network
-  if (k === "public" && r.publicIP && isV4(n.wan) && n.wan !== r.publicIP) return 2;
-  return 1;
+  if (n?.wan) {
+    const k = ipKind(n.wan);
+    if (k === "private" || k === "cgnat") return 2; // the router's outside is another network
+    if (k === "public" && r.publicIP && isV4(n.wan) && n.wan !== r.publicIP) return 2;
+    return 1;
+  }
+  const hops = n?.hops;
+  if (!hops?.length || ipKind(hops[0]!) !== "private") return undefined;
+  let count = 1;
+  for (const h of hops.slice(1)) {
+    if (!homeNetwork(h)) break;
+    count++;
+  }
+  return count;
+}
+
+/** The provider's router in front of this one, as the hops found it (its page is there). */
+export function outerRouterOf(r: Pick<Report, "native">): string | undefined {
+  const hops = r.native?.hops;
+  return hops && hops.length > 1 && homeNetwork(hops[1]!) ? hops[1] : undefined;
 }
 
 /** The provider shares one address among many customers (100.64.0.0/10), or mobile data. */
 export function cgnatOf(r: Pick<Report, "native">): boolean {
-  return r.native?.wan ? ipKind(r.native.wan) === "cgnat" : r.native?.net === "cellular";
+  const n = r.native;
+  if (n?.wan) return ipKind(n.wan) === "cgnat";
+  if (n?.hops?.slice(0, 3).some((h) => ipKind(h) === "cgnat")) return true;
+  return n?.net === "cellular";
 }
 
 export type Verdict = "direct" | "maybe" | "relay";

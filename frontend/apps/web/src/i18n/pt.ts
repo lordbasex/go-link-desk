@@ -483,7 +483,7 @@ export const pt: Messages = {
     hintWeb: "Toque em **Testar**. Abrimos a mesma conexão que uma sessão usa, sem ninguém do outro lado: nada do seu aparelho é enviado.",
     hintApp: "Pelo **app do go-link Desk** também vemos seu IP local e perguntamos ao seu roteador o IP de saída dele, para encontrar roteadores em cascata.",
     nodes: { device: "Seu aparelho", router: "Seu roteador", outer: "Roteador de fora", internet: "Internet", signal: "Sinalização", relay: "Relay (TURN)", relayWhere: "Virgínia, EUA" },
-    sub: { lan: "IP da sua rede", hidden: "oculto", appOnly: "só no app", wanPrivate: "saída privada", wanCgnat: "IP do provedor", wanPublic: "IP de saída", publicIP: "seu IP público" },
+    sub: { lan: "IP da sua rede", hidden: "oculto", appOnly: "só no app", gateway: "o IP na sua rede", wanPrivate: "saída privada", wanCgnat: "IP do provedor", wanPublic: "IP de saída", publicIP: "seu IP público" },
     gauge: { direct: "Direto", maybe: "Depende", relay: "Relay" },
     steps: { signal: "Servidor de sinalização", lan: "Sua rede local", routers: "Roteadores em cascata", udp: "UDP", public: "IP público", nat: "Porta do roteador", relay: "Relay" },
     values: { hidden: "oculto pelo navegador", appOnly: "só no app", allowed: "liberado", blocked: "bloqueado", keeps: "mantém", changes: "muda", noAnswer: "sem resposta", ms: "{ms} ms", via: "{proto} · {ms} ms" },
@@ -517,6 +517,7 @@ export const pt: Messages = {
         ],
         rule: ["Modem do provedor › NAT › DMZ", "Host DMZ: {wan}", "", "Seu roteador › Avançado › UPnP", "UPnP: Ativado"],
         wanUnknown: "o IP de saída do seu roteador",
+        modemAt: "Modem do provedor",
       },
       one: {
         title: "Um só roteador: quase sempre vai direto",

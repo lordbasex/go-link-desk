@@ -2,7 +2,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { DEFAULT_SIGNAL_URL } from "../config";
 import { t, useLang } from "../i18n";
-import { adviceOf, cgnatOf, ipKind, parseNative, routersOf, runTest, verdictOf, type Advice, type Native, type Report, type StepEvent, type StepId, type StepState, type Verdict } from "../network/probe";
+import { adviceOf, cgnatOf, ipKind, outerRouterOf, parseNative, routersOf, runTest, verdictOf, type Advice, type Native, type Report, type StepEvent, type StepId, type StepState, type Verdict } from "../network/probe";
 import { SiteFooter, SiteNav } from "./LandingPage";
 import "../styles/landing.css";
 import "../styles/network.css";
@@ -250,6 +250,7 @@ function PathDiagram({ run, native }: { run: Run; native: Native | null }) {
   const flowing = run.active ? (FLOWS[run.active] ?? []) : [];
 
   const wanKind = native?.wan ? ipKind(native.wan) : undefined;
+  const outer = r ? outerRouterOf(r) : undefined;
   const nodes: Record<NodeId, { title: string; ip: string; sub: string; on: boolean; ok?: boolean }> = {
     device: {
       title: n.nodes.device,
@@ -259,15 +260,15 @@ function PathDiagram({ run, native }: { run: Run; native: Native | null }) {
     },
     router: {
       title: n.nodes.router,
-      ip: native?.wan ?? (native ? "—" : "?"),
-      sub: wanKind === "cgnat" ? n.sub.wanCgnat : wanKind === "private" ? n.sub.wanPrivate : native?.wan ? n.sub.wanPublic : n.sub.appOnly,
+      ip: native?.wan ?? native?.gw ?? (native ? "—" : "?"),
+      sub: wanKind === "cgnat" ? n.sub.wanCgnat : wanKind === "private" ? n.sub.wanPrivate : native?.wan ? n.sub.wanPublic : native?.gw ? n.sub.gateway : n.sub.appOnly,
       on: !!st.routers,
     },
     mid: {
-      title: routers === 2 ? n.nodes.outer : n.nodes.internet,
-      ip: r?.publicIP ?? "—",
-      sub: n.sub.publicIP,
-      on: !!r?.publicIP,
+      title: (routers ?? 1) > 1 ? n.nodes.outer : n.nodes.internet,
+      ip: (outer ?? r?.publicIP) || "—",
+      sub: outer && r?.publicIP ? `↗ ${r.publicIP}` : n.sub.publicIP,
+      on: !!r?.publicIP || !!outer,
     },
     signal: {
       title: n.nodes.signal,
@@ -311,7 +312,7 @@ function PathDiagram({ run, native }: { run: Run; native: Native | null }) {
         );
       })}
       {st.routers && <NatBadge box={L.box.router} label="NAT" />}
-      {routers === 2 && <NatBadge box={L.box.mid} label="NAT 2" />}
+      {(routers ?? 1) > 1 && <NatBadge box={L.box.mid} label={(routers ?? 2) > 2 ? `NAT ${routers}` : "NAT 2"} />}
       {flowing.map((w, i) => (
         <Packets key={`${run.active}-${w}`} wire={w} relay={w === "rel"} delay={i * 0.35} />
       ))}
@@ -471,6 +472,8 @@ function Fix({ advice, report }: { advice: Advice; report: Report | null }) {
   const f = t.network.fix;
   const g = f[advice];
   const wan = report?.native?.wan && ipKind(report.native.wan) !== "public" ? report.native.wan : f.double.wanUnknown;
+  const outer = report ? outerRouterOf(report) : undefined;
+  const lines = advice === "double" && outer ? [`${f.double.modemAt}: http://${outer}`, ...f.double.rule] : "rule" in g ? g.rule : [];
   return (
     <div className="nt-fix">
       <div>
@@ -481,7 +484,7 @@ function Fix({ advice, report }: { advice: Advice; report: Report | null }) {
           ))}
         </ol>
       </div>
-      <div>{"rule" in g ? <Rule lines={g.rule} wan={wan} /> : <p className="nt-callout">{rich(g.ask)}</p>}</div>
+      <div>{"rule" in g ? <Rule lines={lines} wan={wan} /> : <p className="nt-callout">{rich(g.ask)}</p>}</div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   ipKind,
   mappingOf,
   nativeFragment,
+  outerRouterOf,
   parseCandidate,
   parseNative,
   routersOf,
@@ -83,6 +84,8 @@ describe("parseNative", () => {
     const evil = "#d=" + btoa(JSON.stringify({ src: "ios", lan: "<img src=x>", wan: "100.72.14.9", net: "satellite", extra: 1 })).replace(/=+$/, "");
     expect(parseNative(evil)).toEqual({ src: "ios", wan: "100.72.14.9" });
     expect(parseNative("#d=" + btoa(JSON.stringify({ src: "other" })))).toBeNull();
+    const hops = "#d=" + btoa(JSON.stringify({ src: "desktop", hops: ["172.17.0.1", "192.168.1.1", "nope", "8.8.8.8"] })).replace(/=+$/, "");
+    expect(parseNative(hops)?.hops).toEqual(["172.17.0.1", "192.168.1.1"]);
     expect(parseNative("#d=%%%")).toBeNull();
     expect(parseNative("")).toBeNull();
   });
@@ -94,6 +97,20 @@ describe("routers, CGNAT and the verdict", () => {
     expect(routersOf({ ...base, native: { src: "desktop", wan: "192.168.1.2" } })).toBe(2);
     expect(routersOf({ ...base, native: { src: "desktop", wan: "190.210.4.77" } })).toBe(2);
     expect(routersOf({ ...base, native: { src: "desktop", wan: "181.23.153.151" } })).toBe(1);
+  });
+
+  it("counts routers in cascade from the first hops when the router said nothing", () => {
+    const hops = (h: string[]) => ({ ...base, native: { src: "desktop" as const, hops: h } });
+    expect(routersOf(hops(["172.17.0.1", "192.168.1.1", "200.51.241.1"]))).toBe(2);
+    expect(routersOf(hops(["192.168.0.1", "192.168.1.1", "172.16.0.1"]))).toBe(3);
+    expect(routersOf(hops(["192.168.0.1", "10.20.0.1"]))).toBe(1); // the provider's network
+    expect(routersOf(hops(["192.168.0.1", "200.51.241.1"]))).toBe(1);
+    expect(routersOf(hops(["200.51.241.1"]))).toBeUndefined();
+    expect(outerRouterOf(hops(["172.17.0.1", "192.168.1.1"]))).toBe("192.168.1.1");
+    expect(outerRouterOf(hops(["192.168.0.1", "10.20.0.1"]))).toBeUndefined();
+    expect(cgnatOf(hops(["192.168.0.1", "100.72.0.1"]).valueOf())).toBe(true);
+    expect(verdictOf(hops(["172.17.0.1", "192.168.1.1", "200.51.241.1"]))).toBe("maybe");
+    expect(adviceOf(hops(["172.17.0.1", "192.168.1.1"]))).toBe("double");
   });
 
   it("calls the provider's 100.64/10 and mobile data CGNAT", () => {

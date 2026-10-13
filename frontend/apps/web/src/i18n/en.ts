@@ -485,7 +485,7 @@ export const en = {
     hintWeb: "Tap **Test**. We open the same connection a session uses, with nobody on the other side: nothing from your device is sent.",
     hintApp: "From the **go-link Desk app** we also see your local address and ask your router for its outside address, to find routers in cascade.",
     nodes: { device: "Your device", router: "Your router", outer: "Outer router", internet: "Internet", signal: "Signaling", relay: "Relay (TURN)", relayWhere: "Virginia, US" },
-    sub: { lan: "your network's address", hidden: "hidden", appOnly: "in the app only", wanPrivate: "private outside address", wanCgnat: "the provider's address", wanPublic: "outside address", publicIP: "your public address" },
+    sub: { lan: "your network's address", hidden: "hidden", appOnly: "in the app only", gateway: "its address", wanPrivate: "private outside address", wanCgnat: "the provider's address", wanPublic: "outside address", publicIP: "your public address" },
     gauge: { direct: "Direct", maybe: "Depends", relay: "Relay" },
     steps: { signal: "Signaling server", lan: "Your local network", routers: "Routers in cascade", udp: "UDP", public: "Public address", nat: "Router's port", relay: "Relay" },
     values: { hidden: "hidden by the browser", appOnly: "in the app only", allowed: "allowed", blocked: "blocked", keeps: "keeps it", changes: "changes it", noAnswer: "no answer", ms: "{ms} ms", via: "{proto} · {ms} ms" },
@@ -519,6 +519,7 @@ export const en = {
         ],
         rule: ["Provider's modem › NAT › DMZ", "DMZ host: {wan}", "", "Your router › Advanced › UPnP", "UPnP: On"],
         wanUnknown: "your router's outside address",
+        modemAt: "Provider's modem",
       },
       one: {
         title: "One router: it almost always goes direct",

@@ -53,6 +53,14 @@ describe("NetworkPage", () => {
     expect(document.querySelector(".nt-rule")?.textContent).toContain("192.168.1.2"); // the DMZ host in the rule
   });
 
+  it("finds the provider's modem in the hops and links its page", async () => {
+    window.location.hash = nativeFragment({ src: "desktop", lan: "172.17.0.5", gw: "172.17.0.1", hops: ["172.17.0.1", "192.168.1.1", "200.51.241.1"] });
+    show(fake({ signalOk: true, signalMs: 140, udp: true, ipv6: false, mapping: "independent", relayOk: true, relayMs: 143, publicIP: "181.23.153.151" }));
+    expect(await screen.findByText(en.network.result.maybe.title)).toBeTruthy();
+    expect(document.querySelector(".nt-rule")?.textContent).toContain("http://192.168.1.1");
+    expect(screen.getAllByText(en.network.nodes.outer).length).toBeGreaterThan(0);
+  });
+
   it("says when go-link Desk's server cannot be reached", async () => {
     show(fake({ signalOk: false, udp: false, ipv6: false, mapping: "unknown", relayOk: false }));
     await userEvent.click(screen.getByRole("button", { name: en.network.start }));
