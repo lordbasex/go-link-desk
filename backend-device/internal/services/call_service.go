@@ -101,13 +101,17 @@ type CallService struct {
 	media  CallMedia
 	log    *slog.Logger
 
-	mu       sync.Mutex
-	consent  CallConsent
-	status   CallStatus
-	cancel   context.CancelFunc // a pending question
-	stopCam  func()
-	voice    CallVoice
-	camEnc   videoEncoder
+	mu      sync.Mutex
+	consent CallConsent
+	status  CallStatus
+	cancel  context.CancelFunc // a pending question
+	stopCam func()
+	voice   CallVoice
+	camEnc  videoEncoder
+	// camMu: the camera's frames encode one at a time, and its encoder is
+	// never closed under one (a camera's stop does not wait for the frame
+	// it is handing over; libvpx's memory freed mid-frame crashed the host).
+	camMu    sync.Mutex
 	micEnc   *encoder.Opus
 	micBuf   []int16
 	onStatus func(CallStatus)
@@ -306,7 +310,9 @@ func (c *CallService) SetCamera(on bool) {
 		stop()
 	}
 	if enc != nil {
+		c.camMu.Lock()
 		enc.close()
+		c.camMu.Unlock()
 	}
 	if !on || !active {
 		c.mu.Lock()
@@ -319,10 +325,9 @@ func (c *CallService) SetCamera(on bool) {
 	if !ok {
 		return
 	}
-	var encMu sync.Mutex
 	stopCam, err := c.media.StartCamera(func(f Frame) {
-		encMu.Lock()
-		defer encMu.Unlock()
+		c.camMu.Lock()
+		defer c.camMu.Unlock()
 		c.mu.Lock()
 		e := c.camEnc
 		c.mu.Unlock()
@@ -406,7 +411,9 @@ func (c *CallService) End() {
 		stop()
 	}
 	if enc != nil {
+		c.camMu.Lock()
 		enc.close()
+		c.camMu.Unlock()
 	}
 	if voice != nil {
 		voice.Stop()
