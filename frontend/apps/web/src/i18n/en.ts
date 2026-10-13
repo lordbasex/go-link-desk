@@ -375,6 +375,8 @@ export const en = {
         { q: "Can someone get into my computer without me knowing?", a: "No. The person at the computer accepts every session. Unattended access is turned on by them, always with a password, and they can revoke it." },
         { q: "Someone called and asked me to install this.", a: "Hang up. Your bank, the police or a support line never call to ask for access to your computer." },
         { q: "Does it work away from home?", a: "Yes. Both ends meet over the internet; when there is no direct path, the data goes through a relay that cannot read it." },
+        { q: "What computer do I need?", a: "Any 64-bit computer from the last ten years: two cores send a smooth Full HD screen, and a Mac does it in hardware (macOS 13 or newer). The figures, per processor and screen size, are in the docs under System requirements." },
+        { q: "How much internet does it use?", a: "Almost nothing while the screen is still, and up to 10 Mbps on a busy Full HD screen. With less, the picture lowers its size and frame rate by itself, down to about half a megabit." },
       ],
     },
     footer: {

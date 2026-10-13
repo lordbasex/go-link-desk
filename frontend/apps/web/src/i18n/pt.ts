@@ -373,6 +373,8 @@ export const pt: Messages = {
         { q: "Alguém pode entrar no meu computador sem eu saber?", a: "Não. A pessoa na frente do computador aceita cada sessão. O acesso não supervisionado é ativado por ela, sempre com senha, e ela pode revogá-lo." },
         { q: "Me ligaram pedindo para instalar isto.", a: "Desligue. Nem o seu banco, nem a polícia, nem um suporte técnico ligam para pedir acesso ao seu computador." },
         { q: "Funciona fora de casa?", a: "Sim. As duas pontas se encontram pela internet; quando não há caminho direto, os dados passam por um relé que não pode lê-los." },
+        { q: "De que computador eu preciso?", a: "Qualquer computador de 64 bits dos últimos dez anos: com dois núcleos ele envia uma tela Full HD fluida, e um Mac faz isso por hardware (macOS 13 ou mais recente). Os números, por processador e tamanho de tela, estão na documentação, em Requisitos." },
+        { q: "Quanta internet usa?", a: "Quase nada enquanto a tela está parada, e até 10 Mbps numa tela Full HD com muito movimento. Com menos, a imagem reduz sozinha o tamanho e os quadros por segundo, até cerca de meio megabit." },
       ],
     },
     footer: {
