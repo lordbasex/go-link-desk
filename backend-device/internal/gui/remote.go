@@ -135,7 +135,7 @@ func (u *ui) connect(door viewer.Door) {
 		signal = door.Device.SignalURL
 	}
 	r.s = viewer.New(viewer.Options{
-		Door: door, Name: u.viewerName(), Agent: u.agent(), Codecs: []string{"h264-high", "h264"},
+		Door: door, Name: u.viewerName(), Agent: u.agent(), Codecs: []string{"h264-high", "h264", "vp8"},
 		SignalURL: signal, OwnDeviceID: cfg.DeviceID, Logger: u.opts.Logger, Events: r.events(),
 	})
 	r.input = viewer.NewInput(r.s)
