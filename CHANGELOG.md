@@ -30,6 +30,9 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - The small code window is gone on both systems.
   - **On Windows, the frame takes the app's colors:** the title bar in the top bar's color, its title in the text's, and the border in the lines'. Windows draws them (DWM), with its own minimize, maximize and close buttons. Windows 11 takes the exact colors; Windows 10 takes only a dark or light frame.
   - **No margin around the content:** the windows no longer have Fyne's own margin, which showed as a white frame.
+  - **Inter is the app's font** on both systems, its other windows included. It is set before anything measures text: Fyne keeps the faces it measured with, so fields had been measured in its own narrower font and their last characters were cut on Windows.
+  - **Settings words the icon rows the way each system does:** taskbar and notification area on Windows; dock or taskbar and the system tray on Linux.
+  - **The main window opens at 1120×680**, which fits a 1366×768 laptop or a 1280×800 screen with its taskbar.
 
 ## [1.1.0] - 2026-10-12
 
