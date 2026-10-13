@@ -30,6 +30,10 @@ func (t *sizedTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Col
 		return color.Transparent
 	case theme.ColorNameInputBorder:
 		return color.Transparent
+	case theme.ColorNameShadow:
+		// The scroll's edge shadow when the text nearly fills the field:
+		// a bright line on a dark field, which the Mac's do not have.
+		return color.Transparent
 	}
 	return appTheme{}.Color(n, v)
 }
