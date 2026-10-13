@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **A connection test at desk.go-link.org/network** (also `/red` and `/rede`), in English, Spanish and Portuguese: does this network go direct or through the relay? Like a speed test, it draws the path from the device through its routers to go-link Desk's servers, with packets moving at each step, a gauge that lands on **Direct**, **Depends** or **Relay**, and each step live: the signaling server's round trip, UDP, the public address, whether the router keeps the port toward two STUN servers (symmetric NAT when it does not), and the relay's round trip and transport (two connections in the page, both forced through the TURN of `hello`; a few bytes, no bandwidth test). It explains that the relay is not a fault, with guides for two routers in cascade (bridge mode, DMZ, UPnP), one router, the provider's CGNAT (a public address, IPv6) and networks that block UDP, and a map of the Americas (Natural Earth) with the relays: Virginia, and São Paulo on the way, with an invitation to offer one. The apps will open it with the local address and the router's after `#d=` (never sent to a server) to find routers in cascade; the session's (i) panel links to it when a session goes through the relay. Everything runs in the browser and nothing is stored (`docs/network.md`).
+
 ## [1.3.2] - 2026-10-13
 
 Try go-link Desk without a second computer: a Try the demo button in every app (Mac, Windows, Linux, iPhone, iPad, Android and the web) connects to a locked-down demonstration computer, whose codes are always at desk.go-link.org/demo.

@@ -12,13 +12,15 @@ import { LandingPage } from "./pages/LandingPage";
 import { LinkPage } from "./pages/LinkPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { DemoPage } from "./pages/DemoPage";
+import { NetworkPage } from "./pages/NetworkPage";
 import { SessionPage } from "./pages/SessionPage";
 import { WebHomePage } from "./pages/WebHomePage";
 
 /**
  * desk.go-link.org: the landing (/), the docs (/docs) and the web app's
  * Home (/web) have their own look; the session, linking and privacy pages keep the site's
- * header and footer. /c and /devices, the old ways in, lead to /web.
+ * header and footer. /c and /devices, the old ways in, lead to /web; /red
+ * and /rede (Spanish and Portuguese) to the connection test, /network.
  * The public pages (landing, docs, privacy) carry the cookie notice and,
  * with consent, Google Analytics; the app's pages never do (analytics.ts).
  */
@@ -33,7 +35,7 @@ export function App() {
   // Google's script is in this page: an app page waits for the full page
   // load guardHistory started instead of rendering next to it.
   if (!counted && analyticsLoaded()) return null;
-  const ownLook = path === "/" || path === "/web" || path === "/docs" || path.startsWith("/docs/");
+  const ownLook = path === "/" || path === "/web" || path === "/network" || path === "/docs" || path.startsWith("/docs/");
   const routes = (
     <Routes>
       <Route path="/" element={<LandingPage />} />
@@ -48,6 +50,9 @@ export function App() {
       <Route path="/d/:deviceId" element={<DevicePage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/demo" element={<DemoPage />} />
+      <Route path="/network" element={<NetworkPage />} />
+      <Route path="/red" element={<Navigate to={{ pathname: "/network", hash: window.location.hash }} replace />} />
+      <Route path="/rede" element={<Navigate to={{ pathname: "/network", hash: window.location.hash }} replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

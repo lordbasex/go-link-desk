@@ -100,7 +100,14 @@ export function StreamInfo({
               {t.stats.measure}
             </button>
           )}
-          {path === "relay" && <p className="small muted">{t.stats.relayHint}</p>}
+          {path === "relay" && (
+            <p className="small muted">
+              {t.stats.relayHint}{" "}
+              <a href="/network" target="_blank" rel="noopener">
+                {t.stats.relayTest}
+              </a>
+            </p>
+          )}
         </div>
       )}
     </div>
