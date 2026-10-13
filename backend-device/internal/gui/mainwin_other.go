@@ -5,6 +5,8 @@
 package gui
 
 import (
+	"fyne.io/fyne/v2"
+
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/fyneview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 )
@@ -24,3 +26,4 @@ func mainSetTheme(mode int)                      { fyneview.SetTheme(mode) }
 func mainSetIcon(png []byte)                     { fyneview.SetIcon(png) }
 func mainAbout(version, text string)             { fyneview.ShowAbout(version, text) }
 func mainSetMenu(map[string]string)              {}
+func useAppTheme(a fyne.App)                     { fyneview.UseTheme(a) }

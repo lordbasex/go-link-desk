@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
@@ -73,7 +72,6 @@ func OpenMain(labels map[string]string, h Handler) error {
 	if a == nil {
 		return remoteview.ErrUnsupported
 	}
-	a.Settings().SetTheme(fontTheme{theme.DefaultTheme()})
 	m := &mainWin{app: a, labels: labels, h: h, filter: "all"}
 	m.viewMode = a.Preferences().IntWithFallback("org.go-link.desk.view", 0)
 	m.win = a.NewWindow("go-link Desk")

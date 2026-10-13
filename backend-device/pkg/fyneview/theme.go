@@ -232,9 +232,15 @@ func (appTheme) Size(n fyne.ThemeSizeName) float32 {
 // fontTheme is Fyne's own theme with Inter for text: the app's theme
 // everywhere, so its other windows read like these. Fyne measures a
 // field's text with the app's theme, not the field's: in another font
-// the measure falls short of what Inter draws, and the last character
-// was cut.
+// the measure falls short of what Inter draws, and the end was cut.
 type fontTheme struct{ fyne.Theme }
+
+// UseTheme makes Inter the app's font. It must come before anything
+// measures text (the tray, a window): Fyne keeps the faces it measured
+// with and does not drop them when the theme changes.
+func UseTheme(a fyne.App) {
+	a.Settings().SetTheme(fontTheme{theme.DefaultTheme()})
+}
 
 func (t fontTheme) Font(s fyne.TextStyle) fyne.Resource {
 	if s.Monospace || s.Symbol {

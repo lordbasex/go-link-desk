@@ -123,6 +123,7 @@ func Run(opts Options) {
 		_ = os.Setenv("RESOURCE_NAME", appID)
 	}
 	a := app.NewWithID(appID)
+	useAppTheme(a) // before anything measures text
 	icon := trayicon.AppPNG()
 	if opts.Settings != nil {
 		cfg := opts.Settings.Get()

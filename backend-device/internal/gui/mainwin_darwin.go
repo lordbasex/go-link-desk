@@ -4,7 +4,11 @@
 
 package gui
 
-import "github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
+import (
+	"fyne.io/fyne/v2"
+
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
+)
 
 // The main window and Settings: macOS draws them natively (remoteview).
 
@@ -20,3 +24,6 @@ func mainSetTheme(mode int)                      { remoteview.SetTheme(mode) }
 func mainSetIcon(png []byte)                     { remoteview.SetDockIcon(png) }
 func mainAbout(version, text string)             { remoteview.ShowAbout(version, text) }
 func mainSetMenu(labels map[string]string)       { remoteview.SetAppMenu(labels) }
+
+// useAppTheme: the Mac keeps Fyne's theme for its few Fyne windows.
+func useAppTheme(fyne.App) {}
