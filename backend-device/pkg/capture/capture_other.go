@@ -35,3 +35,7 @@ func Problem() string { return "" }
 // RemoteControl reports whether the desktop lets the viewers use the mouse
 // and keyboard (always, here).
 func RemoteControl() bool { return true }
+
+// AsksInputApart: only a Wayland desktop asks for the mouse and keyboard
+// apart.
+func AsksInputApart() bool { return false }
