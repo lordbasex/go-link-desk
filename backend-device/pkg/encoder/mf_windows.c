@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "mf_windows.h"
 
@@ -23,6 +24,15 @@ static const GUID key_low_latency = {STATIC_CODECAPI_AVLowLatencyMode};
 static const GUID key_b_frames = {STATIC_CODECAPI_AVEncMPVDefaultBPictureCount};
 static const GUID key_gop = {STATIC_CODECAPI_AVEncMPVGOPSize};
 static const GUID key_force_key = {STATIC_CODECAPI_AVEncVideoForceKeyFrame};
+// EXPERIMENT (mf-exp): knobs read from the environment.
+static const GUID key_max_qp = {STATIC_CODECAPI_AVEncVideoMaxQP};
+static const GUID key_buffer = {STATIC_CODECAPI_AVEncCommonBufferSize};
+static const GUID key_max_rate = {STATIC_CODECAPI_AVEncCommonMaxBitRate};
+static const GUID key_qvs = {STATIC_CODECAPI_AVEncCommonQualityVsSpeed};
+static int env_int(const char *name, int def) {
+	const char *v = getenv(name);
+	return v && *v ? atoi(v) : def;
+}
 
 // H.264 from Media Foundation: Windows' own encoder transform (an MFT),
 // called synchronously: I420 in, Annex B access units out, low latency, a
@@ -185,9 +195,18 @@ mf_enc *mf_open(int w, int h, int fps, int kbps, int gop, int high, int *err) {
 	IMFTransform_QueryInterface(e->t, &IID_ICodecAPI, (void **)&e->api);
 	if (e->api) {
 		// Before the types: some settings are read when they are set.
-		set_u32(e->api, &key_rate_mode, eAVEncCommonRateControlMode_CBR);
+		int mode = env_int("DESK_MF_MODE", 0); // 0 CBR, 1 peak constrained VBR, 2 unconstrained, 3 quality, 4 low delay VBR
+		set_u32(e->api, &key_rate_mode, (UINT32)mode);
 		set_u32(e->api, &key_bitrate, (UINT32)kbps * 1000);
-		set_bool(e->api, &key_low_latency, 1);
+		set_bool(e->api, &key_low_latency, env_int("DESK_MF_LL", 1));
+		if (mode == 1) set_u32(e->api, &key_max_rate, (UINT32)kbps * 1000);
+		int qp = env_int("DESK_MF_MAXQP", 0), bufms = env_int("DESK_MF_BUFMS", 0), qvs = env_int("DESK_MF_QVS", -1);
+		VARIANT v;
+		HRESULT hq = S_OK, hb = S_OK, hs = S_OK;
+		if (qp > 0) { VariantInit(&v); v.vt = VT_UI4; v.ulVal = (ULONG)qp; hq = ICodecAPI_SetValue(e->api, &key_max_qp, &v); }
+		if (bufms > 0) { VariantInit(&v); v.vt = VT_UI4; v.ulVal = (ULONG)((UINT64)kbps * bufms); hb = ICodecAPI_SetValue(e->api, &key_buffer, &v); }
+		if (qvs >= 0) { VariantInit(&v); v.vt = VT_UI4; v.ulVal = (ULONG)qvs; hs = ICodecAPI_SetValue(e->api, &key_qvs, &v); }
+		fprintf(stderr, "mf-exp: %dx%d fps %d kbps %d mode %d ll %d maxqp %d(0x%lx) buf %dms(0x%lx) qvs %d(0x%lx)\n", w, h, fps, kbps, mode, env_int("DESK_MF_LL", 1), qp, (unsigned long)hq, bufms, (unsigned long)hb, qvs, (unsigned long)hs);
 		set_u32(e->api, &key_b_frames, 0);
 		set_u32(e->api, &key_gop, (UINT32)gop);
 	}
