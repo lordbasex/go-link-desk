@@ -10,7 +10,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
-	"fyne.io/fyne/v2/theme"
 	"golang.org/x/sys/windows"
 )
 
@@ -41,24 +40,6 @@ func setAttribute(hwnd uintptr, attr uint32, v uint32) {
 
 // colorRef is a Win32 COLORREF: 0x00BBGGRR.
 func colorRef(c color.NRGBA) uint32 { return uint32(c.R) | uint32(c.G)<<8 | uint32(c.B)<<16 }
-
-// styleFrame colors a shown window's frame with the palette.
-func styleFrame(w fyne.Window) {
-	p := c()
-	paintFrame(w, p == dark, p.surface, p.text, p.border)
-}
-
-// StyleWindow colors the frame of one of the app's other windows (the
-// connection request, the session) like its insides: Fyne's background
-// and text in the windows' variant.
-func StyleWindow(w fyne.Window) {
-	v := windowVariant()
-	th := theme.DefaultTheme()
-	nrgba := func(n fyne.ThemeColorName) color.NRGBA {
-		return color.NRGBAModel.Convert(th.Color(n, v)).(color.NRGBA)
-	}
-	paintFrame(w, v == theme.VariantDark, nrgba(theme.ColorNameBackground), nrgba(theme.ColorNameForeground), nrgba(theme.ColorNameSeparator))
-}
 
 // paintFrame asks DWM for a dark or light frame and its colors.
 func paintFrame(w fyne.Window, night bool, caption, title, border color.NRGBA) {
