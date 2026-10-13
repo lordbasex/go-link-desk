@@ -4,6 +4,14 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Windows encodes H.264 on the graphics card** (AMD, Intel or NVIDIA), found by itself: it used Windows' own encoder on the processor only, as the encoders of the graphics cards' drivers are asynchronous transforms, which it did not look for.
+  - **Picking it:** the host asks Media Foundation for the hardware H.264 encoders first (the drivers register them), and the first that takes the configuration is tried once with a frame, which must come back as a keyframe with its SPS and PPS. Otherwise (no graphics card encoder, or one that fails the frame) Windows' own as before, and VP8 where there is neither.
+  - **How it runs:** it takes NV12 (converted from the capture's I420) and says by events when it wants a frame and has one encoded; a thread of its own reads them, and each frame's output is waited for so it leaves at once. Low latency, constant bitrate, no B-frames, keyframes when asked, the bitrate changed as it runs, as before.
+  - **If it stops** during a session (a driver reset, the card taken away), Windows' own takes over from a keyframe and the session goes on; the card's is not used again until go-link Desk restarts.
+  - **The log** (`video encoder`) names the encoder (for example `AMDh264Encoder`) and says whether it is hardware.
+
 ## [1.3.0] - 2026-10-13
 
 go-link Desk updates itself: it says when there is a new version and installs it, on macOS, Windows and Linux. Also the Mac app shows computers that send VP8, and Linux encodes H.264 on Intel and AMD GPUs.

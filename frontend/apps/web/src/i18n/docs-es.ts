@@ -159,7 +159,7 @@ export const docsEs: Docs = {
           ],
         },
         { t: "h2", id: "processor", text: "Procesador" },
-        { t: "p", text: "La computadora que compartís comprime su imagen. Una Mac lo hace por hardware (H.264, VideoToolbox), casi sin carga; Windows usa su propio codificador H.264, en el chip gráfico si hay uno. Si no, lo hace el procesador (VP8)." },
+        { t: "p", text: "La computadora que compartís comprime su imagen. Una Mac lo hace por hardware (H.264, VideoToolbox), casi sin carga. Windows usa el codificador H.264 de la placa de video (AMD, Intel o NVIDIA) si tiene uno, y si no el suyo en el procesador; Linux usa las placas Intel y AMD (VA-API). Si no, lo hace el procesador (VP8). Cada uno encuentra su codificador solo, probándolo con un cuadro." },
         { t: "p", text: "El caso más pesado es una pantalla que cambia entera todo el tiempo, como una terminal que hace scroll de texto. La tabla muestra cuántos cuadros por segundo codifica cada computadora esa pantalla en cada tamaño. Una sesión fluida necesita 30: lo que sobra es margen. Una pantalla que casi no cambia no cuesta casi nada." },
         {
           t: "table",

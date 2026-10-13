@@ -125,6 +125,10 @@ func (e *H264) SetBitrate(kbps int) { e.sys.setBitrate(kbps) }
 // hardware feature) does not.
 func (e *H264) Hardware() (hardware, known bool) { return e.sys.hardware == 1, e.sys.hardware >= 0 }
 
+// Name is the encoder's own name where the system gives one (Windows:
+// its driver's, as "AMDh264Encoder"), else "".
+func (e *H264) Name() string { return e.sys.name }
+
 // Close stops the encoder and waits for the last frame.
 func (e *H264) Close() {
 	e.sys.close()
