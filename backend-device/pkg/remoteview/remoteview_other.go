@@ -17,6 +17,7 @@ func (v *View) SetTitle(string)                                        {}
 func (v *View) Overlay(string, bool, string, bool)                     {}
 func (v *View) HUD(string)                                             {}
 func (v *View) Video([]byte)                                           {}
+func (v *View) Picture(int, int, []byte, []byte, []byte, int, int)     {}
 func (v *View) CursorShape([]byte, float64, float64, float64, float64) {}
 func (v *View) CursorPos(float64, float64, bool)                       {}
 func (v *View) SetControl(bool)                                        {}

@@ -13,6 +13,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **Signed:** each release's `SHA256SUMS` carries an Ed25519 signature by an update key that only the release computer holds (`make release-sums`); the app installs nothing else. A file that does not match is thrown away.
   - Pre-releases are never offered.
   - The update reaches copies from 1.3.0 on: earlier ones are updated by hand once more.
+- **The Mac app shows computers that send VP8:** a Linux computer without an H.264 encoder on its GPU (and every virtual machine), or a Windows one without Media Foundation. It said "This computer sends its picture in a format this app cannot show yet" and pointed to the website. The app decodes VP8 with libvpx, which it already carried for its own screen, and draws it in the same layer as H.264; a frame that built on a lost one is not drawn, and a whole picture is asked for. Its knock now lists VP8 among the codecs it decodes, after H.264: the computer still sends H.264 when it has an encoder for it, and VP8 otherwise.
 
 ## [1.2.0] - 2026-10-13
 
