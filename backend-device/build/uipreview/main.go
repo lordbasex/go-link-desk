@@ -29,6 +29,7 @@ func main() {
 	iconSheet := flag.Bool("icons", false, "only the icons, to check how they draw")
 	flag.Parse()
 	a := app.NewWithID("org.go-link.desk.uipreview")
+	fyneview.UseTheme(a)
 	if *iconSheet {
 		w := a.NewWindow("icons")
 		w.SetContent(fyneview.IconSheet())
