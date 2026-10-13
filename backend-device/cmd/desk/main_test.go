@@ -61,6 +61,12 @@ func TestCodeFileOnlyOnADemonstrationHost(t *testing.T) {
 	if _, err := parseFlags(screen[:len(screen)-1]); err == nil && !allowAutoAcceptScreen {
 		t.Fatal("the real screen to everyone without --test-demo-screen was allowed")
 	}
+	if f, err := parseFlags(append(screen, "--test-relay-only")); err != nil || !f.relayOnly {
+		t.Fatalf("%+v %v", f, err)
+	}
+	if _, err := parseFlags([]string{"--test-relay-only"}); err == nil {
+		t.Fatal("--test-relay-only outside a demonstration host was allowed")
+	}
 	if _, err := parseFlags([]string{"--test-demo-screen", "--test-auto-accept", "--source", "screen"}); err == nil {
 		t.Fatal("--test-demo-screen outside a demonstration host was allowed")
 	}

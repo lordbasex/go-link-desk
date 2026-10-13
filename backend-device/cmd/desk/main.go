@@ -78,6 +78,7 @@ type flags struct {
 	codeFile   string
 	filesDir   string
 	demoScreen bool
+	relayOnly  bool
 	picture    string
 	// connect opens a session to another computer at start (its 9-digit
 	// session code).
@@ -110,6 +111,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.picture, "test-picture", "", "a PNG or JPEG the session shows instead of the test card, still and silent (screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.codeFile, "test-code-file", "", "a public demonstration host: keep the session and pairing codes (and the unattended password) in this JSON file as they change, for a web page that shows them (needs --test-clipboard-file, --test-files-folder, and --test-input-log with --source testpattern or --test-demo-screen)")
 	fs.BoolVar(&f.demoScreen, "test-demo-screen", false, "a demonstration host that shows this computer's real screen and takes the viewers' mouse and keyboard: only on a computer kept for it, locked down, with nothing of anyone's on it (needs --test-code-file and --source screen)")
+	fs.BoolVar(&f.relayOnly, "test-relay-only", false, "carry every session through the TURN relay, never straight to the viewer, so a firewall may let the computer reach the signaling server and the relay only (a demonstration host; needs --test-code-file)")
 	fs.StringVar(&f.filesDir, "test-files-folder", "", "the only folder viewers may browse, download from and send files to (DIR/Received), with small files only (a demonstration host; needs --test-code-file)")
 	fs.StringVar(&f.name, "test-name", "", "the computer's name viewers see, instead of this machine's (tests and screenshots only; needs --source testpattern)")
 	fs.StringVar(&f.password, "test-unattended-password", "", "the unattended password (automated tests only; --test-unattended needs it: unattended access always has a password)")
@@ -158,6 +160,9 @@ func parseFlags(args []string) (flags, error) {
 	testCard := f.inputLog && f.source == "testpattern"
 	if f.codeFile != "" && (f.clipboardFile == "" || f.filesDir == "" || !(testCard || f.demoScreen)) {
 		return f, errors.New("--test-code-file needs --test-clipboard-file, --test-files-folder, and --test-input-log with --source testpattern or --test-demo-screen")
+	}
+	if f.relayOnly && f.codeFile == "" {
+		return f, errors.New("--test-relay-only needs --test-code-file")
 	}
 	if f.filesDir != "" && f.codeFile == "" {
 		return f, errors.New("--test-files-folder needs --test-code-file")
@@ -284,7 +289,7 @@ func run(args []string) error {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs,
-		Welcome: meta, Source: source, Logger: logger,
+		Welcome: meta, Source: source, Logger: logger, RelayOnly: f.relayOnly,
 	}, ice)
 	if err != nil {
 		return err
