@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-13
+
+go-link Desk updates itself: it says when there is a new version and installs it, on macOS, Windows and Linux. Also the Mac app shows computers that send VP8, and Linux encodes H.264 on Intel and AMD GPUs.
+
 ### Added
 
 - **The app updates itself** (macOS, Windows and Linux):
