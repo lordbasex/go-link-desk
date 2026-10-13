@@ -5,6 +5,7 @@
 #include <initguid.h>
 #include <windows.h>
 #include <mfapi.h>
+#include <mfidl.h>
 #include <mferror.h>
 #include <mftransform.h>
 #include <codecapi.h>
@@ -23,15 +24,19 @@ static const GUID key_low_latency = {STATIC_CODECAPI_AVLowLatencyMode};
 static const GUID key_b_frames = {STATIC_CODECAPI_AVEncMPVDefaultBPictureCount};
 static const GUID key_gop = {STATIC_CODECAPI_AVEncMPVGOPSize};
 static const GUID key_force_key = {STATIC_CODECAPI_AVEncVideoForceKeyFrame};
+// MF_LOW_LATENCY, which mfapi.h declares for Windows 8 and later only.
+static const GUID attr_low_latency = {0x9c27891a, 0xed7a, 0x40e1, {0x88, 0xe8, 0xb2, 0x27, 0x27, 0xa0, 0x24, 0xee}};
 
-// H.264 from Media Foundation: Windows' own encoder transform (an MFT),
-// called synchronously: I420 in, Annex B access units out, low latency, a
-// constant bitrate, no B-frames. The GPU's encoders (NVIDIA, Intel, AMD)
-// are asynchronous transforms: this takes the synchronous ones, which
-// every Windows 10 and 11 has in software (not the N editions without the
-// Media Feature Pack, where it fails and the stream uses VP8). Media
-// Foundation is loaded when an encoder is first opened, not linked: the
-// program starts on a Windows without it.
+// H.264 from Media Foundation: I420 in, Annex B access units out, low
+// latency, a constant bitrate, no B-frames. The GPU's encoder (AMD's,
+// Intel's, NVIDIA's, which their drivers register) comes first: an
+// asynchronous transform that takes NV12 and says by events when it wants
+// a frame and has one encoded, read by a thread of its own. Where there
+// is none, or it refuses the configuration, Windows' own software encoder
+// (synchronous, I420), which every Windows 10 and 11 has (not the N
+// editions without the Media Feature Pack, where it fails and the stream
+// uses VP8). Media Foundation is loaded when an encoder is first opened,
+// not linked: the program starts on a Windows without it.
 
 typedef HRESULT(WINAPI *startup_fn)(ULONG, DWORD);
 typedef HRESULT(WINAPI *shutdown_fn)(void);
@@ -80,6 +85,25 @@ struct mf_enc {
 	int hardware;
 	uint8_t *copy;      // the last output, copied out of the sample
 	DWORD copy_size;
+	int nv12;           // the transform takes NV12 (I420 is converted)
+	char name[128];     // the transform's name, for the log
+	// An asynchronous transform's events (NULL for a synchronous one).
+	struct events *ev;
+	HANDLE pump;
+	int pending;        // frames given whose output has not come yet
+};
+
+// events counts an asynchronous transform's requests. It is shared with
+// the thread that reads them (pump), and freed by the last of the two.
+struct events {
+	LONG refs;
+	CRITICAL_SECTION mu;
+	CONDITION_VARIABLE cv;
+	int need;   // frames the transform asked for
+	int have;   // access units it has ready
+	int failed; // it reported an error
+	int done;   // its events ended (shut down)
+	IMFMediaEventGenerator *gen;
 };
 
 static void com_in(void) {
@@ -104,27 +128,132 @@ static HRESULT set_bool(ICodecAPI *api, const GUID *key, int v) {
 	return ICodecAPI_SetValue(api, key, &var);
 }
 
-// The first synchronous H.264 encoder that takes I420, which Windows
-// names IYUV (hardware ones first, though those are asynchronous and so
-// not listed).
-static IMFTransform *find_encoder(int *hardware) {
-	MFT_REGISTER_TYPE_INFO in = {MFMediaType_Video, MFVideoFormat_IYUV};
-	MFT_REGISTER_TYPE_INFO out = {MFMediaType_Video, MFVideoFormat_H264};
-	IMFActivate **acts = NULL;
-	UINT32 n = 0;
-	if (FAILED(mf.TEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_LOCALMFT | MFT_ENUM_FLAG_SORTANDFILTER, &in, &out, &acts, &n)))
-		return NULL;
-	IMFTransform *t = NULL;
-	for (UINT32 i = 0; i < n; i++) {
-		if (!t && SUCCEEDED(IMFActivate_ActivateObject(acts[i], &IID_IMFTransform, (void **)&t))) {
-			UINT32 flags = 0;
-			IMFActivate_GetUINT32(acts[i], &MF_TRANSFORM_FLAGS_Attribute, &flags);
-			*hardware = (flags & MFT_ENUM_FLAG_HARDWARE) != 0;
+static void events_release(struct events *ev) {
+	if (InterlockedDecrement(&ev->refs) != 0) return;
+	if (ev->gen) IMFMediaEventGenerator_Release(ev->gen);
+	DeleteCriticalSection(&ev->mu);
+	free(ev);
+}
+
+// pump reads the transform's events until it is shut down.
+static DWORD WINAPI pump(LPVOID p) {
+	struct events *ev = p;
+	com_in();
+	for (;;) {
+		IMFMediaEvent *m = NULL;
+		HRESULT hr = IMFMediaEventGenerator_GetEvent(ev->gen, 0, &m);
+		EnterCriticalSection(&ev->mu);
+		if (FAILED(hr)) {
+			ev->done = 1;
+		} else {
+			MediaEventType t = MEUnknown;
+			HRESULT st = S_OK;
+			IMFMediaEvent_GetType(m, &t);
+			IMFMediaEvent_GetStatus(m, &st);
+			if (t == METransformNeedInput) ev->need++;
+			else if (t == METransformHaveOutput) ev->have++;
+			else if (t == MEError || FAILED(st)) ev->failed = 1;
+			IMFMediaEvent_Release(m);
 		}
-		IMFActivate_Release(acts[i]);
+		int stop = ev->done;
+		WakeAllConditionVariable(&ev->cv);
+		LeaveCriticalSection(&ev->mu);
+		if (stop) break;
 	}
-	CoTaskMemFree(acts);
-	return t;
+	events_release(ev);
+	CoUninitialize();
+	return 0;
+}
+
+// ev_wait takes one of the transform's requests (need or have), waiting up
+// to ms for it: 1 taken, 0 none in time, -1 the transform failed.
+static int ev_wait(struct events *ev, int *count, DWORD ms) {
+	ULONGLONG until = GetTickCount64() + ms;
+	int r = 0;
+	EnterCriticalSection(&ev->mu);
+	for (;;) {
+		if (ev->failed || ev->done) {
+			r = -1;
+			break;
+		}
+		if (*count > 0) {
+			(*count)--;
+			r = 1;
+			break;
+		}
+		ULONGLONG now = GetTickCount64();
+		if (now >= until) break;
+		SleepConditionVariableCS(&ev->cv, &ev->mu, (DWORD)(until - now));
+	}
+	LeaveCriticalSection(&ev->mu);
+	return r;
+}
+
+static void name_of(mf_enc *e, IMFActivate *act) {
+	WCHAR *w = NULL;
+	UINT32 n = 0;
+	if (SUCCEEDED(IMFActivate_GetAllocatedString(act, &MFT_FRIENDLY_NAME_Attribute, &w, &n))) {
+		WideCharToMultiByte(CP_UTF8, 0, w, -1, e->name, sizeof e->name - 1, NULL, NULL);
+		CoTaskMemFree(w);
+	}
+}
+
+// unlock readies an asynchronous transform for use: unlocked (it refuses
+// every call before), low latency, and its events read by pump. 0 when
+// it cannot be.
+static int unlock(mf_enc *e) {
+	IMFAttributes *a = NULL;
+	// Windows' software encoder may have no attributes: synchronous.
+	if (FAILED(IMFTransform_GetAttributes(e->t, &a)) || !a) return 1;
+	UINT32 async = 0;
+	IMFAttributes_GetUINT32(a, &MF_TRANSFORM_ASYNC, &async);
+	if (async) IMFAttributes_SetUINT32(a, &MF_TRANSFORM_ASYNC_UNLOCK, TRUE);
+	IMFAttributes_SetUINT32(a, &attr_low_latency, TRUE);
+	IMFAttributes_Release(a);
+	if (!async) return 1;
+	struct events *ev = calloc(1, sizeof *ev);
+	if (!ev) return 0;
+	if (FAILED(IMFTransform_QueryInterface(e->t, &IID_IMFMediaEventGenerator, (void **)&ev->gen))) {
+		free(ev);
+		return 0;
+	}
+	InitializeCriticalSection(&ev->mu);
+	InitializeConditionVariable(&ev->cv);
+	ev->refs = 2; // this encoder and pump
+	e->pump = CreateThread(NULL, 0, pump, ev, 0, NULL);
+	if (!e->pump) {
+		ev->refs = 1;
+		events_release(ev);
+		return 0;
+	}
+	e->ev = ev;
+	return 1;
+}
+
+// end_transform ends a transform: an asynchronous one is shut down,
+// which ends its events, and its thread waited for.
+static void end_transform(mf_enc *e) {
+	if (!e->t) return;
+	IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+	IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
+	if (e->ev) {
+		IMFShutdown *sd = NULL;
+		if (SUCCEEDED(IMFTransform_QueryInterface(e->t, &IID_IMFShutdown, (void **)&sd))) {
+			IMFShutdown_Shutdown(sd);
+			IMFShutdown_Release(sd);
+		}
+	}
+	if (e->pump) {
+		// A driver whose events do not end leaves the thread waiting:
+		// it holds its own reference, so nothing is freed under it.
+		WaitForSingleObject(e->pump, 2000);
+		CloseHandle(e->pump);
+		e->pump = NULL;
+	}
+	if (e->ev) {
+		events_release(e->ev);
+		e->ev = NULL;
+	}
 }
 
 static IMFMediaType *video_type(const GUID *subtype, int w, int h, int fps) {
@@ -160,28 +289,8 @@ static int ready_output(mf_enc *e) {
 	return 1;
 }
 
-mf_enc *mf_open(int w, int h, int fps, int kbps, int gop, int high, int *err) {
-	com_in();
-	*err = 0;
-	InitOnceExecuteOnce(&mf.once, load_mf, NULL, NULL);
-	if (!mf.ok || FAILED(mf.Startup(MF_VERSION, MFSTARTUP_LITE))) {
-		*err = 1;
-		return NULL;
-	}
-	mf_enc *e = calloc(1, sizeof *e);
-	if (!e) {
-		*err = 2;
-		return NULL;
-	}
-	e->w = w;
-	e->h = h;
-	e->fps = fps > 0 ? fps : 30;
-	e->duration = 10000000LL / e->fps;
-	e->t = find_encoder(&e->hardware);
-	if (!e->t) {
-		*err = 3;
-		goto fail;
-	}
+// configure sets the transform's settings and types: 0, or why not.
+static int configure(mf_enc *e, int kbps, int gop, int high) {
 	IMFTransform_QueryInterface(e->t, &IID_ICodecAPI, (void **)&e->api);
 	if (e->api) {
 		// Before the types: some settings are read when they are set.
@@ -192,48 +301,110 @@ mf_enc *mf_open(int w, int h, int fps, int kbps, int gop, int high, int *err) {
 		set_u32(e->api, &key_gop, (UINT32)gop);
 	}
 	// An encoder takes its output type first.
-	IMFMediaType *out = video_type(&MFVideoFormat_H264, w, h, e->fps);
-	if (!out) {
-		*err = 4;
-		goto fail;
-	}
+	IMFMediaType *out = video_type(&MFVideoFormat_H264, e->w, e->h, e->fps);
+	if (!out) return 4;
 	IMFMediaType_SetUINT32(out, &MF_MT_AVG_BITRATE, (UINT32)kbps * 1000);
 	IMFMediaType_SetUINT32(out, &MF_MT_MPEG2_PROFILE, high ? eAVEncH264VProfile_High : eAVEncH264VProfile_Base);
 	HRESULT hr = IMFTransform_SetOutputType(e->t, 0, out, 0);
 	IMFMediaType_Release(out);
-	if (FAILED(hr)) {
-		*err = 5;
-		goto fail;
-	}
-	IMFMediaType *in = video_type(&MFVideoFormat_IYUV, w, h, e->fps);
-	if (!in) {
-		*err = 4;
-		goto fail;
-	}
-	IMFMediaType_SetUINT32(in, &MF_MT_DEFAULT_STRIDE, (UINT32)w);
+	if (FAILED(hr)) return 5;
+	IMFMediaType *in = video_type(e->nv12 ? &MFVideoFormat_NV12 : &MFVideoFormat_IYUV, e->w, e->h, e->fps);
+	if (!in) return 4;
+	IMFMediaType_SetUINT32(in, &MF_MT_DEFAULT_STRIDE, (UINT32)e->w);
 	hr = IMFTransform_SetInputType(e->t, 0, in, 0);
 	IMFMediaType_Release(in);
-	if (FAILED(hr)) {
-		*err = 6;
-		goto fail;
+	if (FAILED(hr)) return 6;
+	if (!ready_output(e)) return 7;
+	return 0;
+}
+
+// drop_transform lets a transform that did not work go, for the next one.
+static void drop_transform(mf_enc *e, IMFActivate *act) {
+	end_transform(e);
+	if (e->api) ICodecAPI_Release(e->api);
+	e->api = NULL;
+	if (e->buf) IMFMediaBuffer_Release(e->buf);
+	if (e->out) IMFSample_Release(e->out);
+	e->buf = NULL;
+	e->out = NULL;
+	e->out_size = 0;
+	if (e->t) IMFTransform_Release(e->t);
+	e->t = NULL;
+	IMFActivate_ShutdownObject(act);
+	e->name[0] = 0;
+}
+
+// open_first takes the first encoder of a kind that takes the
+// configuration: 0, or the last reason one did not.
+static int open_first(mf_enc *e, UINT32 flags, const GUID *subtype, int kbps, int gop, int high) {
+	MFT_REGISTER_TYPE_INFO in = {MFMediaType_Video, *subtype};
+	MFT_REGISTER_TYPE_INFO out = {MFMediaType_Video, MFVideoFormat_H264};
+	IMFActivate **acts = NULL;
+	UINT32 n = 0;
+	if (FAILED(mf.TEnumEx(MFT_CATEGORY_VIDEO_ENCODER, flags, &in, &out, &acts, &n))) return 3;
+	int err = 3;
+	e->nv12 = IsEqualGUID(subtype, &MFVideoFormat_NV12);
+	for (UINT32 i = 0; i < n; i++) {
+		if (!e->t && SUCCEEDED(IMFActivate_ActivateObject(acts[i], &IID_IMFTransform, (void **)&e->t))) {
+			UINT32 f = 0;
+			IMFActivate_GetUINT32(acts[i], &MF_TRANSFORM_FLAGS_Attribute, &f);
+			e->hardware = (f & MFT_ENUM_FLAG_HARDWARE) != 0 || (flags & MFT_ENUM_FLAG_HARDWARE) != 0;
+			name_of(e, acts[i]);
+			err = unlock(e) ? configure(e, kbps, gop, high) : 8;
+			if (err) drop_transform(e, acts[i]);
+		}
+		IMFActivate_Release(acts[i]);
 	}
-	if (!ready_output(e)) {
-		*err = 7;
-		goto fail;
+	CoTaskMemFree(acts);
+	return e->t ? 0 : err;
+}
+
+mf_enc *mf_open(int w, int h, int fps, int kbps, int gop, int high, int gpu, int *err) {
+	com_in();
+	*err = 0;
+	InitOnceExecuteOnce(&mf.once, load_mf, NULL, NULL);
+	if (!mf.ok || FAILED(mf.Startup(MF_VERSION, MFSTARTUP_LITE))) {
+		*err = 1;
+		return NULL;
+	}
+	mf_enc *e = calloc(1, sizeof *e);
+	if (!e) {
+		*err = 2;
+		mf.Shutdown();
+		return NULL;
+	}
+	e->w = w;
+	e->h = h;
+	e->fps = fps > 0 ? fps : 30;
+	e->duration = 10000000LL / e->fps;
+	// The GPU's, then Windows' own.
+	int r = 3;
+	if (gpu) r = open_first(e, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, &MFVideoFormat_NV12, kbps, gop, high);
+	if (!e->t) r = open_first(e, MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_LOCALMFT | MFT_ENUM_FLAG_SORTANDFILTER, &MFVideoFormat_IYUV, kbps, gop, high);
+	if (!e->t) {
+		*err = r;
+		mf_close(e);
+		return NULL;
 	}
 	IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
 	IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
 	return e;
-fail:
-	mf_close(e);
-	return NULL;
 }
 
 int mf_hardware(mf_enc *e) { return e->hardware; }
 
+const char *mf_name(mf_enc *e) { return e->name; }
+
 int mf_encode(mf_enc *e, const uint8_t *i420, int64_t pts, int key) {
 	com_in();
-	DWORD n = (DWORD)(e->w * e->h + 2 * (e->w / 2) * (e->h / 2));
+	DWORD ysz = (DWORD)(e->w * e->h), csz = (DWORD)((e->w / 2) * (e->h / 2));
+	DWORD n = ysz + 2 * csz;
+	if (e->ev) {
+		// The transform says when it wants a frame (at once, once it has
+		// encoded the last one); one that never does has stopped.
+		if (e->pending > 0) e->pending = 0; // its output went missing
+		if (ev_wait(e->ev, &e->ev->need, 1000) != 1) return -3;
+	}
 	IMFSample *s = NULL;
 	IMFMediaBuffer *b = NULL;
 	if (FAILED(mf.CreateSample(&s))) return -1;
@@ -247,7 +418,18 @@ int mf_encode(mf_enc *e, const uint8_t *i420, int64_t pts, int key) {
 		IMFSample_Release(s);
 		return -1;
 	}
-	memcpy(p, i420, n);
+	if (e->nv12) {
+		// The planes' rows are contiguous in both: U and V interleave.
+		memcpy(p, i420, ysz);
+		const uint8_t *u = i420 + ysz, *v = u + csz;
+		BYTE *uv = p + ysz;
+		for (DWORD i = 0; i < csz; i++) {
+			uv[2 * i] = u[i];
+			uv[2 * i + 1] = v[i];
+		}
+	} else {
+		memcpy(p, i420, n);
+	}
 	IMFMediaBuffer_Unlock(b);
 	IMFMediaBuffer_SetCurrentLength(b, n);
 	IMFSample_AddBuffer(s, b);
@@ -257,6 +439,11 @@ int mf_encode(mf_enc *e, const uint8_t *i420, int64_t pts, int key) {
 	if (key && e->api) set_u32(e->api, &key_force_key, 1);
 	HRESULT hr = IMFTransform_ProcessInput(e->t, 0, s, 0);
 	IMFSample_Release(s);
+	if (e->ev) {
+		if (FAILED(hr)) return -2;
+		e->pending++;
+		return 0;
+	}
 	if (hr == MF_E_NOTACCEPTING) return 1; // it has output to give first
 	return FAILED(hr) ? -2 : 0;
 }
@@ -266,6 +453,17 @@ int mf_output(mf_enc *e, uint8_t **data, int *len, int64_t *pts) {
 	if (e->given) {
 		IMFSample_Release(e->given);
 		e->given = NULL;
+	}
+	if (e->ev) {
+		// The frame just given comes back in a few milliseconds: waited
+		// for, so it leaves now and not with the next one.
+		int r = ev_wait(e->ev, &e->ev->have, e->pending > 0 ? 200 : 0);
+		if (r < 0) return -1;
+		if (r == 0) {
+			e->pending = 0;
+			return 0;
+		}
+		if (e->pending > 0) e->pending--;
 	}
 	for (int tries = 0; tries < 2; tries++) {
 		MFT_OUTPUT_DATA_BUFFER ob;
@@ -277,7 +475,8 @@ int mf_output(mf_enc *e, uint8_t **data, int *len, int64_t *pts) {
 		if (ob.pEvents) IMFCollection_Release(ob.pEvents);
 		if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) return 0;
 		if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
-			// The encoder settled its output type: take it as it is.
+			// The encoder settled its output type: take it as it is,
+			// and ask for the same output again.
 			IMFMediaType *t = NULL;
 			if (SUCCEEDED(IMFTransform_GetOutputAvailableType(e->t, 0, 0, &t))) {
 				IMFTransform_SetOutputType(e->t, 0, t, 0);
@@ -325,10 +524,7 @@ void mf_set_rate(mf_enc *e, int kbps) {
 void mf_close(mf_enc *e) {
 	if (!e) return;
 	com_in();
-	if (e->t) {
-		IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
-		IMFTransform_ProcessMessage(e->t, MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
-	}
+	end_transform(e);
 	if (e->given) IMFSample_Release(e->given);
 	if (e->buf) IMFMediaBuffer_Release(e->buf);
 	if (e->out) IMFSample_Release(e->out);

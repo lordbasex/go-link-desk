@@ -160,7 +160,7 @@ export const docsEn: Docs = {
           ],
         },
         { t: "h2", id: "processor", text: "Processor" },
-        { t: "p", text: "The computer you share compresses its picture. A Mac does it in hardware (H.264, VideoToolbox) with almost no load; Windows uses its own H.264 encoder, on the graphics chip when there is one. Otherwise the processor does it (VP8)." },
+        { t: "p", text: "The computer you share compresses its picture. A Mac does it in hardware (H.264, VideoToolbox) with almost no load. Windows uses the graphics card's H.264 encoder (AMD, Intel or NVIDIA) when it has one, else its own on the processor; Linux uses Intel's and AMD's graphics (VA-API). Otherwise the processor does it (VP8). Each one finds its encoder by itself, trying it with a frame." },
         { t: "p", text: "The heaviest case is a screen that changes everywhere, all the time, like a terminal scrolling text. The table shows how many frames a second each computer encodes that screen at each size. A smooth session needs 30: anything above is room to spare. A screen that hardly changes costs almost nothing." },
         {
           t: "table",

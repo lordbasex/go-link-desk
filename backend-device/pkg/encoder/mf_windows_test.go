@@ -24,6 +24,8 @@ func TestWindowsEncodesH264(t *testing.T) {
 		t.Skipf("no Media Foundation H.264 encoder here: %v", err)
 	}
 	defer enc.Close()
+	hw, _ := enc.Hardware()
+	t.Logf("encoder %q, hardware %v", enc.Name(), hw)
 	frame := make([]byte, FrameSize(640, 360))
 	for i := 0; i < 60; i++ {
 		for j := range frame[:640*360] {
@@ -61,6 +63,31 @@ func TestWindowsEncodesH264(t *testing.T) {
 	}
 	if last := got[len(got)-1].pts; last < time.Second || last > 2*time.Second {
 		t.Fatalf("the last frame's time is %v", last)
+	}
+}
+
+// Once the GPU's encoder has failed, Windows' own takes every session.
+func TestWindowsUsesItsOwnEncoderWhenTheGPUFailed(t *testing.T) {
+	was := gpuBroken.Load()
+	gpuBroken.Store(true)
+	defer gpuBroken.Store(was)
+	n := 0
+	enc, err := NewH264(Config{Width: 640, Height: 360, FPS: 30, BitrateKbps: 1000}, func([]byte, time.Duration) { n++ })
+	if err != nil {
+		t.Skipf("no Media Foundation H.264 encoder here: %v", err)
+	}
+	defer enc.Close()
+	if hw, _ := enc.Hardware(); hw {
+		t.Fatalf("the GPU's encoder (%q) after it failed", enc.Name())
+	}
+	frame := make([]byte, FrameSize(640, 360))
+	for i := 0; i < 5; i++ {
+		if err := enc.WriteKey(frame, i == 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n == 0 {
+		t.Fatal("nothing encoded")
 	}
 }
 
