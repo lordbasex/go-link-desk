@@ -81,8 +81,8 @@ export function LandingPage() {
             <span className="lp-os lp-os-on">
               <i>{s.ways.today}</i> {s.ways.linuxHost}
             </span>
-            <span className="lp-os">
-              <i>{s.ways.soon}</i> Windows
+            <span className="lp-os lp-os-on">
+              <i>{s.ways.today}</i> {s.ways.winHost}
             </span>
           </div>
         </div>
@@ -174,13 +174,21 @@ export function LandingPage() {
       <section id="download" className="lp-section">
         <div className="lp-wrap">
           <Head eyebrow={s.download.eyebrow} title={s.download.title} />
-          <div className="lp-cards lp-cards-4">
+          <div className="lp-cards">
             <div className="lp-card lp-dl">
               <h3>{s.download.mac.title}</h3>
               <p>{s.download.mac.text}</p>
               <span className="lp-meta">{s.download.mac.meta}</span>
               <a className="lp-btn lp-btn-primary" href={RELEASES}>
                 {s.download.mac.button}
+              </a>
+            </div>
+            <div className="lp-card lp-dl">
+              <h3>{s.download.windows.title}</h3>
+              <p>{s.download.windows.text}</p>
+              <span className="lp-meta">{s.download.windows.meta}</span>
+              <a className="lp-btn lp-btn-primary" href={RELEASES}>
+                {s.download.windows.button}
               </a>
             </div>
             <div className="lp-card lp-dl">
@@ -191,6 +199,8 @@ export function LandingPage() {
                 {s.download.linux.button}
               </a>
             </div>
+          </div>
+          <div className="lp-cards lp-cards-2">
             <div className="lp-card lp-dl">
               <h3>{s.download.ios.title}</h3>
               <p>{s.download.ios.text}</p>
@@ -214,9 +224,6 @@ export function LandingPage() {
               {s.download.openWeb.split("{web}")[0]}
               <Link to="/web">desk.go-link.org/web</Link>
               {s.download.openWeb.split("{web}")[1]}
-            </span>
-            <span className="lp-os">
-              <i>{s.ways.soon}</i> {s.download.hostsSoon}
             </span>
           </div>
         </div>
@@ -424,8 +431,7 @@ export function SiteFooter() {
                 <a href={RELEASES}>{f.linuxApp}</a>
               </li>
               <li>
-                <a href="/#ways">{f.winLinux}</a>
-                <span className="lp-soon">{f.soon}</span>
+                <a href={RELEASES}>{f.winLinux}</a>
               </li>
             </ul>
           </nav>

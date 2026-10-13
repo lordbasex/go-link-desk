@@ -31,7 +31,8 @@ go-link Desk is a remote desktop that follows go-link's design: the computer bei
 | `backend-device/internal/telemetry` | Per-session measurements (SQLite, pure Go). |
 | `backend-device/test` | Integration tests: the real stream against a browser played by Pion. |
 | `backend-device/pkg/remoteview` | The native window on macOS (AppKit): Home (this computer's code, the address bar, My computers and the recent sessions as cards, a list or a detailed list), a tab per session (the picture drawn by the system from H.264, the remote pointer, the toolbar, mouse and keyboard), and Settings. Light and dark themes. |
-| `backend-device/pkg/*` | Reusable libraries: `signalclient`, `capture` (ScreenCaptureKit), `cursor`, `beacon`, `permission`, `mainloop`, `encoder` (VideoToolbox H.264, VP8, Opus), `testpattern`, `ids`, `instancelock`, `jsonkeys`, `sysinfo`, `trayicon`, `watermark`. One implementation per OS behind build tags; Windows and Linux come in phase 7. Input injection, clipboard and audio come in later phases. |
+| `backend-device/pkg/fyneview` | The main window and Settings on Windows and Linux, drawn with Fyne to look like the Mac's: the same pages, colors (dark and light), Inter and Lucide icons. On Windows the frame takes the app's colors (DWM). |
+| `backend-device/pkg/*` | Reusable libraries: `signalclient`, `capture` (ScreenCaptureKit, XShm, PipeWire, Desktop Duplication), `inject`, `clipboard`, `cursor`, `portal`, `beacon`, `permission`, `mainloop`, `encoder` (VideoToolbox and Media Foundation H.264, VP8, Opus), `testpattern`, `ids`, `instancelock`, `jsonkeys`, `sysinfo`, `trayicon`, `watermark`. One implementation per OS behind build tags. |
 | `frontend/` | npm workspaces: `packages/shared` (signalhub client, the session's WebRTC side, codes, HMAC, design tokens) and `apps/web` (desk.go-link.org). |
 | `protocol/` | The single source of truth shared by Go and TypeScript: `keycodes.json` and test vectors. |
 | `e2e/` | Playwright: a signalhub and a headless host of their own, and a real Chromium. |
@@ -76,6 +77,7 @@ ScreenCaptureKit ──NV12 pixel buffer──► VideoToolbox H.264 (hardware) 
 
 - **Capture** (`pkg/capture`) runs only while someone watches, so macOS's recording indicator only shows during a session. It hands over a frame when the picture changes; a still screen sends nothing, except its last frame again a few times, so the encoder sharpens it, and for a viewer that needs a keyframe. Size, frame rate, cursor and display change while it runs.
 - **H.264 from the system's encoder** is the main codec: on an M1 it encodes 1080p at 60 fps for 6.7% of one core, against 74% at 30 fps for VP8 (libvpx), and it gives the same quality in fewer bits. VP8 stays for browsers without H.264 and systems without an encoder. The browser says which codecs it takes when it knocks.
+- **VP8** (Linux, and Windows without H.264) is tuned for screens as WebRTC tunes it: each frame carries its real time (a desktop changes far less often than 60 times a second, and a frame gets the bits of the time since the last), the bitrate changes while the encoder runs, a 1-second rate control buffer, libvpx's screen content mode, threads no more than the cores, and a **fixed speed of 6**. libvpx's own choice of speed ran, on a busy screen near the frame budget, to settings that were slower and sent 3 to 20 times the bitrate asked; the bandwidth estimate read that as congestion and dropped the picture to 640×400.
 - **The size** follows the preset and the viewer's window (`video_want`); **Quality** sends the display's own pixels. The bandwidth estimate (Google Congestion Control, TWCC) sets the bitrate and, when short, a smaller size and frame rate: some encoders (VideoToolbox on Intel Macs) send more than asked on a busy screen, and a smaller picture is what makes frames small enough to arrive whole.
 - **The pointer** is not in the picture: its shape and position travel on `control` and the browser draws it, sharp at any size. "Remote cursor in the picture" draws it into the video instead.
 - **Without a window** (headless) the host still serves the main thread's event loop on macOS (`pkg/mainloop`): ScreenCaptureKit answers there.
@@ -138,10 +140,10 @@ desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts
 go-link Desk also connects to other computers, in the same window: Home has the address bar (a session code, or a pairing code to link), My computers and the recent sessions; each session opens in a tab (or, in Settings, a window of its own).
 
 - **The website's protocol, as it is.** `internal/viewer` joins, knocks, answers the offer and speaks the same control messages, input packets and files protocol as the website; the host cannot tell them apart (it sees `go-link Desk 1.x on macOS` where a browser says its name). A linked computer proves itself before the token goes out, exactly as in the browser.
-- **The picture is H.264 drawn by the system.** The viewer puts RTP packets back into access units itself (Pion's sample builder holds a frame until the next one starts, and a still screen sends no next one), and hands them to an `AVSampleBufferDisplayLayer`: the hardware decodes and draws, no frame is copied through Go. A lost packet waits 250 ms for its resend, then the frames until a keyframe are dropped and one is asked for (PLI); so is one when a hidden tab comes back.
+- **The picture is H.264 drawn by the system.** The viewer puts RTP packets back into access units itself (Pion's sample builder holds a frame until the next one starts, and a still screen sends no next one), and hands them to an `AVSampleBufferDisplayLayer`: the hardware decodes and draws, no frame is copied through Go. VP8 (a Linux or Windows computer without an H.264 encoder) is decoded with libvpx, already linked in for the host's own VP8, and its I420 pictures copied into NV12 `CVPixelBuffer`s (BT.601, video range: what the hosts' converters write) for the same layer; a frame that built on a lost one is not drawn, and a keyframe is asked for. A lost packet waits 250 ms for its resend, then the frames until a keyframe are dropped and one is asked for (PLI); so is one when a hidden tab comes back.
 - **Input** is captured by the picture's view: keys by position (macOS key codes mapped through `protocol/keycodes.json`), the browser's wheel sign, Cmd+V pasting this computer's clipboard there, and the keys pressed with Cmd let go when Cmd goes up (macOS may never report their release). While the viewer controls, shortcuts go to the other computer, not to this app.
 - **Sound** is decoded with libopus and played with the call's audio engine; files go through the same client as the website's (`files.ts`), into Downloads, never over a file.
-- **Not yet:** the video call from the app (it ignores the call's lines), and VP8 (a host that cannot send H.264 shows a message pointing to the website).
+- **Not yet:** the video call from the app (it ignores the call's lines).
 - **What it keeps** (`remotes.json`, 0600): the links (with their tokens, as the browser's `localStorage` does), labels and favorites, the recent sessions, and a small thumbnail of each, taken from the window's own pixels while the session's tab is shown.
 
 ## The iPhone and iPad app
@@ -168,7 +170,7 @@ The computer that shares can be a Linux desktop in an **X11 (Xorg)** or a **Wayl
 
 **X11:**
 
-- **The picture:** XShm reads the monitor (XRandR lists them) into shared memory; C scales it to the size the viewers need (a box filter, so text stays readable) and turns it into I420 for libvpx, skipping a still screen (nothing changed since the last grab). The pointer comes apart (XFixes), as on macOS.
+- **The picture:** XShm reads the monitor (XRandR lists them) into shared memory; libyuv (`pkg/capture/frame.c`, shared with Windows) scales it to the size the viewers need (a box filter, so text stays readable) and turns it into I420 for the encoder, skipping a still screen (nothing changed since the last grab). The pointer comes apart (XFixes), as on macOS.
 - **Control:** XTest presses keys by the layout's keycode for each key's X11 keysym (`keymap.Key.Native`), so keys go by position; characters the layout lacks are typed on a free keycode mapped to them for the moment. Mouse buttons 1 to 9 and the wheel's clicks (4 to 7).
 - **The clipboard:** the CLIPBOARD selection as UTF-8 text, on a thread that owns it when this side copies and asks its owner when it is read; XFixes counts every copy.
 
@@ -186,6 +188,18 @@ The computer that shares can be a Linux desktop in an **X11 (Xorg)** or a **Wayl
 - **The sound** is what the speakers play: the default output's monitor, through PulseAudio's simple API, which PipeWire answers too (pipewire-pulse). libpulse-simple is loaded at run time, and the few types it needs are declared in the code, so building needs no PulseAudio headers. Unlike macOS, the host's own sound (a video call) is in it: Linux tells no program's sound apart.
 - **Keeping the display awake** during a session: every inhibit service the desktop has, over D-Bus (GNOME's session manager, the screen saver and power services of KDE Plasma and Xfce, the Inhibit portal), on a connection that is closed to release them.
 - **Locking the screen** when a session ends: `loginctl lock-session`.
+
+## The Windows host
+
+Windows 10 and 11, 64-bit (x86-64 and ARM64), as an ordinary user's program: no administrator rights, per-monitor DPI aware so every monitor is in real pixels. Tested on Windows 11 25H2.
+
+- **The picture:** the Desktop Duplication API reads the monitor on its GPU when the desktop changes; GDI where it cannot run (a remote desktop session, a rotated monitor, a driver without it). libyuv scales and converts it as on Linux. While Windows shows the lock screen or a UAC prompt, which no ordinary program may read, the last picture stays.
+- **H.264** from Media Foundation (Windows' own encoder, software on every Windows), low latency and constant bitrate. mfplat.dll is loaded when the first encoder opens, so the N editions without the Media Feature Pack start too and use VP8.
+- **Control:** SendInput, keys by scan code (the computer's layout makes the characters), typed text as Unicode. Windows lets no ordinary program drive a window running as administrator, nor the secure desktop.
+- **The rest:** sound from a WASAPI loopback stream of the default output, the pointer's shape and position for the viewer to draw, the clipboard (Unicode text), a power request that keeps the display awake, Windows+L to lock, and the user's Run key to start with Windows.
+- **One copy at a time** (`pkg/instancelock`, on every system: `flock` on macOS and Linux, `LockFileEx` on Windows, on `desk.lock` next to the settings). On Windows, opening it again wakes the running one through a named event, so its window comes forward instead of a second copy quitting silently.
+- **The window:** `pkg/fyneview`, the Mac's look in Fyne. The frame is Windows' own (its buttons), colored by DWM in the app's colors. The app's theme and font are set before anything measures text: Fyne keeps the faces it measured with.
+- **Release:** an installer for the user (NSIS, in `%LOCALAPPDATA%\Programs\go-link Desk`, with its uninstaller) and the same program in a zip. Not signed yet: SmartScreen warns before the first run.
 
 ## Unattended access
 
@@ -221,12 +235,25 @@ ALLOWED_ORIGINS=https://go-link.org,https://play.go-link.org,https://desk.go-lin
 
 Without `go-link-desk` in `ALLOWED_APPS`, the host's `register` gets `app not allowed`. `MAX_ROOMS_PER_SESSION` and the rate limits are global to all apps; a Desk host uses one room, and `join`, `claim` and `reach` share 5 attempts per minute per IP, so viewers must not retry faster than that.
 
+## Updates
+
+The app looks for a newer release when it opens (after 30 s) and every 6 hours (`services.UpdateService`, the GitHub releases list; drafts and pre-releases are skipped), and on **Check for Updates…** (the Mac's app menu, the tray's menu, the About window off the Mac). A release found on its own opens the update window once, and not during a session: then when it ends. **Update** (`internal/updater`):
+
+1. **Download and check.** It fetches the release's `SHA256SUMS` and `SHA256SUMS.sig`, an Ed25519 signature by the update key, whose public half is in the program and whose private half never leaves the release computer (`make release-sums`, `build/signsums`). Then it fetches the one file this copy needs, checks its hash against the signed list and throws it away otherwise. The release's host (GitHub) is not trusted with what gets installed.
+2. **Install, by how this copy was installed:**
+   - **macOS:** the disk image is mounted, the app in it must carry a valid signature by the same developer team as the running app (`codesign`), and it is copied next to the running bundle and swapped in by two renames. A development build (ad hoc signature) or an app in a folder the user may not write is updated by hand.
+   - **Windows:** the installer runs silently with `/S /UPDATE`. It closes the app, installs over it for the user (no administrator) and opens the new one. A portable copy (the .zip) is updated by hand.
+   - **Linux:** a copy of the user's own (the .tar.gz's `install.sh`, in `~/.local/bin`) runs the new `install.sh`; a package in `/usr/bin` is installed with its package manager through `pkexec` (`dpkg -i`, `rpm -U` or `pacman -U`), so the desktop asks for the administrator's password. Any other copy is updated by hand.
+3. **Open the new version.** The app quits; on macOS and Linux a shell of its own waits for it to exit and opens the new one, and on Windows the installer does.
+
+"By hand" opens the release's page instead. `DESK_UPDATE_BASE` points the downloads at a test server; the signature is still required.
+
 ## A portable host
 
 The host is one self-contained program: no installer, no administrator rights, no program or library that the operating system does not already have.
 
-- libvpx and libopus are built from source and linked in (`backend-device/build/macos/static-libs.sh`, `backend-device/build/linux.Dockerfile`).
-- No helper programs: go-link's ffmpeg path for H.264 does not exist here. H.264 comes from the system's encoder (VideoToolbox on macOS), called directly.
+- libvpx and libopus are built from source and linked in (`backend-device/build/macos/static-libs.sh`, `backend-device/build/linux.Dockerfile`, `backend-device/build/windows.Dockerfile`), and so is libyuv on Linux and Windows.
+- No helper programs: go-link's ffmpeg path for H.264 does not exist here. H.264 comes from the system's encoder (VideoToolbox on macOS, Media Foundation on Windows; Linux uses VP8), called directly. Libraries a system may lack (libpipewire, libpulse-simple, mfplat) are loaded at run time, so the host starts without them.
 - On macOS the host is an app bundle (`go-link-desk.app`), because Screen Recording and Accessibility permissions belong to an app's signature and bundle ID. It can run from Downloads or from the disk image.
 - `scripts/check-deps.sh` fails the build when a binary needs anything else; CI runs it on every pull request.
 - "Nothing to install" is not "stores nothing": the identity, the linked browsers and the settings live in `device.json`.
@@ -235,6 +262,8 @@ The host is one self-contained program: no installer, no administrator rights, n
 
 - **The app is also a viewer (phase 6b).** The plan had the viewer only in the browser; the app now connects too, in one window with a tab per session. It reuses everything the host already had (Pion, signalclient, libopus, the call's audio engine, the input protocol) and the website's protocol unchanged, so the host needs no change and the browser keeps working as before.
 - **The main window and Settings are native on macOS** (AppKit through cgo): Fyne cannot hold the system's video layer, and a single window with the sessions as tabs needs it. Fyne stays for the connection request, the session panel, the chat and files windows, and as the whole window on systems without the native one.
+- **Windows and Linux get the Mac's window, drawn with Fyne** (`pkg/fyneview`), rather than a native one per system: one implementation for both, the same pages and texts as the Mac, at the cost of sessions not yet opening in the app's own tabs there (Connect opens the website's viewer).
+- **The minimum hardware is measured, not guessed:** `build/vbench` encodes a terminal's text scrolling at each size, with the host's encoders and tuning, and the website's requirements page (`/docs/requirements`) comes from its numbers.
 - **The signaling server can be changed in Settings** (a person's own signalhub), and takes effect when the app opens again: the host's room, codes and links live on the server it registered with.
 
 - **Phase 0 copies only go-link's generic pieces.** go-link's `internal/services` is one package; its stream, test room and recording services depend on the game room manager and on ROM symbols. They come in the phase that uses them, adapted (stream and session in phase 1, recordings in phase 8), instead of compiling dead code through stubs.

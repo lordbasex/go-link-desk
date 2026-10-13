@@ -111,6 +111,7 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	}
 	p.disconnect.Enable()
 	p.win.Show()
+	styleWindow(p.win)
 	floatWindow(p.win.Title(), false)
 	p.shown = true
 }

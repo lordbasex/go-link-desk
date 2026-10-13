@@ -6,20 +6,39 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Added
 
+- **The app updates itself** (macOS, Windows and Linux):
+  - **It says so:** it looks for a new version when it opens and every 6 hours, and a small window says "go-link Desk 1.3.1 is available" with **What's new**, **Later** and **Update**. Once per version, and never in the middle of a session: then when it ends. The tray's menu reads "Update to 1.3.1…" meanwhile.
+  - **Check for Updates…** in the Mac's app menu, the tray's menu on every system and the About window on Windows and Linux; it also says when there is nothing new.
+  - **Update** downloads the file for this computer with a progress bar, checks it, installs it and opens the new version: the Mac's app in place (same developer's signature required), Windows' installer silently (`/S /UPDATE`, no administrator), and on Linux the user's own copy (`install.sh`) or the package through the desktop's password prompt (`pkexec`). A copy that cannot replace itself (the Windows .zip, a development build) opens the release's page.
+  - **Signed:** each release's `SHA256SUMS` carries an Ed25519 signature by an update key that only the release computer holds (`make release-sums`); the app installs nothing else. A file that does not match is thrown away.
+  - Pre-releases are never offered.
+  - The update reaches copies from 1.3.0 on: earlier ones are updated by hand once more.
+- **The Mac app shows computers that send VP8:** a Linux computer without an H.264 encoder on its GPU (and every virtual machine), or a Windows one without Media Foundation. It said "This computer sends its picture in a format this app cannot show yet" and pointed to the website. The app decodes VP8 with libvpx, which it already carried for its own screen, and draws it in the same layer as H.264; a frame that built on a lost one is not drawn, and a whole picture is asked for. Its knock now lists VP8 among the codecs it decodes, after H.264: the computer still sends H.264 when it has an encoder for it, and VP8 otherwise.
 - **H.264 on the GPU on Linux** (VA-API: Intel's and AMD's drivers), as macOS has with VideoToolbox.
   - **How it encodes:** P frames only, one reference, picture order type 2 (a browser shows each frame as it decodes it), constant bitrate.
   - **Bitrate:** changed as the encoder runs. The rate control is told the rate frames actually come at, since a desktop sends one only when it changes.
   - **Loading:** libva (MIT) is loaded when a session uses it, so the program also runs where it is not installed. The packages recommend it (`libva-drm2`; `libva-drm.so.2` on RPM).
   - **Picking the GPU:** the first render node (`/dev/dri/renderD128`…) whose driver encodes the profile, on the full encoder or the low-power one.
   - **When it opens:** the driver writes the SPS and PPS itself. So H.264 is offered only after a test frame shows it does; otherwise (no GPU, a virtual machine, NVIDIA) sessions use VP8 as before.
-  - **Tests:** a test checks the IDR with its SPS and PPS, the P frames, an asked-for keyframe and a bitrate change at 720p, 1366×768 and 1080p, where a GPU is present. Elsewhere a test checks that it says why it did not open.
+  - **Tests:** a test checks the IDR with its SPS and PPS, the P frames, an asked-for keyframe and a bitrate change at 720p, 1366×768 and 1080p, where a GPU is present. Elsewhere a test checks that it says why it did not open. Not tried on an Intel or AMD GPU yet: where it does not open, sessions keep using VP8.
+
+## [1.2.0] - 2026-10-13
+
+go-link Desk for Windows: a Windows 10 or 11 PC shares its screen as a Mac and Linux do, with an installer that needs no administrator. Also the Mac app's window on Windows and Linux, sharper VP8, the measured system requirements, and fixes.
+
+### Added
+
+- **System requirements in the docs** (`/docs/requirements`, in English, Spanish and Portuguese), measured rather than guessed:
+  - **What it covers:** the systems; how many frames a second each processor encodes a busy screen at 1280×800, 1080p, 1440p and 4K; the minimum and recommended hardware; the network each preset uses and how the picture adapts; the viewer; virtual machines.
+  - **On the home page:** two new questions, "What computer do I need?" and "How much internet does it use?".
+- **`build/vbench`** measures that on any computer: a terminal's text scrolling without end, encoded with the host's VP8 and the system's H.264 at each size. Pin it to fewer cores (`taskset -c 0`) to see a smaller computer.
 - **The Windows build** (phase 7): `make device-windows-amd64` (also `-arm64`, and `-amd64-headless` for a console program) cross-compiles the host for Windows 10 and 11 in Docker with llvm-mingw, libvpx and libopus built from source and linked in with the C runtime: one `go-link-desk.exe` that needs no DLL beyond Windows' own. It carries the app's icon, its version (Explorer's Properties) and a manifest: an ordinary user's program (no administrator rights) that sees every monitor in real pixels (per-monitor DPI awareness). `scripts/check-deps.sh windows` reads the .exe's import table on any system, and CI builds it on every push (`deps-windows`) and runs the host's tests on Windows (`device-windows`, with MSYS2's compiler and libraries). Two tests take Windows' ways: the telemetry database's Unix mode is not checked there (the profile folder's access list keeps it private), and the file browser's symbolic link cases run only where Windows lets the user make links. The host runs on Windows with its window, code and connection; sessions show the test card until screen capture arrives.
 - **Windows shares its screen** (phase 7): the Desktop Duplication API reads the monitor on its GPU when the desktop changes, and GDI where that cannot run (a remote desktop session, a rotated monitor, a driver without it). Every monitor, named as Windows names it, in real pixels (the process is per-monitor DPI aware); the pointer drawn in when the viewer wants it; the last picture stays while Windows shows the lock screen or a UAC prompt, which no ordinary program may read. Sessions use VP8. Tested on Windows 11 25H2 (VMware): the desktop at 1554×1002 in Chrome on a Mac.
 - **The viewer's mouse and keyboard on Windows** (SendInput): the pointer on any monitor (absolute coordinates on the virtual screen, rounded to land on the pixel meant), the five buttons, the wheel both ways in fractions of a notch, keys by position (the scan codes of `protocol/keycodes.json`, so the computer's layout makes the characters; Pause and Print Screen by their virtual keys), typed text as Unicode characters whatever the layout, Ctrl+V to paste, and Windows+L when a session ends with "lock the screen". Windows lets no ordinary program drive a window running as administrator, nor the secure desktop.
 - **Windows: the rest of a session** — the computer's sound (a WASAPI loopback stream of the default output, converted by Windows to 48 kHz stereo, with silence while nothing plays), the pointer for the viewer to draw (its position and image, color, monochrome and the text cursor that inverts what is under it, drawn black), the clipboard both ways (Unicode text), keeping the display and the computer awake during a session (a power request, listed by `powercfg /requests`), and starting with Windows (a value under the user's Run key, which Settings › Apps › Startup shows).
 - **H.264 on Windows** through Media Foundation: Windows' own encoder (software on every Windows 10 and 11), low latency, constant bitrate, no B-frames, keyframes with their SPS and PPS; the capture's I420 frames go in with their times. mfplat.dll is loaded when the first encoder opens, so the program also starts on the N editions without the Media Feature Pack, where sessions use VP8 (the encoder is tried once before H.264 is offered).
 - **The Windows release** (`make windows-package-amd64`, also `-arm64`): `go-link-desk-<version>-windows-<arch>-setup.exe`, an installer (NSIS, zlib license, built in Docker) that needs no administrator: it installs for the user in `%LOCALAPPDATA%\Programs\go-link Desk`, adds a Start menu entry and an entry in Settings › Apps with its uninstaller (which also removes "start with Windows" and keeps the settings), in English, Spanish and Portuguese; and the same program portable in `go-link-desk-<version>-windows-<arch>.zip`. Neither is signed yet: Windows' SmartScreen warns before the first run.
-- **Opening go-link Desk again brings its window forward** on Windows (the Start menu entry, a double click), instead of a second copy quitting silently while the first one sits in the tray: a named event of the user's session wakes the running one (`instancelock.Wake`).
+- **Opening go-link Desk again brings its window forward** on Windows and Linux (the Start menu or the desktop's launcher, a double click), instead of a second copy quitting silently while the first one sits in the tray: the second one wakes the running one (`instancelock.Wake`), through a named event of the user's session on Windows and a Unix socket next to the lock (`desk.lock.wake`, in the user's own settings folder) on Linux.
 - **A dead link to signalhub is noticed in seconds**, not at the server's next ping: the client pings every 15 s and gives the link up after 35 s without an answer (it waited 75 s). Found on a network that dropped connections without a word (an IP address conflict): the host said "Connected" and showed a code the server no longer had, until the next reconnection.
 - The captured pictures and their scaler are shared by Linux and Windows (`pkg/capture/frame.c`); it now reads RGBx pictures (some Wayland desktops' PipeWire streams) as RGB, not BGR.
 - On Windows the log goes to `%LOCALAPPDATA%\go-link-desk\logs\desk.log` (when not started from a terminal).
@@ -29,17 +48,48 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **The website and the README say Windows is available** (English, Spanish and Portuguese): the home page lists Windows among the computers you can share and has a Windows download (the installer or the portable .zip), and the docs' Installation has Windows' steps: the installer for the user, SmartScreen's warning while the installer is not signed, the firewall's question and what Windows does not let any program share (a window running as administrator, UAC prompts, the lock screen).
+- **The connection request on GNOME (Wayland) says what comes next:** the desktop then asks too, with "Allow Remote Interaction" off by default, and without it the viewer can only watch. Shown until the desktop remembers a choice that includes the mouse and keyboard.
+- **Settings' words:** on Windows the Theme's third choice reads "Use system setting", as Windows' own settings do; the announced address's example reads "For example: 192.168.1.20", so it no longer looks like a value already set.
+- **`docs/architecture.md` covers phase 7:** a section on the Windows host (capture, H.264, control, one copy at a time, the window, the release), libyuv and the VP8 tuning in the picture, Fyne's window on Windows and Linux, and the measured hardware.
+- **Windows and Linux get the Mac app's window** (`pkg/fyneview`, drawn with Fyne):
+  - **The main window:** the address field with Session/Link, Connect and Settings; the "This computer" panel with the code, the link and the permissions; the filters; the linked computers and recent sessions as cards, a list or a detailed list, with their menus (favorite, rename, forget, copy code).
+  - **Settings**, with the same pages and rows.
+  - **Same look:** the Mac's colors (dark and light), Inter (OFL) with tabular figures, and Lucide icons (ISC).
+  - **Not yet:** sessions do not open in the app's own tabs. Connect opens the viewer in the browser.
+  - The small code window is gone on both systems.
+  - **On Windows, the frame takes the app's colors:** the title bar in the top bar's color, its title in the text's, and the border in the lines'. Windows draws them (DWM), with its own minimize, maximize and close buttons. Windows 11 takes the exact colors; Windows 10 takes only a dark or light frame.
+  - **On Linux too, where the desktop lets a window ask:** KDE Plasma draws the title bar in the app's exact colors (a color scheme hint, `_KDE_NET_WM_COLOR_SCHEME`; on Wayland the windows go through XWayland for it), and GNOME up to 43 dark or light (`_GTK_THEME_VARIANT`). GNOME 44 and later draw every title bar in the system's own style (Settings › Appearance).
+  - **No margin around the content:** the windows no longer have Fyne's own margin, which showed as a white frame.
+  - **Inter is the app's font** on both systems, its other windows included. It is set before anything measures text: Fyne keeps the faces it measured with, so fields had been measured in its own narrower font and their last characters were cut on Windows.
+  - **Settings words the icon rows the way each system does:** taskbar and notification area on Windows; dock or taskbar and the system tray on Linux.
+  - **The main window opens at 1120×680**, which fits a 1366×768 laptop or a 1280×800 screen with its taskbar.
+  - **The other windows look as on the Mac:** the connection request, the session, the call, the chat and the files. They keep Fyne's own look, in the variant of the app's Theme setting (dark by default) rather than the system's: a light Windows drew them white next to the dark main window. On Windows their title bar takes their background's color.
+- **Faint text that reads in Fyne's windows** (also on the Mac):
+  - **Which text:** labels of low importance, such as the request's note that "the name and the browser are what the other side says", its countdown and the chat's times.
+  - **The problem:** Fyne drew them in its disabled color, nearly the background's (#39393a on #171717 in the dark variant).
+  - **The fix:** a grey that reads (4.5:1 or more) and still looks secondary.
+- **The connection request opens centered on the screen**, as on the Mac. On Windows it opened in the top-left corner.
 - **Sharper, steadier VP8** (Linux, and Windows without H.264):
   - **Frames carry their times:** libvpx was told every frame came a sixtieth of a second after the last. A desktop changes far less often, so each frame got a fraction of the bits it had. Now each frame gets the bits of the time since the previous one; a test checks that frames 100 ms apart get about six times more.
   - **No more restarts on bitrate changes:** a change of a tenth or more now applies while the encoder runs, at most once a second. Before, a change of a fifth or more started the encoder again with a keyframe, which made bursts the viewer saw as stalls.
   - **WebRTC's short rate control buffer** (1 s, not libvpx's 6 s), so a busy screen does not send long bursts.
   - **libvpx's screen content mode**, for sharper text and still areas left alone.
   - **Threads no more than the computer's cores**, and six for pictures of 2560×1440 and larger.
+  - **A fixed speed (6, WebRTC's)** instead of libvpx's own choice.
+    - **The problem:** on a busy screen, libvpx's own choice ran to its fastest settings, which there are slower and blow far past the bitrate.
+    - **The measurement** (`build/vbench`, 2 cores of a 1.8 GHz Xeon, text scrolling at 1080p): 22 fps at 45 Mbps (8 asked) before, 45 fps at 9 Mbps now. At 1280×800: 43 fps at 22 Mbps before, 80 fps at 7.7 Mbps now.
+    - **Why it mattered:** the overshoot was what the congestion control took for a full network, dropping a LAN session to 640×400.
 - **The screen's pictures are scaled and converted to I420 with libyuv** (BSD-3-Clause; Linux and Windows):
   - Its SIMD code does a 1080p frame in about 2 ms. The plain C before took 28–37 ms, which alone held the capture to about 30 frames a second and took a core.
   - Smaller pictures average every pixel under each of their own (a box filter), not up to sixteen samples.
   - Linking: on Linux, Debian stable's static `libyuv.a`; on Windows, built from source in Docker without its JPEG decoder. Both are linked in, so no new runtime libraries are needed (checked by `check-deps.sh`).
   - On Debian and Ubuntu, development builds need `libyuv-dev`.
+
+### Fixed
+
+- **The host could crash when a video call ended** (seen on Linux, where the call's camera uses VP8): the camera's encoder was closed while a frame was still encoding in it, and libvpx's memory freed under it. Frames and the closing now take turns. The host also says the call ended (to the viewer, its window and its log) before stopping its camera and sound, so nobody waits for that. CI keeps the hosts' logs of a failed end-to-end run.
+- **Linux: the main window drawn whole when GNOME maximizes it as it opens** (it does so with a window that nearly fills the screen, such as 1120×680 on 1280×800). Fyne took the new size but went on drawing at the old one, cut at the top and with black bars, until the window was resized again; it is now resized by a pixel and back once it shows.
 
 ## [1.1.0] - 2026-10-12
 

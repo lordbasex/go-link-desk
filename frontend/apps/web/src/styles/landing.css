@@ -101,8 +101,7 @@
 
 /* cards: security and download */
 .lp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.lp-cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 1100px) { .lp-cards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.lp-cards-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 18px; }
 .lp-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 22px; }
 .lp-card h3 { font-size: 20px; margin-bottom: 8px; }
 .lp-card p { margin: 0; font-size: 15px; color: var(--color-text-2); }

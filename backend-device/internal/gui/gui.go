@@ -26,7 +26,6 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
-	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/trayicon"
 )
 
@@ -66,7 +65,7 @@ type Options struct {
 	// Connect opens sessions to these session codes at start (separated
 	// by commas).
 	Connect string
-	// Woken receives when the app is opened again while it runs (Windows):
+	// Woken receives when the app is opened again while it runs (Windows, Linux):
 	// the main window comes forward.
 	Woken <-chan struct{}
 	// Autostart replaces the system's login item (tests).
@@ -103,13 +102,16 @@ type ui struct {
 	call     *callWindow     // nil without a call
 	settings *settingsWindow // nil without Settings
 	about    fyne.Window     // the About window, off macOS
+	upd      *updates        // the update check and its window
 	// native: the main window is the system's own (Home and the
 	// sessions' tabs), not win.
-	native   bool
-	lastSt   models.Status
-	homeMu   sync.Mutex
-	homeLast string // the last Home sent, to send only changes
-	prefs    prefsState
+	native bool
+	lastSt models.Status
+	// lastActive: someone was in session at the last render.
+	lastActive bool
+	homeMu     sync.Mutex
+	homeLast   string // the last Home sent, to send only changes
+	prefs      prefsState
 
 	remotesMu sync.Mutex
 	remotes   []*remote // sessions to other computers
@@ -124,6 +126,7 @@ func Run(opts Options) {
 		_ = os.Setenv("RESOURCE_NAME", appID)
 	}
 	a := app.NewWithID(appID)
+	useAppTheme(a) // before anything measures text
 	icon := trayicon.AppPNG()
 	if opts.Settings != nil {
 		cfg := opts.Settings.Get()
@@ -131,11 +134,12 @@ func Run(opts Options) {
 	}
 	a.SetIcon(fyne.NewStaticResource("go-link-desk.png", icon))
 	u := newUI(a, opts)
-	if opts.Remotes != nil && remoteview.Supported {
+	if opts.Remotes != nil && hasMain {
 		u.openMain()
 	}
 	u.setupTray()
 	u.render(opts.Status.Snapshot())
+	u.upd.start()
 	if opts.Woken != nil {
 		go func() {
 			for {
@@ -182,7 +186,7 @@ func Run(opts Options) {
 		}
 	}()
 	if u.native {
-		remoteview.ShowMain()
+		mainShow()
 		for _, c := range strings.Split(opts.Connect, ",") {
 			if code := digits(c); len(code) == 9 {
 				go u.connect(viewer.Door{Kind: viewer.DoorJoin, Code: code})
@@ -290,6 +294,7 @@ func newUI(a fyne.App, opts Options) *ui {
 	u.win.SetContent(container.NewPadded(container.NewVBox(items...)))
 	u.win.Resize(fyne.NewSize(460, 360))
 	u.panel = u.newSessionPanel()
+	u.upd = u.newUpdates()
 	if opts.Settings != nil {
 		u.settings = u.newSettings()
 	}
@@ -341,6 +346,10 @@ func (u *ui) render(st models.Status) {
 		active = st.Session.Active
 	}
 	u.panel.render(active)
+	if active == nil && u.lastActive {
+		u.upd.sessionEnded()
+	}
+	u.lastActive = active != nil
 	if u.settings != nil {
 		u.settings.renderCode(st)
 	}
@@ -424,7 +433,8 @@ func (u *ui) setupTray() {
 	if u.settings != nil {
 		u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("Settings…"), u.showSettings))
 	}
-	u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
+	u.upd.trayItem = fyne.NewMenuItem(u.upd.trayLabel(), u.upd.ask)
+	u.trayMenu.Items = append(u.trayMenu.Items, u.upd.trayItem, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", u.trayPNG()))
 	u.win.SetCloseIntercept(u.win.Hide)
@@ -433,7 +443,7 @@ func (u *ui) setupTray() {
 // showMain brings the main window to the front.
 func (u *ui) showMain() {
 	if u.native {
-		remoteview.ShowMain()
+		mainShow()
 		return
 	}
 	u.win.Show()

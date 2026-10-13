@@ -7,6 +7,8 @@ package gui
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/url"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -20,6 +22,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/clipboard"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/decoder"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/voice"
 )
@@ -54,11 +57,17 @@ type remote struct {
 	thumb    []byte
 	linked   *viewer.NewLink
 	codecOK  bool
-	resize   *time.Timer
-	files    *viewer.Files
-	chat     *remoteChat
-	browse   *remoteFiles
-	closed   bool
+	// vp8 decodes what a computer without H.264 sends. vp8Mu keeps a
+	// picture's planes (libvpx's memory) alive until the view copied
+	// them, and the decoder from closing under a frame.
+	vp8Mu     sync.Mutex
+	vp8       *decoder.VP8
+	vp8Closed bool
+	resize    *time.Timer
+	files     *viewer.Files
+	chat      *remoteChat
+	browse    *remoteFiles
+	closed    bool
 }
 
 // viewerName is the name the other side sees.
@@ -86,6 +95,7 @@ func (u *ui) agent() string {
 // connect opens a session to another computer, in a new tab.
 func (u *ui) connect(door viewer.Door) {
 	if !remoteview.Supported {
+		u.connectInBrowser(door)
 		return
 	}
 	cfg := models.Config{}
@@ -125,7 +135,7 @@ func (u *ui) connect(door viewer.Door) {
 		signal = door.Device.SignalURL
 	}
 	r.s = viewer.New(viewer.Options{
-		Door: door, Name: u.viewerName(), Agent: u.agent(), Codecs: []string{"h264-high", "h264"},
+		Door: door, Name: u.viewerName(), Agent: u.agent(), Codecs: []string{"h264-high", "h264", "vp8"},
 		SignalURL: signal, OwnDeviceID: cfg.DeviceID, Logger: u.opts.Logger, Events: r.events(),
 	})
 	r.input = viewer.NewInput(r.s)
@@ -365,7 +375,12 @@ func (r *remote) notify(text string) {
 }
 
 func (r *remote) onVideo(f viewer.Frame) {
-	if f.Codec != "h264" {
+	switch f.Codec {
+	case "h264":
+		r.view.Video(f.Data)
+	case "vp8":
+		r.drawVP8(f.Data)
+	default:
 		r.mu.Lock()
 		said := r.codecOK
 		r.codecOK = true
@@ -373,9 +388,45 @@ func (r *remote) onVideo(f viewer.Frame) {
 		if !said {
 			r.view.Overlay(L("This computer sends its picture in a format this app cannot show yet. Use the website."), false, "", false)
 		}
+	}
+}
+
+// drawVP8 decodes a VP8 frame and draws it. A frame that built on a lost
+// one is not drawn, and a whole picture is asked for.
+func (r *remote) drawVP8(frame []byte) {
+	r.vp8Mu.Lock()
+	defer r.vp8Mu.Unlock()
+	if r.vp8Closed {
 		return
 	}
-	r.view.Video(f.Data)
+	if r.vp8 == nil {
+		d, err := decoder.NewVP8(min(4, max(1, runtime.NumCPU()/2)))
+		if err != nil {
+			slog.Warn("cannot decode VP8", "err", err)
+			r.vp8Closed = true
+			return
+		}
+		r.vp8 = d
+	}
+	p, err := r.vp8.Decode(frame)
+	if err != nil {
+		r.s.RequestKeyframe()
+		return
+	}
+	if p != nil {
+		r.view.Picture(p.Width, p.Height, p.Y, p.U, p.V, p.StrideY, p.StrideUV)
+	}
+}
+
+// closeVP8 frees the decoder, once no frame is in it.
+func (r *remote) closeVP8() {
+	r.vp8Mu.Lock()
+	defer r.vp8Mu.Unlock()
+	r.vp8Closed = true
+	if r.vp8 != nil {
+		r.vp8.Close()
+		r.vp8 = nil
+	}
 }
 
 func (r *remote) onAudio(samples []int16) {
@@ -535,6 +586,7 @@ func (r *remote) close() {
 	r.mu.Unlock()
 	r.s.HangUp()
 	r.setAudio(false)
+	r.closeVP8()
 	r.view.Close()
 	fyne.Do(func() {
 		if r.chat != nil {
@@ -755,4 +807,25 @@ func downloadsDir() string {
 		return filepath.Join(me.HomeDir, "Downloads")
 	}
 	return "."
+}
+
+// connectInBrowser opens the session in the browser, where this build
+// has no window of its own for it (Windows, for now): a code at
+// <web>/c/<code>, a linking code at <web>/link/<code>. A computer linked
+// here is not linked in the browser: its page is /web.
+func (u *ui) connectInBrowser(door viewer.Door) {
+	web := strings.TrimRight(u.opts.WebURL, "/")
+	if web == "" {
+		return
+	}
+	target := web + "/web"
+	switch {
+	case door.Kind == viewer.DoorClaim && door.Code != "":
+		target = web + "/link/" + door.Code
+	case door.Kind == viewer.DoorJoin && door.Code != "":
+		target = web + "/c/" + door.Code
+	}
+	if link, err := url.Parse(target); err == nil {
+		fyne.Do(func() { _ = u.app.OpenURL(link) })
+	}
 }

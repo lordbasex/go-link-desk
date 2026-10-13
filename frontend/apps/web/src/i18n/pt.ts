@@ -301,6 +301,7 @@ export const pt: Messages = {
       today: "Hoje",
       macHost: "macOS 13+ · Intel e Apple silicon",
       linuxHost: "Linux · X11 e Wayland (GNOME, KDE Plasma…)",
+      winHost: "Windows 10 e 11 · 64 bits",
       soon: "Em breve",
     },
     steps: {
@@ -360,10 +361,10 @@ export const pt: Messages = {
       mac: { title: "macOS", text: "Compartilha este Mac e se conecta a outros.", meta: "Intel e Apple silicon · macOS 13+ · assinado e notarizado", button: "Baixar .dmg" },
       ios: { title: "iPhone e iPad", text: "Conecta-se aos seus computadores, com Face ID para os vinculados.", meta: "iOS e iPadOS 26+ · em revisão na App Store", button: "Em breve na App Store" },
       android: { title: "Android", text: "Celulares e tablets, com a digital ou o bloqueio de tela.", meta: "Android 11+ · em breve no Google Play", button: "Em breve no Google Play" },
+      windows: { title: "Windows", text: "Compartilha a tela deste PC; Conectar abre os outros no seu navegador.", meta: "Windows 10 e 11 · x86-64 e ARM64 · instalador ou .zip portátil", button: "Baixar instalador" },
       linux: { title: "Linux", text: "Compartilha a tela deste computador, em X11 ou Wayland: GNOME, KDE Plasma e mais.", meta: "x86-64 e ARM64 · glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora…)", button: "Baixar .tar.gz" },
       noInstall: "Sem instalar nada?",
       openWeb: "Abra {web} em qualquer navegador.",
-      hostsSoon: "Windows para compartilhar a sua tela: em breve",
     },
     faq: {
       eyebrow: "Perguntas",
@@ -373,6 +374,8 @@ export const pt: Messages = {
         { q: "Alguém pode entrar no meu computador sem eu saber?", a: "Não. A pessoa na frente do computador aceita cada sessão. O acesso não supervisionado é ativado por ela, sempre com senha, e ela pode revogá-lo." },
         { q: "Me ligaram pedindo para instalar isto.", a: "Desligue. Nem o seu banco, nem a polícia, nem um suporte técnico ligam para pedir acesso ao seu computador." },
         { q: "Funciona fora de casa?", a: "Sim. As duas pontas se encontram pela internet; quando não há caminho direto, os dados passam por um relé que não pode lê-los." },
+        { q: "De que computador eu preciso?", a: "Qualquer computador de 64 bits dos últimos dez anos: com dois núcleos ele envia uma tela Full HD fluida, e um Mac faz isso por hardware (macOS 13 ou mais recente). Os números, por processador e tamanho de tela, estão na documentação, em Requisitos." },
+        { q: "Quanta internet usa?", a: "Quase nada enquanto a tela está parada, e até 10 Mbps numa tela Full HD com muito movimento. Com menos, a imagem reduz sozinha o tamanho e os quadros por segundo, até cerca de meio megabit." },
       ],
     },
     footer: {
@@ -385,7 +388,7 @@ export const pt: Messages = {
       macApp: "App para Mac",
       ios: "iPhone e iPad",
       android: "Android",
-      winLinux: "Windows",
+      winLinux: "App para Windows",
       linuxApp: "App para Linux",
       review: "Revisão",
       soon: "Em breve",

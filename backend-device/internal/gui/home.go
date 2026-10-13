@@ -65,13 +65,14 @@ func (u *ui) openMain() {
 		"viewDetails":    L("Detailed list"),
 		"copyHint":       L("Click to copy"),
 	}
-	if err := remoteview.OpenMain(labels, u); err != nil {
+	if err := mainOpen(labels, u); err != nil {
 		u.opts.Logger.Warn("main window", "err", err)
 		return
 	}
 	u.native = true
-	remoteview.SetAppMenu(map[string]string{
+	mainSetMenu(map[string]string{
 		"about":      L("About go-link Desk"),
+		"updates":    L("Check for Updates…"),
 		"settings":   L("Settings…"),
 		"services":   L("Services"),
 		"hide":       L("Hide go-link Desk"),
@@ -82,8 +83,8 @@ func (u *ui) openMain() {
 	if u.opts.Settings != nil {
 		cfg := u.opts.Settings.Get()
 		u.prefs.start, u.prefs.startSet = cfg, true
-		remoteview.SetDockIcon(appIcon(cfg.AppIcon))
-		remoteview.SetTheme(themeOf(cfg.Theme))
+		mainSetIcon(appIcon(cfg.AppIcon))
+		mainSetTheme(themeOf(cfg.Theme))
 	}
 	u.opts.Remotes.OnChange(func(models.Remotes) { u.pushHome() })
 	if u.opts.Settings != nil {
@@ -183,7 +184,7 @@ func (u *ui) pushHome() {
 		u.homeLast = string(b)
 		u.homeMu.Unlock()
 		if !same {
-			remoteview.SetHome(h)
+			mainSetHome(h)
 		}
 		u.refreshPrefs()
 	})
@@ -207,6 +208,8 @@ func (u *ui) MainAction(name, arg string) {
 		fyne.Do(u.showSettings)
 	case "about":
 		fyne.Do(u.showAbout)
+	case "updates":
+		fyne.Do(u.upd.ask)
 	case "setting":
 		fyne.Do(func() { u.setting(arg) })
 	case "allow":

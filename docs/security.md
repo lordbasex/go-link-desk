@@ -32,6 +32,12 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Input it sends is limited by the permissions granted, and stops when they are revoked. Control is off unless the person at the computer ticks it in the request, and can be taken back at any moment from the session panel; every key and button held is let go at that moment.
 - Its input packets are parsed with fixed sizes and limits (text at most 1024 bytes, display indexes checked, unknown keycodes dropped); a malformed packet is ignored.
 
+### A compromised release host or download
+
+- The app installs an update only when the release's `SHA256SUMS` carries the update key's Ed25519 signature and the downloaded file has the hash it lists. The private key is on the release computer only, never in the repository or CI, so someone who takes over the GitHub account or the release's files cannot push an update to the apps. **Residual risk:** the release computer itself; and the first install, which the person checks against `SHA256SUMS` (the Mac's is also notarized).
+- On macOS the new app must also carry a valid signature by the running app's developer team.
+- A file that fails a check is deleted and nothing is installed. Updates never run in the middle of a session without the person choosing **Update**.
+
 ### The clipboard, the sound and the chat
 
 - The clipboard is shared only with its permission, and only what is copied after it is given: a password copied before the session never leaves. Taking the permission back stops it at once.

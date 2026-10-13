@@ -5,6 +5,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Cocoa/Cocoa.h>
 #import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 #import <QuartzCore/QuartzCore.h>
 #include <stdint.h>
 #import <objc/runtime.h>
@@ -397,6 +398,10 @@ static RVMain *gMain;
 @property(nonatomic, strong) NSWindow *window; // its own window, or nil in a tab
 @property(nonatomic) dispatch_queue_t queue;
 @property(nonatomic) CMVideoFormatDescriptionRef format; // on queue
+// Decoded pictures (VP8): their buffers, and the format of the last one.
+@property(nonatomic) CVPixelBufferPoolRef pool; // under @synchronized(self)
+@property(nonatomic) CGSize poolSize;
+@property(nonatomic) CMVideoFormatDescriptionRef imageFormat; // on queue
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL shown; // its tab is the one shown (or it has its own window)
 @end
@@ -446,6 +451,8 @@ static RVMain *gMain;
 
 - (void)dealloc {
 	if (_format) CFRelease(_format);
+	if (_imageFormat) CFRelease(_imageFormat);
+	if (_pool) CVPixelBufferPoolRelease(_pool);
 }
 
 - (NSString *)L:(NSString *)key {
@@ -745,6 +752,80 @@ static RVMain *gMain;
 	[layer enqueueSampleBuffer:sample];
 #pragma clang diagnostic pop
 	CFRelease(sample);
+}
+
+// enqueueImage draws one decoded picture, on the session's queue.
+- (void)enqueueImage:(CVPixelBufferRef)pb {
+	if (!self.imageFormat || !CMVideoFormatDescriptionMatchesImageBuffer(self.imageFormat, pb)) {
+		CMVideoFormatDescriptionRef fmt = NULL;
+		if (CMVideoFormatDescriptionCreateForImageBuffer(NULL, pb, &fmt) != noErr) return;
+		if (self.imageFormat) CFRelease(self.imageFormat);
+		self.imageFormat = fmt;
+		size_t w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb);
+		dispatch_async(dispatch_get_main_queue(), ^{
+			self.view.picture = CGSizeMake(w, h);
+			[self.view setNeedsLayout:YES];
+			[self.view remakeCursor];
+		});
+	}
+	CMSampleTimingInfo timing = {kCMTimeInvalid, CMClockGetTime(CMClockGetHostTimeClock()), kCMTimeInvalid};
+	CMSampleBufferRef sample = NULL;
+	if (CMSampleBufferCreateReadyWithImageBuffer(NULL, pb, self.imageFormat, &timing, &sample) != noErr || !sample) return;
+	CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sample, YES);
+	if (attachments && CFArrayGetCount(attachments) > 0) {
+		CFMutableDictionaryRef a = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+		CFDictionarySetValue(a, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+	}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+	AVSampleBufferDisplayLayer *layer = self.view.video;
+	if (layer.status == AVQueuedSampleBufferRenderingStatusFailed) [layer flush];
+	[layer enqueueSampleBuffer:sample];
+#pragma clang diagnostic pop
+	CFRelease(sample);
+}
+
+// pixelBuffer copies an I420 picture into a new NV12 buffer (BT.601,
+// video range: what the hosts' converters write), from the pool.
+- (CVPixelBufferRef)pixelBufferWidth:(int)w height:(int)h y:(const uint8_t *)y u:(const uint8_t *)u v:(const uint8_t *)v strideY:(int)sy strideUV:(int)suv {
+	CVPixelBufferRef pb = NULL;
+	@synchronized(self) {
+		if (!self.pool || self.poolSize.width != w || self.poolSize.height != h) {
+			if (self.pool) CVPixelBufferPoolRelease(self.pool);
+			self.pool = NULL;
+			NSDictionary *attrs = @{
+				(id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange),
+				(id)kCVPixelBufferWidthKey : @(w),
+				(id)kCVPixelBufferHeightKey : @(h),
+				(id)kCVPixelBufferIOSurfacePropertiesKey : @{},
+			};
+			CVPixelBufferPoolRef pool = NULL;
+			if (CVPixelBufferPoolCreate(NULL, NULL, (__bridge CFDictionaryRef)attrs, &pool) != kCVReturnSuccess) return NULL;
+			self.pool = pool;
+			self.poolSize = CGSizeMake(w, h);
+		}
+		if (CVPixelBufferPoolCreatePixelBuffer(NULL, self.pool, &pb) != kCVReturnSuccess) return NULL;
+	}
+	CVPixelBufferLockBaseAddress(pb, 0);
+	uint8_t *dy = CVPixelBufferGetBaseAddressOfPlane(pb, 0);
+	size_t dsy = CVPixelBufferGetBytesPerRowOfPlane(pb, 0);
+	for (int r = 0; r < h; r++) memcpy(dy + r * dsy, y + (size_t)r * sy, w);
+	uint8_t *duv = CVPixelBufferGetBaseAddressOfPlane(pb, 1);
+	size_t dsuv = CVPixelBufferGetBytesPerRowOfPlane(pb, 1);
+	int cw = (w + 1) / 2, ch = (h + 1) / 2;
+	for (int r = 0; r < ch; r++) {
+		uint8_t *d = duv + r * dsuv;
+		const uint8_t *su = u + (size_t)r * suv, *sv = v + (size_t)r * suv;
+		for (int c = 0; c < cw; c++) {
+			d[2 * c] = su[c];
+			d[2 * c + 1] = sv[c];
+		}
+	}
+	CVPixelBufferUnlockBaseAddress(pb, 0);
+	CVBufferSetAttachment(pb, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_601_4, kCVAttachmentMode_ShouldPropagate);
+	CVBufferSetAttachment(pb, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_SMPTE_C, kCVAttachmentMode_ShouldPropagate);
+	CVBufferSetAttachment(pb, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+	return pb;
 }
 
 @end
@@ -1645,6 +1726,9 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 - (void)about:(id)s {
 	action(self.handle, @"about", @"");
 }
+- (void)updates:(id)s {
+	action(self.handle, @"updates", @"");
+}
 - (void)allow:(NSButton *)s {
 	action(self.handle, @"allow", s.identifier);
 }
@@ -1784,7 +1868,8 @@ void rv_about(const char *version, const char *credits) {
 	});
 }
 
-// rv_app_menu puts "About go-link Desk" and "Settings…" (⌘,) first in the
+// rv_app_menu puts "About go-link Desk", "Check for Updates…" and
+// "Settings…" (⌘,) first in the
 // app menu, in place of what the toolkit put there, with the app's name.
 void rv_app_menu(const char *labelsJSON) {
 	NSData *json = [NSData dataWithBytes:labelsJSON length:strlen(labelsJSON)];
@@ -1802,6 +1887,8 @@ void rv_app_menu(const char *labelsJSON) {
 		NSMenu *menu = [[NSMenu alloc] initWithTitle:@"go-link Desk"];
 		NSMenuItem *ab = [menu addItemWithTitle:a action:@selector(about:) keyEquivalent:@""];
 		ab.target = gMain;
+		NSMenuItem *up = [menu addItemWithTitle:l[@"updates"] ?: @"Check for Updates…" action:@selector(updates:) keyEquivalent:@""];
+		up.target = gMain;
 		[menu addItem:NSMenuItem.separatorItem];
 		NSMenuItem *pr = [menu addItemWithTitle:st action:@selector(settings:) keyEquivalent:@","];
 		pr.target = gMain;
@@ -1928,6 +2015,17 @@ void rv_video(void *ref, const uint8_t *data, int n) {
 	NSData *au = [NSData dataWithBytes:data length:n];
 	dispatch_async(s.queue, ^{
 		if (!s.closed) [s enqueue:au];
+	});
+}
+
+void rv_picture(void *ref, int w, int h, const uint8_t *y, const uint8_t *u, const uint8_t *v, int sy, int suv) {
+	RVSession *s = S(ref);
+	if (s.closed) return;
+	CVPixelBufferRef pb = [s pixelBufferWidth:w height:h y:y u:u v:v strideY:sy strideUV:suv];
+	if (!pb) return;
+	dispatch_async(s.queue, ^{
+		if (!s.closed) [s enqueueImage:pb];
+		CVPixelBufferRelease(pb);
 	});
 }
 

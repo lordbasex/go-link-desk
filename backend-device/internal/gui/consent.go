@@ -18,6 +18,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	screencap "github.com/lordbasex/go-link-desk/backend-device/pkg/capture"
 )
 
 // scamWarningKey remembers, in Fyne's preferences, that the person at the
@@ -53,6 +54,7 @@ func (u *ui) Ask(ctx context.Context, req services.ConsentRequest) (models.Permi
 	fyne.Do(func() {
 		r = u.newRequest(req, deadline, func(err error) { answered <- err })
 		r.win.Show()
+		styleWindow(r.win)
 		floatWindow(r.win.Title(), true)
 	})
 	tick := time.NewTicker(time.Second)
@@ -127,6 +129,14 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 		items = append(items, link)
 	}
 	items = append(append(items, widget.NewSeparator(), perms), r.perms.objects()...)
+	if screencap.AsksInputApart() {
+		// GNOME asks for the mouse and keyboard apart, off by default:
+		// without it the viewer can only watch, and it asks again.
+		input := widget.NewLabel(L("Then your desktop asks too. So they can use the mouse and keyboard, turn on “Allow Remote Interaction” there."))
+		input.Wrapping = fyne.TextWrapWord
+		input.Importance = widget.LowImportance
+		items = append(items, input)
+	}
 	// The first time, the warning about the phone scam: whoever calls and
 	// asks for this is not who they say.
 	if !u.app.Preferences().Bool(scamWarningKey) {
@@ -142,6 +152,7 @@ func (u *ui) newRequest(req services.ConsentRequest, deadline time.Time, answer 
 	r.win.SetContent(container.NewPadded(container.NewVBox(items...)))
 	r.win.Resize(fyne.NewSize(440, 0))
 	r.win.SetFixedSize(true)
+	r.win.CenterOnScreen()
 	// Closing the window is a no.
 	r.win.SetCloseIntercept(func() { r.finish(services.ErrDeclined) })
 	r.tick(time.Now())

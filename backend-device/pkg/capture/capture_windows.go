@@ -44,6 +44,10 @@ func RequestAccess() bool { return true }
 // and keyboard (always, here).
 func RemoteControl() bool { return true }
 
+// AsksInputApart: only a Wayland desktop asks for the mouse and keyboard
+// apart.
+func AsksInputApart() bool { return false }
+
 // Displays lists the monitors (IDs from 1), with their own names.
 func Displays() ([]Display, error) {
 	ds := monitors(true)
