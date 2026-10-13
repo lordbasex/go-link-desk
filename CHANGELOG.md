@@ -12,6 +12,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
   - **If it stops** during a session (a driver reset, the card taken away), Windows' own takes over from a keyframe and the session goes on; the card's is not used again until go-link Desk restarts.
   - **The log** (`video encoder`) names the encoder (for example `AMDh264Encoder`) and says whether it is hardware.
 
+### Fixed
+
+- **Windows: the computer's sound crackled and played slow** while something played. The reader kept the sound's pace with GetTickCount and Sleep, which move by 15.6 ms steps, and filled a packet that seemed late (they come every 10 ms) with silence: short gaps in the sound, and more of it than there was, so the viewer played it slower and later. Now times come from the performance counter, naps from a high-resolution timer, and silence is added only when the stream has given nothing for three device periods (at least 30 ms), which is when nothing plays.
+
 ## [1.3.0] - 2026-10-13
 
 go-link Desk updates itself: it says when there is a new version and installs it, on macOS, Windows and Linux. Also the Mac app shows computers that send VP8, and Linux encodes H.264 on Intel and AMD GPUs.

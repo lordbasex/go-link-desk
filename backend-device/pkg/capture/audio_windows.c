@@ -17,7 +17,11 @@
 // output, what its speakers play, converted by Windows to the format asked
 // (48 kHz stereo, 16 bits). A loopback stream says nothing while nothing
 // plays: the reader fills those gaps with silence, so the sound keeps its
-// pace.
+// pace. While something plays, a packet comes every device period
+// (10 ms): a late one is waited for, never padded with silence, which
+// would crackle and add time the sound does not have. Times come from
+// the performance counter and naps from a high-resolution timer, as
+// GetTickCount and Sleep move by 15.6 ms steps.
 
 #ifndef AUDCLNT_STREAMFLAGS_LOOPBACK
 #define AUDCLNT_STREAMFLAGS_LOOPBACK 0x00020000
@@ -41,8 +45,37 @@ typedef struct {
 	int period;       // bytes of a read: 10 ms
 	uint8_t *ring;    // what came and was not read yet
 	size_t size, have;
-	ULONGLONG due;    // when the next read is due (ms), at the sound's pace
+	double due;       // when the next silent read is due (ms)
+	double heard;     // when the stream last gave a packet (ms)
+	double quiet;     // ms without one that mean nothing plays
+	HANDLE timer;     // a high-resolution timer for naps (NULL: Sleep)
 } dk_wasapi;
+
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+
+static double now_ms(void) {
+	static LARGE_INTEGER freq;
+	if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
+	LARGE_INTEGER c;
+	QueryPerformanceCounter(&c);
+	return (double)c.QuadPart * 1000.0 / (double)freq.QuadPart;
+}
+
+// nap waits about 2 ms (the high-resolution timer is Windows 10 1803's;
+// before it, Sleep).
+static void nap(dk_wasapi *a) {
+	if (a->timer) {
+		LARGE_INTEGER due;
+		due.QuadPart = -20000; // 2 ms, in 100 ns, relative
+		if (SetWaitableTimer(a->timer, &due, 0, NULL, NULL, FALSE)) {
+			WaitForSingleObject(a->timer, INFINITE);
+			return;
+		}
+	}
+	Sleep(1);
+}
 
 void *dk_audio_open(int rate, int channels, int frame_bytes) {
 	// Any COM apartment this thread already has does; WASAPI's objects
@@ -90,7 +123,14 @@ void *dk_audio_open(int rate, int channels, int frame_bytes) {
 	a->period = frame_bytes;
 	a->size = (size_t)rate * a->frame; // a second
 	a->ring = malloc(a->size);
-	a->due = GetTickCount64() + 10;
+	// Three device periods without a packet: nothing plays.
+	REFERENCE_TIME def = 0;
+	IAudioClient_GetDevicePeriod(client, &def, NULL);
+	a->quiet = 3.0 * (double)def / 10000.0;
+	if (a->quiet < 30) a->quiet = 30;
+	a->timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+	a->heard = now_ms();
+	a->due = a->heard + 10;
 	if (!a->ring) {
 		dk_audio_close(a);
 		return NULL;
@@ -99,13 +139,14 @@ void *dk_audio_open(int rate, int channels, int frame_bytes) {
 }
 
 // Takes what the stream has into the ring (the oldest goes when it is
-// full); -1 when the stream is gone (the output device changed).
+// full): how many packets came, or -1 when the stream is gone (the output
+// device changed).
 static int drain(dk_wasapi *a) {
-	for (;;) {
+	for (int got = 0;; got++) {
 		UINT32 next = 0;
 		HRESULT hr = IAudioCaptureClient_GetNextPacketSize(a->cap, &next);
 		if (FAILED(hr)) return -1;
-		if (next == 0) return 0;
+		if (next == 0) return got;
 		BYTE *data = NULL;
 		UINT32 frames = 0;
 		DWORD flags = 0;
@@ -130,8 +171,10 @@ static int drain(dk_wasapi *a) {
 int dk_audio_read(void *h, void *buf, int bytes) {
 	dk_wasapi *a = h;
 	for (;;) {
-		if (drain(a) < 0) return -1;
-		ULONGLONG now = GetTickCount64();
+		int got = drain(a);
+		if (got < 0) return -1;
+		double now = now_ms();
+		if (got > 0) a->heard = now;
 		if (a->have >= (size_t)bytes) {
 			memcpy(buf, a->ring, bytes);
 			memmove(a->ring, a->ring + bytes, a->have - bytes);
@@ -139,16 +182,15 @@ int dk_audio_read(void *h, void *buf, int bytes) {
 			a->due = now + 10;
 			return 0;
 		}
-		// Nothing playing (or less than a read) past its time: what came,
-		// then silence.
-		if (now >= a->due + 5) {
+		// Nothing playing: what came, then silence, a read every 10 ms.
+		if (now - a->heard >= a->quiet && now >= a->due) {
 			memcpy(buf, a->ring, a->have);
 			memset((uint8_t *)buf + a->have, 0, bytes - a->have);
 			a->have = 0;
 			a->due = now >= a->due + 50 ? now + 10 : a->due + 10;
 			return 0;
 		}
-		Sleep(2);
+		nap(a);
 	}
 }
 
@@ -158,6 +200,7 @@ void dk_audio_close(void *h) {
 	if (a->client) IAudioClient_Stop(a->client);
 	if (a->cap) IAudioCaptureClient_Release(a->cap);
 	if (a->client) IAudioClient_Release(a->client);
+	if (a->timer) CloseHandle(a->timer);
 	free(a->ring);
 	free(a);
 }
