@@ -219,6 +219,8 @@ type StreamService struct {
 	beacon      uint16    // the latency beacon's state, flipped by the viewer
 	rung        int       // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
 	rungAt      time.Time // when it last changed
+	loadRung    int       // the encode load ladder's rung (len(loadLadder): no limit)
+	load        encodeLoad
 	changed     chan struct{}
 	onControl   func(peerID, kind string, data []byte)
 	onClosed    func(peerID, reason string)
@@ -256,6 +258,7 @@ func NewStreamService(cfg StreamConfig, ice *ICEStore) (*StreamService, error) {
 		}
 	}
 	return &StreamService{
+		loadRung: len(loadLadder),
 		cfg:      cfg,
 		log:      cfg.Logger,
 		ice:      ice,
@@ -486,10 +489,11 @@ func (s *StreamService) NeedsKeyframe() bool {
 
 // Capture is the screen capture the viewers need: the chosen display,
 // sized for the viewer's window and preset, at the preset's frame rate,
-// both lowered when the bandwidth is short (bandwidthLadder).
+// both lowered when the bandwidth is short (bandwidthLadder) or the
+// computer encodes too slowly for them (loadLadder).
 func (s *StreamService) Capture() CaptureRequest {
 	s.mu.Lock()
-	want, id, rung := s.want, s.display, s.rung
+	want, id, rung, loadRung := s.want, s.display, s.rung, s.loadRung
 	displays := s.displays
 	s.mu.Unlock()
 	if len(displays) == 0 {
@@ -498,13 +502,18 @@ func (s *StreamService) Capture() CaptureRequest {
 	d := pickDisplay(displays, id)
 	w, h := captureSize(d, want)
 	fps := presetLimits[ParsePreset(string(want.Preset))].fps
-	if rung < len(bandwidthLadder) {
-		r := bandwidthLadder[rung]
-		fps = min(fps, r.fps)
-		if r.maxWidth > 0 && w > r.maxWidth {
-			h = (r.maxWidth * h / w) &^ 1
-			w = r.maxWidth
+	limit := func(maxWidth, maxFPS int) {
+		fps = min(fps, maxFPS)
+		if maxWidth > 0 && w > maxWidth {
+			h = (maxWidth * h / w) &^ 1
+			w = maxWidth
 		}
+	}
+	if rung < len(bandwidthLadder) {
+		limit(bandwidthLadder[rung].maxWidth, bandwidthLadder[rung].fps)
+	}
+	if loadRung < len(loadLadder) {
+		limit(loadLadder[loadRung].maxWidth, loadLadder[loadRung].fps)
 	}
 	return CaptureRequest{Display: d, Width: w, Height: h, FPS: fps, ShowCursor: want.CursorInVideo, Audio: s.Hearing()}
 }
@@ -604,6 +613,12 @@ func (s *StreamService) VideoFrame(f Frame) {
 	viewers := maps.Clone(s.viewers)
 	s.mu.Unlock()
 	s.closeEncoders(viewers) // of viewers that left
+	start := time.Now()
+	defer func() {
+		if now := time.Now(); len(viewers) > 0 && s.noteEncode(now.Sub(start), now) {
+			s.signalChanged()
+		}
+	}()
 	for _, v := range viewers {
 		e := s.encs[v.id]
 		if e != nil {
@@ -694,6 +709,7 @@ func (s *StreamService) followBandwidth() {
 	}
 	if len(s.viewers) == 0 {
 		s.rung = len(bandwidthLadder)
+		s.loadRung = len(loadLadder) // the next session starts afresh
 	}
 	before := s.rung
 	s.rung = ladderRung(worst, s.rung, time.Since(s.rungAt))

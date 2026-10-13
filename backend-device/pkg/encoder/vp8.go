@@ -130,9 +130,10 @@ type Config struct {
 	FPS           int
 	BitrateKbps   int
 	// MinQuantizer and MaxQuantizer bound the quantizer (0-63, lower is
-	// better quality); CPUUsed is the libvpx speed preset (-16..16, higher
-	// is faster). Zero keeps the streaming defaults (4, 56 and 8); the
-	// video quality lab sets them to compare other tunings.
+	// better quality); CPUUsed is the libvpx speed preset (-16..16: a
+	// negative one is fixed, a positive one lets libvpx pick by the time
+	// left). Zero keeps the streaming defaults (4, 56 and -6); the video
+	// quality lab sets them to compare other tunings.
 	MinQuantizer, MaxQuantizer int
 	CPUUsed                    int
 	// Threads is libvpx's thread count; zero keeps the streaming default (2).
@@ -160,7 +161,13 @@ const timebase = 90000
 const (
 	DefaultMinQuantizer = 4
 	DefaultMaxQuantizer = 56
-	DefaultCPUUsed      = 8
+	// DefaultCPUUsed is a fixed speed 6, WebRTC's. libvpx's own choice
+	// (positive values) runs to its fastest settings on a busy screen,
+	// which there are slower and far past the bitrate: build/vbench, 2
+	// cores of a 1.8 GHz Xeon, scrolling text at 1080p: 22 fps and 45
+	// Mbps for 8 asked with 8; 45 fps and 9 Mbps with -6. When a computer
+	// is too slow even so, the encode load ladder lowers the picture.
+	DefaultCPUUsed = -6
 )
 
 // VP8 is a libvpx VP8 encoder. It is not safe for concurrent use.
