@@ -15,6 +15,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/encoder"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
 
@@ -183,6 +184,9 @@ func startSession(t *testing.T, door Door, perms models.Permissions, decide func
 }
 
 func TestAJoinedSessionGetsThePictureAndTalks(t *testing.T) {
+	if !encoder.Codecs {
+		t.Skip("built without cgo: no libvpx or libopus")
+	}
 	controls := make(chan string, 20)
 	s, hub, rec := startSession(t, Door{Kind: DoorJoin, Code: "915355636"}, models.Permissions{Control: true}, nil)
 	hub.stream.OnControl(func(peerID, kind string, data []byte) {
