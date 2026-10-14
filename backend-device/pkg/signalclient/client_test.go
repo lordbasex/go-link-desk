@@ -4,10 +4,13 @@ package signalclient
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,6 +55,8 @@ type fakeServer struct {
 	mu    sync.Mutex
 	conns []*websocket.Conn
 	query chan string
+	// turnTTL, when set, puts TURN credentials lasting that long in hello.
+	turnTTL time.Duration
 }
 
 func newFakeServer(t *testing.T) *fakeServer {
@@ -67,7 +72,12 @@ func newFakeServer(t *testing.T) *fakeServer {
 		fs.conns = append(fs.conns, conn)
 		n := len(fs.conns)
 		fs.mu.Unlock()
-		_ = conn.WriteJSON(Envelope{Type: TypeHello, PeerID: strings.Repeat("a", 31) + string(rune('0'+n))})
+		hello := Envelope{Type: TypeHello, PeerID: strings.Repeat("a", 31) + string(rune('0'+n))}
+		if fs.turnTTL > 0 {
+			exp := time.Now().Add(fs.turnTTL).Unix()
+			hello.ICEServers = []ICEServer{{URLs: []string{"stun:x:3478"}}, {URLs: []string{"turn:x:3478"}, Username: strconv.FormatInt(exp, 10) + ":" + hello.PeerID, Credential: "c"}}
+		}
+		_ = conn.WriteJSON(hello)
 		for {
 			var env Envelope
 			if err := conn.ReadJSON(&env); err != nil {
@@ -176,5 +186,58 @@ func TestEndpoint(t *testing.T) {
 	}
 	if _, err := endpoint("http://h/ws"); err == nil {
 		t.Error("http scheme accepted")
+	}
+}
+
+// TURN credentials come only with hello: before they expire the client
+// connects again for new ones, but not while someone is in session.
+func TestRenewsForFreshTURNCredentialsWhenIdle(t *testing.T) {
+	renewRetry = 50 * time.Millisecond
+	defer func() { renewRetry = time.Minute }()
+	fs := newFakeServer(t)
+	fs.turnTTL = 2 * time.Second
+	rec := newRecorder()
+	var busy atomic.Bool
+	busy.Store(true)
+	c := New(Config{URL: fs.wsURL(), MinBackoff: 20 * time.Millisecond, Renewable: func() bool { return !busy.Load() }}, rec)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = c.Run(ctx) }()
+
+	wait(t, rec.connects)
+	// Due (about 1.5 s in), but someone is in session.
+	select {
+	case h := <-rec.connects:
+		t.Fatalf("reconnected during a session: %+v", h)
+	case <-time.After(2500 * time.Millisecond):
+	}
+	busy.Store(false)
+	if err := wait(t, rec.drops); !errors.Is(err, errRenew) {
+		t.Fatalf("drop = %v", err)
+	}
+	if h := wait(t, rec.connects); !strings.HasSuffix(h.PeerID, "2") || len(h.ICEServers) != 2 {
+		t.Fatalf("second hello %+v", h)
+	}
+}
+
+func TestRenewAt(t *testing.T) {
+	now := time.Unix(1_000_000, 0)
+	exp := func(d time.Duration) string { return strconv.FormatInt(now.Add(d).Unix(), 10) + ":peer" }
+	for _, c := range []struct {
+		name    string
+		servers []ICEServer
+		want    time.Time
+	}{
+		{"none", nil, time.Time{}},
+		{"stun only", []ICEServer{{URLs: []string{"stun:x"}}}, time.Time{}},
+		{"not the REST format", []ICEServer{{Username: "user", Credential: "x"}}, time.Time{}},
+		{"12 h: an hour before", []ICEServer{{Username: exp(12 * time.Hour)}}, now.Add(11 * time.Hour)},
+		{"the first to expire", []ICEServer{{Username: exp(12 * time.Hour)}, {Username: exp(4 * time.Hour)}}, now.Add(3 * time.Hour)},
+		{"short: a quarter before", []ICEServer{{Username: exp(time.Hour)}}, now.Add(45 * time.Minute)},
+		{"already expired: now", []ICEServer{{Username: exp(-time.Minute)}}, now.Add(-time.Minute)},
+	} {
+		if got := renewAt(c.servers, now); !got.Equal(c.want) {
+			t.Errorf("%s: renewAt = %v, want %v", c.name, got, c.want)
+		}
 	}
 }

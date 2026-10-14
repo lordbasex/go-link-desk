@@ -8,10 +8,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 - **Files sent to a computer land straight in Downloads**, on macOS, Windows, Linux and with go-link-desk-terminal (`~/Downloads`, created if missing), never over a file already there. The Mac app's screenshots and recordings go to Downloads too, and Android's to Downloads, Pictures and Movies, without a folder of their own.
 - **Screenshots and recordings are named without spaces**: `go-link-desk-office-mac-2026-10-14-150405.png` (in the browser and the Mac and Android apps).
-
-### Changed
-
 - **A terminal's text size is in the monitor button**, like a screen's settings: A+, A− and Normal size, with the size shown and the menu kept open while you adjust (it was in the Terminals menu).
+
+### Fixed
+
+- **A computer left on for more than 12 hours could not be reached through the relay** (TURN): its relay credentials, given only when it connects to the signaling server, expired, and a viewer whose network needs the relay saw a black screen at "Connecting…". The app and go-link-desk-terminal now reconnect to the signaling server an hour before they expire, when nobody is in session, for new ones. (The public demo, relay only, stopped answering this way.)
 
 ## [1.5.0] - 2026-10-14
 

@@ -476,7 +476,7 @@ func run(args []string) error {
 	// opener must see room_opened before the session does.
 	handlers := services.Dispatcher{pairing, opener, session}
 
-	client := signalclient.New(signalclient.Config{URL: target, Logger: logger}, handlers)
+	client := signalclient.New(signalclient.Config{URL: target, Logger: logger, Renewable: func() bool { p, _, _ := session.Active(); return p == "" }}, handlers)
 	pairing.SetSender(client)
 	opener.SetSender(client)
 	session.SetSender(client)
