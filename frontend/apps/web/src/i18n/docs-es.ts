@@ -129,6 +129,15 @@ export const docsEs: Docs = {
                 { t: "p", text: "go-link Desk para celulares y tablets Android (Android 11 o más nuevo) llega pronto a Google Play. Mientras tanto, usá Chrome en [desk.go-link.org/web](/web)." },
               ],
             },
+            {
+              id: "terminal",
+              label: "Raspberry Pi y servidores",
+              blocks: [
+                { t: "p", text: "Para una computadora sin escritorio (una Raspberry Pi, un servidor, una máquina virtual): **go-link-desk-terminal** te da su terminal en el navegador, sin abrir ningún puerto. x86-64, ARM64 y ARMv7, cualquier Linux. Como el usuario cuyo shell querés (no root):" },
+                { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal" },
+                { t: "p", text: "Después `go-link-desk-terminal password` y `go-link-desk-terminal link`, y escribí el código en [desk.go-link.org/web](/web). Cada paso y comando: [Una terminal remota](/docs/terminal)." },
+              ],
+            },
           ],
         },
         { t: "h2", id: "updates", text: "Actualizaciones" },
