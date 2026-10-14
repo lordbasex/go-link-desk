@@ -146,6 +146,8 @@ export interface HostStreamOptions {
   onCallTrack?: (kind: "video" | "audio", stream: MediaStream) => void;
   /** The files channel, when the host opens it. */
   onFilesChannel?: (channel: RTCDataChannel) => void;
+  /** go-link-desk-terminal's shell: its output and what is typed, as bytes. */
+  onTerminalChannel?: (channel: RTCDataChannel) => void;
   onState?: (state: StreamState) => void;
   /** Control messages other than ping. */
   onControl?: (message: unknown) => void;
@@ -400,6 +402,11 @@ export class HostStream {
       if (ch.label === "files") {
         ch.binaryType = "arraybuffer";
         this.opts.onFilesChannel?.(ch);
+        return;
+      }
+      if (ch.label === "terminal") {
+        ch.binaryType = "arraybuffer";
+        this.opts.onTerminalChannel?.(ch);
         return;
       }
       if (ch.label === "pointer" || ch.label === "input") {

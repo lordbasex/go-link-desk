@@ -35,11 +35,14 @@ type ShellConfig struct {
 }
 
 // LoginShell is this user's shell, from the user database (/etc/passwd),
-// else $SHELL, else /bin/sh.
+// else $SHELL, else /bin/sh, in $HOME (else the database's home).
 func LoginShell() ShellConfig {
 	c := ShellConfig{Path: "/bin/sh", Home: "/"}
 	if u, err := user.Current(); err == nil {
 		c.User, c.Home = u.Username, u.HomeDir
+	}
+	if h := os.Getenv("HOME"); h != "" {
+		c.Home = h // systemd's, or a test's own
 	}
 	if sh := passwdShell(os.Getuid()); sh != "" {
 		c.Path = sh

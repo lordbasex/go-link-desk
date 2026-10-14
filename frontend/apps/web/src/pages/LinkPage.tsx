@@ -84,12 +84,13 @@ function LinkSession({ code, createClient }: { code: string; createClient?: () =
     saveDevice(safeStorage(), {
       deviceId: l.deviceId, linkId: l.linkId, token: l.token, signalUrl: url,
       name: host.current?.name ?? "", os: host.current?.os ?? "", label: "", favorite: false, savedAt: now, lastUsed: now, thumb: "",
+      ...(host.current?.terminal ? { terminal: true } : {}),
     });
     setDeviceId(l.deviceId);
   };
   const onHost = (h: HostInfo) => {
     host.current = h;
-    if (linked.current) updateDevice(safeStorage(), linked.current.deviceId, url, { name: h.name, os: h.os });
+    if (linked.current) updateDevice(safeStorage(), linked.current.deviceId, url, { name: h.name, os: h.os, terminal: h.terminal });
     recent.host(h);
   };
   return (

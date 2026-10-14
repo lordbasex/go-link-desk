@@ -51,7 +51,7 @@ const usage = `go-link-desk-terminal: a remote terminal with go-link Desk, for a
 
 Usage:
   go-link-desk-terminal [serve] [flags]  run the service (systemd starts it)
-  go-link-desk-terminal password         set the password linked browsers must give
+  go-link-desk-terminal password         set the password linked browsers must give (--stdin: from a script)
   go-link-desk-terminal link             show a pairing code, and accept the browser that uses it
   go-link-desk-terminal status           show the service and its linked browsers
   go-link-desk-terminal unlink ID        forget a linked browser
@@ -87,8 +87,8 @@ func main() {
 }
 
 type serveFlags struct {
-	config, signal, name string
-	debug, allowRoot     bool
+	config, signal, name, shell string
+	debug, allowRoot            bool
 }
 
 var sf serveFlags
@@ -99,6 +99,7 @@ func flags(out io.Writer) *flag.FlagSet {
 	fs.StringVar(&sf.config, "config", "", "device.json (default ~/.config/"+folder+"/device.json)")
 	fs.StringVar(&sf.signal, "server-signaling", "", "the signaling server (default: device.json's, else go-link Desk's)")
 	fs.StringVar(&sf.name, "name", "", "the name viewers see (default: the host name)")
+	fs.StringVar(&sf.shell, "shell", "", "the shell sessions get (default: the user's login shell)")
 	fs.BoolVar(&sf.debug, "debug", false, "log more")
 	fs.BoolVar(&sf.allowRoot, "allow-root", false, "let it run as root: every session would be a root shell")
 	return fs
@@ -151,6 +152,14 @@ func serve(args []string) error {
 		return fmt.Errorf("invalid signaling server: %w", err)
 	}
 	shell := terminal.LoginShell()
+	if sf.shell != "" {
+		shell.Path = sf.shell
+		for i, kv := range shell.Env {
+			if strings.HasPrefix(kv, "SHELL=") {
+				shell.Env[i] = "SHELL=" + sf.shell
+			}
+		}
+	}
 	logger.Info("terminal host starting", "version", version, "device_id", cfg.DeviceID, "config", path, "first_run", created,
 		"signaling", target, "shell", shell.Path, "user", shell.User)
 
@@ -206,7 +215,7 @@ func serve(args []string) error {
 			}
 			return out
 		},
-		Code: func() string { return status.Snapshot().Pairing.Code },
+		Code: func() string { return strings.ReplaceAll(status.Snapshot().Pairing.Code, " ", "") },
 		SetPassword: func(pw string) error {
 			hash, err := services.HashPassword(pw)
 			if err != nil {

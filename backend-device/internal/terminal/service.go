@@ -41,8 +41,9 @@ type Service struct {
 	start  func(ShellConfig, uint16, uint16) (shellIO, error)
 	typed  func(peerID string)
 
-	mu    sync.Mutex
-	peers map[string]*peer
+	mu      sync.Mutex
+	peers   map[string]*peer
+	allowed map[string]models.Permissions // the session's, which may come before the channel
 }
 
 // shellIO is what Service needs of a Shell (a test's fake has it too).
@@ -78,7 +79,7 @@ func NewService(shell ShellConfig, send func(peerID string, msg []byte) bool, on
 		log = slog.Default()
 	}
 	return &Service{
-		shell: shell, send: send, log: log, onExit: onExit, peers: make(map[string]*peer),
+		shell: shell, send: send, log: log, onExit: onExit, peers: make(map[string]*peer), allowed: make(map[string]models.Permissions),
 		start: func(c ShellConfig, cols, rows uint16) (shellIO, error) { return StartShell(c, cols, rows) },
 	}
 }
@@ -98,7 +99,11 @@ func (t *Service) Channel(peerID string, dc *webrtc.DataChannel) {
 		old.sh.Close() // an earlier connection of the same viewer
 	}
 	t.peers[peerID] = p
+	perm, ok := t.allowed[peerID]
 	t.mu.Unlock()
+	if ok {
+		t.apply(peerID, p, perm)
+	}
 	dc.SetBufferedAmountLowThreshold(lowWater)
 	dc.OnBufferedAmountLow(func() {
 		select {
@@ -142,27 +147,41 @@ func (t *Service) Channel(peerID string, dc *webrtc.DataChannel) {
 
 // Allow follows the session's permissions (SessionService.OnPermissions):
 // seeing starts the viewer's shell, Control lets it type, and nothing
-// (the session ended) hangs the shell up.
+// (the session ended) hangs the shell up. They may come before the
+// viewer's channel does; the shell starts when both are there.
 func (t *Service) Allow(peerID string, perm models.Permissions) {
 	t.mu.Lock()
-	p := t.peers[peerID]
-	if p == nil {
-		t.mu.Unlock()
-		return
-	}
 	if !perm.View {
+		delete(t.allowed, peerID)
+		p := t.peers[peerID]
 		delete(t.peers, peerID)
+		t.mu.Unlock()
+		if p == nil {
+			return
+		}
+		p.leave()
+		t.mu.Lock()
 		sh := p.sh
 		t.mu.Unlock()
-		p.leave()
 		if sh != nil {
 			sh.Close()
 			t.log.Info("terminal closed", "peer_id", peerID)
 		}
 		return
 	}
+	t.allowed[peerID] = perm
+	p := t.peers[peerID]
+	t.mu.Unlock()
+	if p != nil {
+		t.apply(peerID, p, perm)
+	}
+}
+
+// apply gives a viewer's channel its permissions, starting its shell once.
+func (t *Service) apply(peerID string, p *peer, perm models.Permissions) {
+	t.mu.Lock()
 	p.control = perm.Control
-	if p.sh != nil {
+	if p.sh != nil || t.peers[peerID] != p {
 		t.mu.Unlock()
 		return
 	}
@@ -196,6 +215,7 @@ func (t *Service) pump(peerID string, p *peer, sh shellIO) {
 	mine := t.peers[peerID] == p
 	if mine {
 		delete(t.peers, peerID)
+		delete(t.allowed, peerID)
 	}
 	t.mu.Unlock()
 	if mine { // the shell ended by itself (exit), not by Allow

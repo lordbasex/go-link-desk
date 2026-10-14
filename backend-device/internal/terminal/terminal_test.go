@@ -188,14 +188,15 @@ func TestAViewerGetsAShell(t *testing.T) {
 
 	b := newBrowser(t, "V", stream)
 	stream.SetSender(relay{b})
+	// The session lets the viewer in before its connection exists (a link).
+	term.Allow("V", models.Permissions{View: true})
 	if err := stream.AddViewer("V", nil); err != nil {
 		t.Fatal(err)
 	}
 	b.wait("terminal channel", func() bool { return b.terminal != nil && b.terminal.ReadyState() == webrtc.DataChannelStateOpen })
 	b.wait("welcome", func() bool { return len(b.control) > 0 && strings.Contains(b.control[0], `"source":"terminal"`) })
 
-	// Before the session lets it type, nothing reaches a shell.
-	term.Allow("V", models.Permissions{View: true})
+	// Before the session lets it type, nothing reaches the shell.
 	_ = b.terminal.Send([]byte("echo typed-without-control\n"))
 	time.Sleep(300 * time.Millisecond)
 	term.Allow("V", models.Permissions{View: true, Control: true})

@@ -59,3 +59,23 @@ export async function stopHost(h: HostProc): Promise<void> {
   }
   process.kill(h.pid, "SIGKILL");
 }
+
+/**
+ * Starts go-link-desk-terminal in .state/<name>, with a throwaway HOME and
+ * /bin/sh as the sessions' shell (nothing of the developer's own).
+ */
+export function spawnTerminal(name: string): HostProc {
+  const dir = join(STATE, name);
+  mkdirSync(join(dir, "home"), { recursive: true });
+  const config = join(dir, "device.json");
+  const log = join(dir, "host.log");
+  const out = openSync(log, "a");
+  const host = spawn(join(BIN, "terminal"), ["serve", "--config", config, "--server-signaling", SIGNAL_URL, "--shell", "/bin/sh", "--name", "pi"], {
+    env: { ...process.env, HOME: join(dir, "home"), SHELL: "/bin/sh", ENV: "", PS1: "$ " },
+    stdio: ["ignore", out, out],
+    detached: true,
+  });
+  closeSync(out);
+  host.unref();
+  return { pid: host.pid!, log, config };
+}
