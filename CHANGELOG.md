@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-14
+
+go-link-desk-terminal, documented from end to end, with a Raspberry Pi & servers tab on the install page, and commands to start over.
+
 ### Changed
 
 - **The install page has a Raspberry Pi & servers tab** next to macOS, Linux, Windows, iPhone and iPad, and Android: go-link-desk-terminal's one-line install and first steps.
