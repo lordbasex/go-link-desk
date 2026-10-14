@@ -193,6 +193,13 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .bar-menu-item:hover, .bar-menu-item:focus-visible { background: rgb(255 255 255 / 0.1); }
 .bar-menu-mark { width: 18px; display: grid; place-items: center; color: var(--color-accent); flex: none; }
 .bar-menu-detail { color: rgb(235 235 245 / 0.6); font-size: 12px; margin-left: 6px; }
+.bar-menu-note { max-width: 260px; margin: 0; padding: 6px 10px 8px; font: 400 12px/1.35 var(--font-text); color: rgb(235 235 245 / 0.6); white-space: normal; }
+/* Recording: a red pill with the time, which stops it. */
+.rec-button { width: auto; padding: 0 12px; gap: 7px; display: flex; align-items: center; border-radius: 19px; background: rgb(255 69 58 / 0.18); color: #fff; font: 600 13px/1 var(--font-text); font-variant-numeric: tabular-nums; }
+.rec-button:hover { background: rgb(255 69 58 / 0.3); }
+.rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff453a; animation: rec-pulse 1.6s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
 @media (prefers-reduced-motion: reduce) { .cap-zone.is-fullscreen .cap-handle { transition: none; } }
 
 /* ---------- control ---------- */

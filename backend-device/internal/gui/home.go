@@ -125,6 +125,9 @@ func (u *ui) pushHome() {
 					name = L("Someone")
 				}
 				h.Status = Lf("In session with %s", name)
+				if !a.RecordingSince.IsZero() {
+					h.Status = Lf("In session with %s, who is recording your screen", name)
+				}
 			}
 		}
 		if h.Status == "" {

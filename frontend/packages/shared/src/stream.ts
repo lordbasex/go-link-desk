@@ -21,6 +21,8 @@ export interface Permissions {
   audio: boolean;
   clipboard: boolean;
   files: boolean;
+  /** Save screenshots and record the screen, each asked of the host first. */
+  record: boolean;
 }
 
 /** Why the host turned a knock down. */
@@ -42,7 +44,7 @@ export function parseDecision(payload: unknown): Decision | null {
   if (p.kind === "accepted") {
     const raw = (typeof p.permissions === "object" && p.permissions !== null ? p.permissions : {}) as Record<string, unknown>;
     const on = (k: string) => raw[k] === true;
-    return { kind: "accepted", permissions: { view: on("view"), control: on("control"), audio: on("audio"), clipboard: on("clipboard"), files: on("files") } };
+    return { kind: "accepted", permissions: { view: on("view"), control: on("control"), audio: on("audio"), clipboard: on("clipboard"), files: on("files"), record: on("record") } };
   }
   if (p.kind === "rejected") {
     return { kind: "rejected", reason: (REJECT_REASONS.includes(String(p.reason)) ? p.reason : "declined") as RejectReason };

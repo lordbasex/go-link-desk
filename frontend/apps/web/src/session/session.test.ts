@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it, vi } from "vitest";
 import { ServerError, linkProof } from "@go-link-desk/shared";
-import { Session, type Door, type SessionOptions, type SessionView } from "./session";
+import { ASK_TIMEOUT_MS, Session, type Door, type SessionOptions, type SessionView } from "./session";
 import { FakeClient } from "./test-utils";
 
 /** A peer connection that never connects: enough to see the session's steps. */
@@ -166,6 +166,78 @@ describe("Session control messages", () => {
     expect(s.current.hostTyping).toBe(false);
     s.sendTyping(true);
     expect(sent.at(-1)).toEqual({ type: "typing", on: true });
+  });
+});
+
+describe("Screenshots and recording", () => {
+  const live = async () => {
+    const client = new FakeClient();
+    const { s } = start(client);
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const control = (s as unknown as { onControl(m: unknown): void }).onControl.bind(s);
+    const sent: Record<string, unknown>[] = [];
+    (s as unknown as { stream: { sendControl(m: unknown): void } }).stream.sendControl = (m) => sent.push(m as Record<string, unknown>);
+    return { s, control, sent };
+  };
+
+  it("asks nothing without the permission", async () => {
+    const { s, sent } = await live();
+    expect(await s.askScreenshot()).toBe(false);
+    expect(await s.startRecording()).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  it("saves and records only once the host said yes", async () => {
+    const { s, control, sent } = await live();
+    control({ type: "permissions", permissions: { view: true, record: true } });
+
+    const shot = s.askScreenshot();
+    expect(sent.at(-1)).toEqual({ type: "screenshot", id: 1 });
+    control({ type: "screenshot", id: 1, ok: true });
+    expect(await shot).toBe(true);
+
+    const rec = s.startRecording();
+    expect(sent.at(-1)).toEqual({ type: "recording", id: 2, on: true });
+    expect(s.current.recording).toBe(false);
+    control({ type: "recording", id: 2, on: true });
+    expect(await rec).toBe(true);
+    expect(s.current.recording).toBe(true);
+
+    s.stopRecording();
+    expect(sent.at(-1)).toEqual({ type: "recording", id: 0, on: false });
+    expect(s.current.recording).toBe(false);
+  });
+
+  it("stops when the host stops it or takes the permission away", async () => {
+    const { s, control } = await live();
+    control({ type: "permissions", permissions: { view: true, record: true } });
+    const rec = s.startRecording();
+    control({ type: "recording", id: 1, on: true });
+    await rec;
+    control({ type: "recording", id: 0, on: false });
+    expect(s.current.recording).toBe(false);
+
+    const again = s.startRecording();
+    control({ type: "recording", id: 2, on: true });
+    await again;
+    control({ type: "permissions", permissions: { view: true } });
+    expect(s.current.recording).toBe(false);
+  });
+
+  it("takes no answer as a no, and turns down a yes that came too late", async () => {
+    vi.useFakeTimers();
+    try {
+      const { s, control, sent } = await live();
+      control({ type: "permissions", permissions: { view: true, record: true } });
+      const rec = s.startRecording();
+      await vi.advanceTimersByTimeAsync(ASK_TIMEOUT_MS);
+      expect(await rec).toBe(false);
+      control({ type: "recording", id: 1, on: true });
+      expect(s.current.recording).toBe(false);
+      expect(sent.at(-1)).toEqual({ type: "recording", id: 0, on: false });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

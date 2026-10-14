@@ -63,6 +63,13 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - The screen is recorded only during a session: the capture starts with the first viewer and stops with the last, and macOS shows its recording indicator meanwhile.
 - The latency beacon a viewer can flip is a small square drawn for four seconds in a corner of the screen; it lets clicks through and carries no information.
 
+### Screenshots and recordings
+
+- A viewer saves pictures and recordings of the screen in its own browser, from the picture it already gets: nothing more is sent, and the files never pass through go-link Desk's servers or the host.
+- Only with the **Take screenshots and record the screen** permission, which is never ticked by default, not even when the connection request ticks everything else. A linked device keeps it only if it was ticked.
+- The viewer asks first (`screenshot`, `recording` on `control`), and saves or starts recording only after the host answered yes; the host answers once the session panel shows it, in red while recording, and the main window and the tray say so. Unticking the permission stops a recording at once. The host's log keeps when each started and stopped.
+- **What this does not stop:** a viewer's browser receives the picture, so a dishonest viewer can record it anyway (a screen recorder, another app, a modified page). The permission and the notice are for honest viewers, so the person at the computer always knows; whoever must not be recorded should not let that viewer see the screen.
+
 ### A host without anyone in front of it
 
 - A host without a window (headless, or a build without the GUI) has nobody to ask, so it turns every knock down, including a browser that asks to be linked. Unattended access (below) is the only way in without a person accepting, and its links are made with a person accepting.

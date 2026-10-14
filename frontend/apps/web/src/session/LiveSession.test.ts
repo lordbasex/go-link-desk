@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it } from "vitest";
-import { contentRect } from "./LiveSession";
+import { clock, contentRect } from "./LiveSession";
 
 describe("contentRect", () => {
   it("letterboxes a fitted picture", () => {
@@ -10,5 +10,13 @@ describe("contentRect", () => {
   });
   it("fills the box when stretched", () => {
     expect(contentRect(1600, 900, 1440, 900, "stretch")).toEqual({ x: 0, y: 0, w: 1600, h: 900 });
+  });
+});
+
+describe("clock", () => {
+  it("shows a recording's length", () => {
+    expect(clock(0)).toBe("0:00");
+    expect(clock(245_400)).toBe("4:05");
+    expect(clock(3_729_000)).toBe("1:02:09");
   });
 });

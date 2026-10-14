@@ -43,7 +43,7 @@ export const docsPt: Docs = {
         { t: "h2", id: "consent", text: "Quem decide é a pessoa no computador" },
         {
           t: "p",
-          text: "Nenhuma sessão começa até a pessoa no computador aceitar, e ela escolhe o que você pode fazer: usar o mouse e o teclado, ouvir o som, compartilhar a área de transferência, enviar e receber arquivos. Enquanto você está conectado, um painel fica na tela dela, e um clique encerra a sessão.",
+          text: "Nenhuma sessão começa até a pessoa no computador aceitar, e ela escolhe o que você pode fazer: usar o mouse e o teclado, ouvir o som, compartilhar a área de transferência, enviar e receber arquivos, tirar capturas e gravar. Enquanto você está conectado, um painel fica na tela dela, e um clique encerra a sessão.",
         },
         { t: "note", tone: "warn", text: "**Alguém ligou e pediu para você instalar isto?** Desligue. Seu banco, a polícia ou um suporte técnico nunca ligam pedindo acesso ao seu computador." },
         { t: "h2", id: "next", text: "Por onde começar" },
@@ -222,6 +222,7 @@ export const docsPt: Docs = {
             ["Ouvir o som do seu computador", "Ouvir o que os seus alto-falantes tocam."],
             ["Compartilhar a área de transferência", "Copiar de um lado e colar do outro, nos dois sentidos."],
             ["Enviar e receber arquivos", "Navegar pela sua pasta pessoal, baixar arquivos e enviar arquivos para você (ficam em Downloads › go-link Desk)."],
+            ["Tirar capturas e gravar a tela", "Salvar imagens e gravações da sua tela do lado dela. Nunca vem marcado se você não marcar; enquanto grava, o painel da sessão avisa em vermelho."],
           ],
         },
         { t: "p", text: "Em Ajustes, **Um pedido começa com** escolhe se os pedidos chegam com todas as permissões marcadas (Controle total) ou nenhuma (Só a tela)." },
@@ -330,6 +331,8 @@ export const docsPt: Docs = {
         { t: "list", items: ["O texto copiado no computador dela chega ao seu (mantenha a aba da sessão na frente, para o navegador poder escrevê-lo).", "Cole na sessão (Cmd+V ou Ctrl+V) e o seu texto vai para a área de transferência dela e é colado onde está o cursor.", "Precisa da permissão **Compartilhar a área de transferência**."] },
         { t: "h2", id: "files", text: "Arquivos" },
         { t: "list", items: ["**Arquivos** mostra a pasta pessoal dela: abra pastas e baixe o que precisar.", "Envie um arquivo: ele fica em **Downloads › go-link Desk** no computador dela, nunca por cima de um que já existe.", "Até 1 GB por arquivo, com progresso e Cancelar. Precisa da permissão **Enviar e receber arquivos**."] },
+        { t: "h2", id: "recording", text: "Capturas e gravações" },
+        { t: "list", items: ["O menu **●** da barra da sessão tira uma captura (um PNG, com o ponteiro dela) ou grava a tela, com o som do computador dela se você puder ouvir.", "No Chrome e no Edge você escolhe onde a gravação fica ao começar; nos outros ela é baixada ao parar (WebM, ou MP4 no Safari). Uma pílula vermelha com o tempo para a gravação; ela para sozinha depois de 2 horas.", "Precisa da permissão **Tirar capturas e gravar a tela**, que nunca vem marcada se a pessoa não marcar. Seu navegador pergunta antes ao computador dela, e salva ou começa só quando o painel da sessão mostra isso."] },
       ],
     },
     {

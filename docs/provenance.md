@@ -149,7 +149,8 @@ Planned in phase 0, moved because nothing uses them yet:
 | `internal/services/{stream_telemetry,encode_load}.go` | 8 (session telemetry, with the history) |
 | `internal/services/history_service.go` | 8 (the session history, with the session telemetry); phase 6 brought the settings without it |
 | `internal/services/{upload_service,download_service}.go` | 5 (files) |
-| `internal/services/{recorder,recording_service}.go` | 8 (recording) |
-| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx`, `screenshot.ts` | 8 (screenshots with the tools menu); the host's QR code is not needed yet: the linking code is typed |
+| `internal/services/{recorder,recording_service}.go` | not taken: phase 8 records in the viewer, from the picture it already gets (`frontend/apps/web/src/session/capture.ts`, MediaRecorder); the host keeps no recordings |
+| `frontend/apps/web/src/components/screenshot.ts` | not taken: phase 8's `session/capture.ts` draws the host's pointer into the picture and saves only after the host said yes |
+| `frontend/apps/web/src/components/{CopyButton,QrCode}.tsx` | not needed yet: the linking code is typed |
 | `internal/services/{video_tiers,quality_ladder}.go` | not taken: one viewer at a time and Google Congestion Control replace go-link's size tiers and loss ladder |
 | `frontend/apps/web/src/components/ui/{PageHero,Skeleton,useInfiniteList}` | not taken: My computers is a short local list, read at once |

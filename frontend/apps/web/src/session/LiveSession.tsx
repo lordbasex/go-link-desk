@@ -2,17 +2,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_THUMB } from "@go-link-desk/shared";
 import { t } from "../i18n";
-import { CameraIcon, ChatIcon, ChevronIcon, CloseIcon, CommandIcon, ExpandIcon, FolderIcon, MonitorIcon, ShrinkIcon, SoundIcon } from "../components/Icons";
+import { CameraIcon, ChatIcon, ChevronIcon, CloseIcon, CommandIcon, ExpandIcon, FolderIcon, MonitorIcon, RecordIcon, ShrinkIcon, SoundIcon } from "../components/Icons";
 import { BarMenu, MenuItem, MenuSection, MenuSeparator } from "../components/BarMenu";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
 import { useFullscreen } from "../components/useFullscreen";
 import { CallPanel } from "./CallPanel";
+import { ScreenRecorder, captureName, recordingType, screenshot, type CursorDraw, type StopReason } from "./capture";
 import { ChatPanel } from "./ChatPanel";
 import { playChatSound } from "./chatSound";
 import { FilesPanel } from "./FilesPanel";
 import { HostClipboard } from "./hostClipboard";
 import { InputCapture } from "./input";
 import { measureLatency } from "./latency";
+import { downloadBlob, sinkFor } from "./save";
 import type { CursorState, Preset, Session, SessionView } from "./session";
 import { useStreamStats } from "./useStreamStats";
 
@@ -152,6 +154,14 @@ export function LiveSession({
   const [dropped, setDropped] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const mayFiles = view.permissions?.files === true;
+  const mayRecord = view.permissions?.record === true;
+  const recRef = useRef<ScreenRecorder | null>(null);
+  const [recSince, setRecSince] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
+  const noteTimer = useRef(0);
+  // While recording, the host draws its pointer into the picture, so the recording has it.
+  const cursorInVideo = prefs.cursorInVideo || recSince !== null;
   const [readChat, setReadChat] = useState(0);
   const [clipboardWaiting, setClipboardWaiting] = useState(false);
   const hostClipboard = useRef<HostClipboard | null>(null);
@@ -170,7 +180,7 @@ export function LiveSession({
     setPrefs(next);
     savePrefs(next);
     if (p.preset !== undefined || p.retina !== undefined) session?.setQuality(next.preset, next.retina);
-    if (p.cursorInVideo !== undefined) session?.setCursorInVideo(next.cursorInVideo);
+    if (p.cursorInVideo !== undefined) session?.setCursorInVideo(next.cursorInVideo || recRef.current !== null);
     if (p.ctrlIsCmd !== undefined) captureRef.current?.setOptions({ ctrlIsCmd: next.ctrlIsCmd, pasteToHost: sharesClipboard });
   };
 
@@ -351,7 +361,7 @@ export function LiveSession({
       const video = videoRef.current;
       if (!img || !video) return;
       const scale0 = display && display.pointsWidth > 0 ? contentRect(video.clientWidth, video.clientHeight, video.videoWidth, video.videoHeight, prefs.view).w / display.pointsWidth : 1;
-      if (control && !locked && !touch && !prefs.cursorInVideo && c?.shape) {
+      if (control && !locked && !touch && !cursorInVideo && c?.shape) {
         img.style.display = "none";
         const res = c.shape.pixels > 0 ? c.shape.pixels / (c.shape.width * scale0) : 1;
         const hx = Math.round((c.shape.hotX / res) * 100) / 100;
@@ -359,8 +369,8 @@ export function LiveSession({
         video.style.cursor = `image-set(url("${c.shape.url}") ${res.toFixed(3)}x) ${Math.round(hx)} ${Math.round(hy)}, default`;
         return;
       }
-      video.style.cursor = control && !prefs.cursorInVideo ? "default" : "";
-      if (!c || !c.visible || !c.shape || prefs.cursorInVideo || !display || display.pointsWidth <= 0) {
+      video.style.cursor = control && !cursorInVideo ? "default" : "";
+      if (!c || !c.visible || !c.shape || cursorInVideo || !display || display.pointsWidth <= 0) {
         img.style.display = "none";
         return;
       }
@@ -375,7 +385,7 @@ export function LiveSession({
       img.style.height = `${h}px`;
       img.style.transform = `translate(${video.offsetLeft + r.x + c.x * r.w - c.shape.hotX * perPixel * scale}px, ${video.offsetTop + r.y + c.y * r.h - c.shape.hotY * perPixel * scale}px)`;
     },
-    [prefs.cursorInVideo, prefs.view, display, control, locked, touch],
+    [cursorInVideo, prefs.view, display, control, locked, touch],
   );
 
   useEffect(() => {
@@ -386,6 +396,108 @@ export function LiveSession({
     placeCursor(lastCursor.current);
     return () => registerCursor(null);
   }, [registerCursor, placeCursor]);
+
+  const say = (text: string | null) => {
+    window.clearTimeout(noteTimer.current);
+    setCaptureNote(text);
+    if (text) noteTimer.current = window.setTimeout(() => setCaptureNote(null), 8000);
+  };
+  useEffect(() => () => window.clearTimeout(noteTimer.current), []);
+
+  // The host's pointer over a screenshot, in the picture's pixels (unless it is in the picture already).
+  const cursorDraw = (): CursorDraw | null => {
+    const v = videoRef.current;
+    const c = lastCursor.current;
+    if (!v || !c || !c.visible || !c.shape || cursorInVideo || !display || display.pointsWidth <= 0) return null;
+    const scale = v.videoWidth / display.pointsWidth; // picture pixels per host point
+    const perPixel = c.shape.pixels > 0 ? c.shape.width / c.shape.pixels : 1;
+    return {
+      url: c.shape.url,
+      x: c.x * v.videoWidth - c.shape.hotX * perPixel * scale,
+      y: c.y * v.videoHeight - c.shape.hotY * perPixel * scale,
+      width: c.shape.width * scale,
+      height: c.shape.height * scale,
+    };
+  };
+
+  // A screenshot: the picture as it is now, saved once the host shows it.
+  const takeScreenshot = async () => {
+    const v = videoRef.current;
+    if (!v || !session) return;
+    const when = new Date();
+    const blob = await screenshot(v, cursorDraw());
+    if (!blob) return;
+    if (!(await session.askScreenshot())) {
+      say(t.capture.refused);
+      return;
+    }
+    const name = captureName(hostName, when, "png");
+    downloadBlob(blob, name);
+    say(t.capture.saved.replace("{name}", name));
+  };
+
+  const recordingStopped = (reason: StopReason, name: string) => {
+    recRef.current = null;
+    setRecSince(null);
+    session?.stopRecording();
+    if (!prefsRef.current.cursorInVideo) session?.setCursorInVideo(false);
+    const notes: Record<StopReason, string> = {
+      stopped: t.capture.saved.replace("{name}", name),
+      host: t.capture.stoppedHost,
+      time: t.capture.stoppedTime,
+      size: t.capture.stoppedSize,
+      ended: t.capture.stoppedEnded,
+      failed: t.capture.failed,
+    };
+    say(notes[reason]);
+  };
+
+  // A recording: where it goes is asked first (while the click counts),
+  // then the host, and it starts only once the person there sees it.
+  const startRecording = async () => {
+    const v = videoRef.current;
+    if (!session || !v || recRef.current) return;
+    const type = recordingType();
+    if (!type) {
+      say(t.capture.unsupported);
+      return;
+    }
+    const name = captureName(hostName, new Date(), type.ext);
+    const sink = await sinkFor(name);
+    if (!sink) return;
+    if (!(await session.startRecording())) {
+      await sink.abort();
+      say(t.capture.refused);
+      return;
+    }
+    const tracks = [...((v.srcObject as MediaStream | null)?.getVideoTracks() ?? [])];
+    const sound = audioRef.current?.srcObject as MediaStream | null;
+    if (hears && sound) tracks.push(...sound.getAudioTracks());
+    if (!prefsRef.current.cursorInVideo) session.setCursorInVideo(true);
+    try {
+      recRef.current = new ScreenRecorder(new MediaStream(tracks), type.mime, sink, (reason) => recordingStopped(reason, name));
+    } catch {
+      session.stopRecording();
+      if (!prefsRef.current.cursorInVideo) session.setCursorInVideo(false);
+      await sink.abort();
+      say(t.capture.failed);
+      return;
+    }
+    setRecSince(Date.now());
+    say(null);
+  };
+
+  // The host stopped it (or took the permission away), or the session ended.
+  useEffect(() => {
+    if (recRef.current && (!view.recording || !live)) recRef.current.stop(live ? "host" : "ended");
+  }, [view.recording, live]);
+  useEffect(() => () => recRef.current?.stop("ended"), []);
+  useEffect(() => {
+    if (recSince === null) return;
+    const every = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(every);
+  }, [recSince]);
+  const recTime = recSince === null ? "" : clock(Date.now() - recSince);
 
   const measure = async () => {
     const v = videoRef.current;
@@ -494,6 +606,45 @@ export function LiveSession({
                 <FolderIcon size={18} />
               </button>
             )}
+            {mayRecord && (
+              <BarMenu label={t.capture.menu} icon={<RecordIcon />} onOpen={onMenu}>
+                {(close) => (
+                  <>
+                    <MenuItem
+                      onSelect={() => {
+                        close();
+                        void takeScreenshot();
+                      }}
+                    >
+                      {t.capture.screenshot}
+                    </MenuItem>
+                    <MenuItem
+                      onSelect={() => {
+                        close();
+                        if (recRef.current) recRef.current.stop("stopped");
+                        else void startRecording();
+                      }}
+                    >
+                      {recSince !== null ? t.capture.stop : t.capture.record}
+                    </MenuItem>
+                    <MenuSeparator />
+                    <p className="bar-menu-note">{t.capture.shown}</p>
+                  </>
+                )}
+              </BarMenu>
+            )}
+            {recSince !== null && (
+              <button
+                type="button"
+                className="bar-button rec-button"
+                aria-label={t.capture.recording.replace("{time}", recTime)}
+                title={t.capture.recording.replace("{time}", recTime)}
+                onClick={() => recRef.current?.stop("stopped")}
+              >
+                <span className="rec-dot" aria-hidden="true" />
+                {recTime}
+              </button>
+            )}
             {typeof navigator.mediaDevices?.getUserMedia === "function" && (
               <button type="button" className={`bar-button${callOpen ? " is-on" : ""}`} aria-pressed={callOpen} aria-label={t.call.start} title={t.call.start} disabled={callOpen} onClick={() => setCallOpen(true)}>
                 <CameraIcon size={18} />
@@ -576,6 +727,11 @@ export function LiveSession({
       {hostNotice && (
         <p className="stage-banner" role="status">
           {hostNotice}
+        </p>
+      )}
+      {captureNote && (
+        <p className="stage-banner" role="status">
+          {captureNote}
         </p>
       )}
       {soundBlocked && hears && !prefs.muted && (
@@ -678,6 +834,14 @@ export function LiveSession({
       </div>
     </div>
   );
+}
+
+/** A recording's length: "4:05", "1:02:09". */
+export function clock(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const p = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600);
+  return h ? `${h}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}` : `${Math.floor(s / 60)}:${p(s % 60)}`;
 }
 
 /** The special keys menu, as shortcuts by KeyboardEvent.code. */

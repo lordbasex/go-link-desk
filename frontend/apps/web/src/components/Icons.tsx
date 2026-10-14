@@ -113,3 +113,11 @@ export const CheckIcon = ({ size = 16 }: P) => (
     <path d="M5 12.5l4.5 4.5L19 7" />
   </svg>
 );
+
+/** Screenshots and recording: a dot in a ring. */
+export const RecordIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+  </svg>
+);

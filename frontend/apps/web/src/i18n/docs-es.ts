@@ -43,7 +43,7 @@ export const docsEs: Docs = {
         { t: "h2", id: "consent", text: "Decide la persona de la computadora" },
         {
           t: "p",
-          text: "Ninguna sesión empieza hasta que la persona de la computadora la acepta, y ella elige qué podés hacer: usar el mouse y el teclado, escuchar el sonido, compartir el portapapeles, enviar y recibir archivos. Mientras estás conectado queda un panel en su pantalla, y con un clic termina la sesión.",
+          text: "Ninguna sesión empieza hasta que la persona de la computadora la acepta, y ella elige qué podés hacer: usar el mouse y el teclado, escuchar el sonido, compartir el portapapeles, enviar y recibir archivos, sacar capturas y grabar. Mientras estás conectado queda un panel en su pantalla, y con un clic termina la sesión.",
         },
         { t: "note", tone: "warn", text: "**¿Te llamaron para que instales esto?** Cortá. Ni tu banco, ni la policía, ni un soporte técnico te llaman para pedirte acceso a tu computadora." },
         { t: "h2", id: "next", text: "Por dónde empezar" },
@@ -222,6 +222,7 @@ export const docsEs: Docs = {
             ["Escuchar el sonido de tu computadora", "Escuchar lo que suenan tus parlantes."],
             ["Compartir el portapapeles", "Copiar de un lado y pegar del otro, en los dos sentidos."],
             ["Enviar y recibir archivos", "Recorrer tu carpeta personal, descargar archivos y mandarte archivos (quedan en Descargas › go-link Desk)."],
+            ["Sacar capturas y grabar la pantalla", "Guardar imágenes y grabaciones de tu pantalla de su lado. Nunca viene marcado si no lo marcás; mientras graba, el panel de la sesión lo dice en rojo."],
           ],
         },
         { t: "p", text: "En Ajustes, **Un pedido empieza con** elige si los pedidos llegan con todos los permisos tildados (Control total) o ninguno (Solo la pantalla)." },
@@ -330,6 +331,8 @@ export const docsEs: Docs = {
         { t: "list", items: ["El texto que se copia en su computadora llega a la tuya (dejá la pestaña de la sesión adelante, así el navegador puede escribirlo).", "Pegá en la sesión (Cmd+V o Ctrl+V) y tu texto va a su portapapeles y se pega donde está su cursor.", "Necesita el permiso **Compartir el portapapeles**."] },
         { t: "h2", id: "files", text: "Archivos" },
         { t: "list", items: ["**Archivos** muestra su carpeta personal: abrí carpetas y descargá lo que necesites.", "Mandá un archivo: queda en **Descargas › go-link Desk** de su computadora, nunca encima de uno que ya está.", "Hasta 1 GB por archivo, con progreso y Cancelar. Necesita el permiso **Enviar y recibir archivos**."] },
+        { t: "h2", id: "recording", text: "Capturas y grabaciones" },
+        { t: "list", items: ["El menú **●** de la barra de la sesión saca una captura (un PNG, con su puntero) o graba la pantalla, con el sonido de su computadora si podés escucharlo.", "En Chrome y Edge elegís dónde va la grabación al empezar; en los demás se descarga al detenerla (WebM, o MP4 en Safari). Una píldora roja con el tiempo la detiene; se detiene sola a las 2 horas.", "Necesita el permiso **Sacar capturas y grabar la pantalla**, que nunca viene marcado si la persona no lo marca. Tu navegador le pregunta antes a su computadora, y guarda o empieza recién cuando su panel de sesión lo muestra."] },
       ],
     },
     {

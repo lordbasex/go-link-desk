@@ -24,6 +24,7 @@ type sessionPanel struct {
 	since      *widget.Label
 	perms      *widget.Label
 	checks     *permChecks
+	recording  *widget.Label // the viewer records the screen, or saved pictures of it
 	transfer   *widget.Label // the file moving now
 	chat       *chatBox      // nil without a chat
 	peer       string        // the viewer shown, to start its chat empty
@@ -51,13 +52,17 @@ func (u *ui) newSessionPanel() *sessionPanel {
 		}
 	})
 	p.disconnect.Importance = widget.DangerImportance
+	p.recording = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	p.recording.Wrapping = fyne.TextWrapWord
+	p.recording.Importance = widget.DangerImportance
+	p.recording.Hide()
 	p.transfer = widget.NewLabel("")
 	p.transfer.Wrapping = fyne.TextWrapWord
 	p.transfer.Hide()
 	if u.opts.Files != nil {
 		u.opts.Files.OnChange(func(t services.Transfer) { fyne.Do(func() { p.showTransfer(t) }) })
 	}
-	items := append([]fyne.CanvasObject{p.who, p.browser, p.since, p.perms}, p.checks.objects()...)
+	items := append([]fyne.CanvasObject{p.who, p.recording, p.browser, p.since, p.perms}, p.checks.objects()...)
 	items = append(items, p.transfer)
 	top := container.NewVBox(items...)
 	if u.opts.Chat != nil {
@@ -99,6 +104,12 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	p.since.SetText(Lf("Since %s", a.Since.Local().Format("15:04")))
 	p.perms.SetText(L("Can see your screen, and:"))
 	p.checks.set(a.Permissions)
+	if text := recordingText(a); text != "" {
+		p.recording.SetText(text)
+		p.recording.Show()
+	} else {
+		p.recording.Hide()
+	}
 	if p.chat != nil && p.peer != a.PeerID {
 		p.chat.clear()
 	}
@@ -114,6 +125,20 @@ func (p *sessionPanel) render(a *models.ActiveSession) {
 	styleWindow(p.win)
 	floatWindow(p.win.Title(), false)
 	p.shown = true
+}
+
+// recordingText says what the viewer saves of the screen: a recording
+// (first), or the screenshots it took; "" for nothing.
+func recordingText(a *models.ActiveSession) string {
+	switch {
+	case !a.RecordingSince.IsZero():
+		return Lf("● Recording your screen since %s", a.RecordingSince.Local().Format("15:04"))
+	case a.Screenshots == 1:
+		return Lf("Took a screenshot at %s", a.LastScreenshot.Local().Format("15:04"))
+	case a.Screenshots > 1:
+		return Lf("Took %d screenshots, the last at %s", a.Screenshots, a.LastScreenshot.Local().Format("15:04"))
+	}
+	return ""
 }
 
 // showTransfer shows the file moving now, and how it ended.
