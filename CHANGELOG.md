@@ -6,6 +6,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **The install page's Raspberry Pi & servers tab lists every go-link-desk-terminal command** (status, password, link, unlink, unlink --all, reset, version, help, serve), the first steps and the systemd commands, in English, Spanish and Portuguese.
 - **Files sent to a computer land in Downloads/go-link-desk**, a name without spaces, on macOS, Windows, Linux and with go-link-desk-terminal (it was Downloads/go-link Desk, which stays as it is). The Mac app's screenshots and recordings go there too, and Android's into Downloads, Pictures and Movies › go-link-desk.
 - **go-link-desk-terminal's terminals live in the usual session screen**: the same toolbar as a desktop (special keys, screenshot and recording, full screen), with a **Terminals** menu in place of Screen (new, rename, close, text size, copy what is shown, paste).
 - **Terminals outlive the viewer, like screen**: closing the browser, losing the network or disconnecting leaves them running, and the next session finds them as they were, with what they printed meanwhile (the last 2 MiB of each). A notice says they were resumed. `exit` closes only its terminal.
