@@ -48,6 +48,9 @@
     <string name="server_not_address">Isso não é o endereço de um servidor: começa com wss://.</string>
     <string name="server_no_answer">Esse servidor não respondeu.</string>
     <string name="version">Versão</string>
+    <string name="connection">Conexão</string>
+    <string name="test_connection">Testar minha conexão</string>
+    <string name="connection_footer">Sua conexão vai direta ou pelo relay? O teste mostra o caminho pelos seus roteadores e como melhorá-lo.</string>
     <string name="about_footer">Software livre e de código aberto (licença MIT). A imagem, o som e o controle vão direto entre os aparelhos, criptografados de ponta a ponta.</string>
     <string name="st_connecting">Conectando…</string>
     <string name="st_waiting">Esperando a pessoa no computador aceitar…</string>

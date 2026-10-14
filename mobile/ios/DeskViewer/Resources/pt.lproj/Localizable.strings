@@ -166,3 +166,6 @@
 "Try the demo" = "Experimentar a demo";
 "Connects to a demo computer with Minesweeper" = "Conecta a um computador de demonstração com o Campo Minado";
 "The demo computer is not available right now. Try again in a minute." = "O computador de demonstração não está disponível agora. Tente de novo em um minuto.";
+"Connection" = "Conexão";
+"Test my connection" = "Testar minha conexão";
+"Is your connection direct or through the relay? The test shows the path through your routers and how to improve it." = "Sua conexão vai direta ou pelo relay? O teste mostra o caminho pelos seus roteadores e como melhorá-lo.";

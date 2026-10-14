@@ -7,6 +7,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var app: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var server = ""
     @State private var serverError = ""
     @State private var testing = false
@@ -60,6 +61,19 @@ struct SettingsView: View {
                     Text("Signaling server")
                 } footer: {
                     Text("Empty: go-link's. Your own signalhub server starts with wss://; it is checked before it is saved.")
+                }
+                Section {
+                    Button {
+                        Task {
+                            if let url = await NetworkProbe.url() { openURL(url) }
+                        }
+                    } label: {
+                        Label("Test my connection", systemImage: "network")
+                    }
+                } header: {
+                    Text("Connection")
+                } footer: {
+                    Text("Is your connection direct or through the relay? The test shows the path through your routers and how to improve it.")
                 }
                 Section {
                     LabeledContent("Version", value: app.version)
