@@ -47,20 +47,30 @@ A computer without a screen has nobody to accept a viewer, so **only linked brow
 2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org/web, in the same box as a session code (a 9-digit code that is no session's is tried as a linking code), or opens the `/link/<code>` address it prints, is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
 3. From then on the browser comes back from its list of computers (reach): its token, the computer's proof, then the password, as in the app's unattended access.
 
-A link lets the browser see the terminal and type (`view`, `control`).
+A link lets the browser see the terminals and type, copy and paste, and save screenshots and recordings (`view`, `control`, `clipboard`, `record`); links made before 1.5 are upgraded when the service starts.
 
 ## The session
 
-- When the session lets the viewer in, the host starts the user's login shell (from `/etc/passwd`, else `$SHELL`, else `/bin/sh`, run as `-bash` the way `login(1)` does) on a new pseudo-terminal, in its home folder, in a session of its own, with a clean environment: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `TERM=xterm-256color`, `COLORTERM=truecolor` and the language (`LANG`, else `C.UTF-8`).
-- The `terminal` channel (ordered, reliable, binary) carries the shell's output to the viewer and what the viewer types to the shell (only with `control`). The viewer sends its size on `control` (`terminal_size {cols, rows}`) at the start and on every change; the shell gets `SIGWINCH`.
-- A flood of output (`cat` of a big file) waits while the channel's buffer is over 4 MiB, so memory stays bounded.
-- The shell ending (`exit`) sends `terminal_exit {code}` and ends the session. The session ending (Disconnect, idle, the service stopping) hangs the shell up: `SIGHUP` to its whole session, `SIGKILL` two seconds later to what is left.
+The terminals belong to the computer, like screen's: they outlive the viewer, and the next session finds them as they were.
+
+- When a viewer comes and there is no terminal, the host starts one: the user's login shell (from `/etc/passwd`, else `$SHELL`, else `/bin/sh`, run as `-bash` the way `login(1)` does) on a new pseudo-terminal, in its home folder, in a session of its own, with a clean environment: `HOME`, `USER`, `LOGNAME`, `SHELL`, `PATH`, `TERM=xterm-256color`, `COLORTERM=truecolor` and the language (`LANG`, else `C.UTF-8`).
+- Up to 16 terminals, each with a number (id) and a name (`shell`, `shell 2`… until the viewer renames it; at most 40 characters).
+- The `terminal` channel (ordered, reliable, binary) carries every terminal: each message is a terminal's 4-byte id (big-endian) and then its bytes, the shell's output to the viewer and what the viewer types to the shell (only with `control`).
+- On `control`: the host sends `terminal_tabs {tabs: [{id, name, started}], max}` when the viewer comes and on every change (`resumed: true` in the first one when the terminals were there before); the viewer sends `terminal_open {name}`, `terminal_close {id}`, `terminal_rename {id, name}` (with `control`) and `terminal_size {cols, rows}`, which every terminal takes (`SIGWINCH`).
+- Each terminal keeps its last 2 MiB of output. A viewer that comes (back) gets the list and then each one's history, before anything new.
+- A flood of output (`cat` of a big file) waits while the channel's buffer is over 4 MiB; the shell is not held up, what does not go out stays in its history.
+- A shell ending (`exit`) closes its terminal and sends `terminal_exit {id, code}`; the session goes on. `terminal_close` hangs a shell up: `SIGHUP` to its whole session, `SIGKILL` two seconds later to what is left. The session ending (Disconnect, idle, the network) leaves the terminals running; the service stopping hangs them all up.
 - One session at a time, as in the app.
+- The `welcome` says `features: ["terminal-tabs"]`. A browser keeps the older way (one shell, its bytes alone, `exit` ends the session) for a computer before 1.5.
 
 ## In the browser
 
-- The web knows a terminal from its `welcome` (`source: "terminal"`) and shows the shell instead of the screen, in xterm.js (`@xterm/xterm`, `@xterm/addon-fit`, MIT), loaded only then (its own chunk, about 85 KB compressed). It keeps the shell's first output until the terminal is on the page.
-- Typing goes on the `terminal` channel as UTF-8; the size follows the window (`terminal_size`); A− and A+ change the text size (kept in this browser), and full screen works as for a screen.
+- The web knows a terminal from its `welcome` (`source: "terminal"`) and shows it where a session shows the screen, with the same toolbar: Keys (Esc, Tab, Ctrl+C…), Screenshot and recording, a **Terminals** menu in place of Screen (the terminals, new, rename, close, text size, copy what is shown, paste) and full screen. Chat, files, sound and the video call are not offered.
+- The terminal is xterm.js (`@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-webgl`, MIT), loaded only then. One xterm.js shows the chosen terminal; the page keeps each one's output (2 MiB), so switching is at once.
+- A strip at the bottom, like tmux's, lists the terminals: a click shows one, a double click renames it, ＋ opens one, and a dot marks new output in another. Alt+Shift+T opens one and Alt+Shift+← → move between them (the browser keeps Ctrl+Shift+T and Ctrl+Tab).
+- Coming back shows "Resumed" when the terminals were open before. If the connection is made again, the page drops what it kept and takes the histories again.
+- **Recording:** as video, like any session (the terminal is drawn by WebGL on a canvas, recorded with `captureStream`), or as text, an asciicast v2 file (`.cast`, for asciinema) of what the shown terminal prints. A screenshot is the canvas as PNG. Both ask the computer first, as for a screen.
+- Typing goes on the `terminal` channel as UTF-8; the size follows the window (`terminal_size`); the text size is kept in this browser.
 - A viewer without `control` watches only, and the page says so.
 - **Content Security Policy:** the site allows no inline styles, and xterm.js writes its colors and sizes into `<style>` elements, which the browser refuses. The page copies their rules into a stylesheet built in script (`adoptedStyleSheets`), which the policy allows. The browser's console still notes the refused elements.
 - My computers shows a terminal icon for a linked terminal (`terminal` in the saved link).

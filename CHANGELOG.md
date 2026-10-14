@@ -4,6 +4,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **go-link-desk-terminal's terminals live in the usual session screen**: the same toolbar as a desktop (special keys, screenshot and recording, full screen), with a **Terminals** menu in place of Screen (new, rename, close, text size, copy what is shown, paste).
+- **Terminals outlive the viewer, like screen**: closing the browser, losing the network or disconnecting leaves them running, and the next session finds them as they were, with what they printed meanwhile (the last 2 MiB of each). A notice says they were resumed. `exit` closes only its terminal.
+- **Terminal links may copy, paste and record** (links made before are upgraded).
+
+### Added
+
+- **Several terminals with names**: a tab strip at the bottom like tmux's (＋ or Alt+Shift+T opens one, a double click renames it, Alt+Shift+← → move between them, a dot marks new output), up to 16.
+- **Terminal recordings** as video, like any session, or as text (**.cast**, asciicast v2, for asciinema); screenshots are PNG.
+
 ## [1.4.2] - 2026-10-14
 
 go-link-desk-terminal, documented from end to end, with a Raspberry Pi & servers tab on the install page, and commands to start over.
