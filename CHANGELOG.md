@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-14
+
+go-link-desk-terminal's terminals in the usual session screen, with tabs and names, kept running like screen, recorded as video or .cast, and files like a desktop. Received files land in Downloads/go-link-desk.
+
 ### Changed
 
 - **The install page's Raspberry Pi & servers tab lists every go-link-desk-terminal command** (status, password, link, unlink, unlink --all, reset, version, help, serve), the first steps and the systemd commands, in English, Spanish and Portuguese.
