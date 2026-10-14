@@ -124,3 +124,37 @@ func TestALinkRequestSaysWhatALinkIs(t *testing.T) {
 		t.Fatalf("who %q", r.who.Text)
 	}
 }
+
+func TestDirectConnection(t *testing.T) {
+	u, set, _, _ := newSettingsUI(t, models.Config{})
+	s := u.settings
+	if s.mapPort.Checked || s.portNote.Visible() || s.relaunch.Visible() {
+		t.Fatal("the direct connection shows something by default")
+	}
+	// A port out of range is refused, and nothing changes.
+	s.udpPort.SetText("80")
+	s.udpPort.OnSubmitted(s.udpPort.Text)
+	if !s.netErr.Visible() || set.Get().UDPPort != 0 {
+		t.Fatal("port 80 was taken")
+	}
+	s.udpPort.SetText("40000")
+	s.announce.SetText("192.168.1.20, 10.0.0.2")
+	s.announce.OnSubmitted(s.announce.Text)
+	cfg := set.Get()
+	if s.netErr.Visible() || cfg.UDPPort != 40000 || len(cfg.AnnounceIPs) != 2 {
+		t.Fatalf("not kept: %+v", cfg)
+	}
+	// By hand: the rule to set; the change waits for the app to open again.
+	if !s.portNote.Visible() || !s.relaunch.Visible() {
+		t.Fatal("no rule or no relaunch")
+	}
+	test.Tap(s.mapPort)
+	if !set.Get().MapUDPPort {
+		t.Fatal("opening it in the router was not kept")
+	}
+	// Without a port, it cannot be opened.
+	_ = set.Update(func(c *models.Config) { c.UDPPort = 0 })
+	if text, tint := u.portStatus(set.Get()); tint != "warn" || text == "" {
+		t.Fatalf("%q %q", text, tint)
+	}
+}

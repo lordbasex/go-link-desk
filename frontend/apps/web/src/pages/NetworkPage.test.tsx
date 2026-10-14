@@ -61,6 +61,26 @@ describe("NetworkPage", () => {
     expect(screen.getAllByText(en.network.nodes.outer).length).toBeGreaterThan(0);
   });
 
+  it("gives the fixed port's rules for both routers, and says the app opened it in the inner one", async () => {
+    window.location.hash = nativeFragment({ src: "desktop", lan: "172.17.0.5", gw: "172.17.0.1", hops: ["172.17.0.1", "192.168.1.1", "200.51.241.1"], port: 40000, open: "upnp" });
+    show(fake({ signalOk: true, signalMs: 140, udp: true, ipv6: false, mapping: "independent", relayOk: true, relayMs: 143, publicIP: "181.23.153.151" }));
+    expect(await screen.findByText(en.network.result.maybe.title)).toBeTruthy();
+    const rule = document.querySelector(".nt-rule")?.textContent ?? "";
+    expect(rule).toContain("http://192.168.1.1");
+    expect(rule).toContain("UDP 40000 to: 172.17.0.5");
+    expect(rule).toContain("UDP 40000 to: " + en.network.fix.double.wanUnknown);
+    expect(rule).not.toContain("DMZ");
+    expect(document.body.textContent).toContain("go-link Desk opened UDP port 40000 in your router by itself (UPnP).");
+  });
+
+  it("gives one router's rule for a port forwarded by hand", async () => {
+    window.location.hash = nativeFragment({ src: "desktop", lan: "192.168.0.12", gw: "192.168.0.1", port: 40000 });
+    show(fake({ signalOk: true, signalMs: 140, udp: true, ipv6: false, mapping: "independent", relayOk: true, relayMs: 143, publicIP: "181.23.153.151" }));
+    expect(await screen.findByText(en.network.result.direct.title)).toBeTruthy();
+    expect(document.querySelector(".nt-rule")?.textContent).toContain("UDP 40000 to: 192.168.0.12");
+    expect(document.body.textContent).toContain("This computer uses UDP port 40000.");
+  });
+
   it("says when go-link Desk's server cannot be reached", async () => {
     show(fake({ signalOk: false, udp: false, ipv6: false, mapping: "unknown", relayOk: false }));
     await userEvent.click(screen.getByRole("button", { name: en.network.start }));

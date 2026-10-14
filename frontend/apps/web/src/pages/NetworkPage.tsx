@@ -445,11 +445,11 @@ function Result({ verdict }: { verdict: Verdict }) {
 }
 
 /** A router's menu as lines: "Label: value" shows the value highlighted. */
-function Rule({ lines, wan }: { lines: readonly string[]; wan: string }) {
+function Rule({ lines, vars }: { lines: readonly string[]; vars: Record<string, string> }) {
   return (
     <pre className="nt-rule">
       {lines.map((line, i) => {
-        const l = line.replace("{wan}", wan);
+        const l = line.replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all);
         const at = l.indexOf(": ");
         return (
           <Fragment key={i}>
@@ -471,9 +471,19 @@ function Rule({ lines, wan }: { lines: readonly string[]; wan: string }) {
 function Fix({ advice, report }: { advice: Advice; report: Report | null }) {
   const f = t.network.fix;
   const g = f[advice];
-  const wan = report?.native?.wan && ipKind(report.native.wan) !== "public" ? report.native.wan : f.double.wanUnknown;
+  const native = report?.native;
+  const vars = {
+    wan: native?.wan && ipKind(native.wan) !== "public" ? native.wan : f.double.wanUnknown,
+    lan: native?.lan ?? f.lanUnknown,
+    port: String(native?.port ?? ""),
+    via: native?.open === "nat-pmp" ? "NAT-PMP" : "UPnP",
+  };
+  // The computer app's fixed port: the exact rules for it.
+  const port = native?.port && (advice === "double" || advice === "one") ? native.port : undefined;
   const outer = report ? outerRouterOf(report) : undefined;
-  const lines = advice === "double" && outer ? [`${f.double.modemAt}: http://${outer}`, ...f.double.rule] : "rule" in g ? g.rule : [];
+  let lines: readonly string[] = "rule" in g ? (port ? (g as typeof f.one).ruleWithPort : g.rule) : [];
+  if (advice === "double" && outer) lines = [`${f.double.modemAt}: http://${outer}`, ...lines];
+  const note = port ? (native?.open ? (advice === "double" ? f.openedDouble : f.opened) : f.byHand) : undefined;
   return (
     <div className="nt-fix">
       <div>
@@ -484,7 +494,10 @@ function Fix({ advice, report }: { advice: Advice; report: Report | null }) {
           ))}
         </ol>
       </div>
-      <div>{"rule" in g ? <Rule lines={lines} wan={wan} /> : <p className="nt-callout">{rich(g.ask)}</p>}</div>
+      <div>
+        {"rule" in g ? <Rule lines={lines} vars={vars} /> : <p className="nt-callout">{rich(g.ask)}</p>}
+        {note && <p className="nt-callout">{rich(note.replace(/\{(\w+)\}/g, (all, k: string) => vars[k as keyof typeof vars] ?? all))}</p>}
+      </div>
     </div>
   );
 }

@@ -79,7 +79,11 @@ func TestUPnPAsk(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	a, err := askExternal(context.Background(), srv.Client(), srv.URL+"/rootDesc.xml")
+	ctl, st, err := describe(context.Background(), srv.Client(), srv.URL+"/rootDesc.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := wan{client: srv.Client(), control: ctl, service: st}.external(context.Background())
 	if err != nil || a != netip.MustParseAddr("100.72.14.9") {
 		t.Fatalf("%v %v", a, err)
 	}
@@ -117,7 +121,7 @@ func TestControlURLStaysOnTheDevice(t *testing.T) {
 }
 
 func TestFragment(t *testing.T) {
-	f := Result{Src: "desktop", LAN: "192.168.0.12", GW: "192.168.0.1", WAN: "192.168.1.2", UPnP: true, Net: "ethernet"}.Fragment()
+	f := Result{Src: "desktop", LAN: "192.168.0.12", GW: "192.168.0.1", WAN: "192.168.1.2", UPnP: true, Net: "ethernet", Port: 40000, Open: "upnp"}.Fragment()
 	if !strings.HasPrefix(f, "#d=") || strings.ContainsAny(f[3:], "+/=") {
 		t.Fatalf("%q", f)
 	}
@@ -126,7 +130,7 @@ func TestFragment(t *testing.T) {
 		t.Fatal(err)
 	}
 	var back map[string]any
-	if err := json.Unmarshal(b, &back); err != nil || back["src"] != "desktop" || back["wan"] != "192.168.1.2" || back["upnp"] != true {
+	if err := json.Unmarshal(b, &back); err != nil || back["src"] != "desktop" || back["wan"] != "192.168.1.2" || back["upnp"] != true || back["port"] != float64(40000) || back["open"] != "upnp" {
 		t.Fatalf("%v %v", back, err)
 	}
 }

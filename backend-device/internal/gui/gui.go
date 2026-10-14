@@ -77,7 +77,10 @@ type Options struct {
 	// computer's).
 	Language string
 	Version  string
-	Logger   *slog.Logger
+	// Ports keeps the fixed UDP port open in the router (nil: not asked
+	// at start); Settings shows what the router answered.
+	Ports  *services.PortMapper
+	Logger *slog.Logger
 }
 
 type ui struct {
@@ -232,9 +235,21 @@ func newUI(a fyne.App, opts Options) *ui {
 	setLanguage(opts.Language)
 	u := &ui{opts: opts, app: a}
 	if opts.Settings != nil {
-		u.trayDark = opts.Settings.Get().TrayIcon == "dark"
+		cfg := opts.Settings.Get()
+		u.trayDark = cfg.TrayIcon == "dark"
+		u.prefs.start, u.prefs.startSet = cfg, true
 	}
 	u.win = a.NewWindow("go-link Desk")
+	if opts.Ports != nil {
+		opts.Ports.OnChange(func() {
+			fyne.Do(func() {
+				u.refreshPrefs()
+				if u.settings != nil {
+					u.settings.render()
+				}
+			})
+		})
+	}
 
 	title := widget.NewLabelWithStyle(L("Your code"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	u.code = canvas.NewText("— — —", theme.Color(theme.ColorNameForeground))

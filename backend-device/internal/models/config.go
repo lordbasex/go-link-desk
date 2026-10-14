@@ -28,6 +28,9 @@ type Config struct {
 	// UDPPort carries every WebRTC connection on one UDP port, so a single
 	// port forward on a router opens a direct path (0: random ports).
 	UDPPort int `json:"udp_port,omitempty"`
+	// MapUDPPort asks the router to forward UDPPort by itself (NAT-PMP or
+	// UPnP) while the app runs. Off by default: it opens a port.
+	MapUDPPort bool `json:"map_udp_port,omitempty"`
 	// AnnounceIPs are addresses where browsers reach UDPPort through a
 	// router that forwards it.
 	AnnounceIPs []string `json:"announce_ips,omitempty"`
@@ -96,12 +99,12 @@ type Link struct {
 // FactoryDefaults is the config after a factory reset, keeping only what
 // makes this host itself and reachable: its identity (device_id,
 // device_secret), its signaling server and its network settings (udp_port,
-// announce_ips). Links, unattended access, the website and the language go
+// map_udp_port, announce_ips). Links, unattended access, the website and the language go
 // back to their defaults.
 func (c Config) FactoryDefaults() Config {
 	return Config{
 		DeviceID: c.DeviceID, DeviceSecret: c.DeviceSecret, SignalURL: c.SignalURL,
-		UDPPort: c.UDPPort, AnnounceIPs: c.AnnounceIPs,
+		UDPPort: c.UDPPort, MapUDPPort: c.MapUDPPort, AnnounceIPs: c.AnnounceIPs,
 	}
 }
 

@@ -6,7 +6,9 @@ package gui
 
 import (
 	"errors"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -75,7 +77,15 @@ type settingsWindow struct {
 	language   *widget.Select
 	viewerName *widget.Entry // nil without the Connect side
 	tabs       *widget.Check
-	setting    bool // render is updating the widgets, not the person
+	// The direct connection (advanced): the fixed UDP port, opened in the
+	// router by the app or by hand, and the announced addresses.
+	udpPort  *widget.Entry
+	mapPort  *widget.Check
+	announce *widget.Entry
+	netErr   *widget.Label
+	portNote *widget.Label // what the router did, or the rule to set by hand
+	relaunch *fyne.Container
+	setting  bool // render is updating the widgets, not the person
 }
 
 func idleLabel(m int) string {
@@ -248,13 +258,111 @@ func (u *ui) newSettings() *settingsWindow {
 	content.Add(container.NewVBox(
 		heading(L("This computer")), s.startup,
 		container.NewBorder(nil, nil, widget.NewLabel(L("Language")), nil, s.language), langNote,
+		widget.NewSeparator(),
 	))
+	content.Add(s.directSection(heading, wrap))
 	s.win.SetContent(container.NewVScroll(container.NewPadded(content)))
 	s.win.Resize(fyne.NewSize(480, 620))
 	s.win.SetCloseIntercept(s.win.Hide)
 	set.OnChange(func(models.Config) { fyne.Do(s.render) })
 	s.render()
 	return s
+}
+
+// directSection is the direct connection (advanced): for a computer
+// behind a second router, which viewers elsewhere reach only through the
+// relay unless a port is forwarded to it.
+func (s *settingsWindow) directSection(heading func(string) *widget.Label, wrap func(string) *widget.Label) *fyne.Container {
+	set := s.u.opts.Settings
+	s.udpPort = widget.NewEntry()
+	s.udpPort.SetPlaceHolder(L("Random"))
+	s.announce = widget.NewEntry()
+	s.announce.SetPlaceHolder(Lf("For example: %s", "192.168.1.20"))
+	s.netErr = wrap("")
+	s.netErr.Importance = widget.DangerImportance
+	s.netErr.Hide()
+	s.portNote = wrap("")
+	s.portNote.Hide()
+	apply := func() {
+		port, msg := parseUDPPort(s.udpPort.Text)
+		var ips []string
+		if msg == "" {
+			ips, msg = parseAnnounce(s.announce.Text)
+		}
+		if msg != "" {
+			s.netErr.SetText(msg)
+			s.netErr.Show()
+			return
+		}
+		s.netErr.Hide()
+		_ = set.Update(func(c *models.Config) { c.UDPPort, c.AnnounceIPs = port, ips })
+	}
+	s.udpPort.OnSubmitted = func(string) { apply() }
+	s.announce.OnSubmitted = func(string) { apply() }
+	s.mapPort = widget.NewCheck(L("Open it in the router by itself"), func(on bool) {
+		if !s.setting {
+			_ = set.Update(func(c *models.Config) { c.MapUDPPort = on })
+		}
+	})
+	note := func(text string) *widget.Label {
+		l := wrap(text)
+		l.Importance = widget.LowImportance
+		return l
+	}
+	again := widget.NewButton(L("Open again now"), func() { go s.u.relaunch() })
+	if runtime.GOOS == "windows" {
+		again.Hide() // the person opens it again
+	}
+	s.relaunch = container.NewVBox(wrap(L("The port and address are used when go-link Desk opens again.")), container.NewHBox(again))
+	s.relaunch.Hide()
+	return container.NewVBox(
+		heading(L("Direct connection (advanced)")),
+		note(L("For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay.")),
+		container.NewBorder(nil, nil, widget.NewLabel(L("This computer's address")), nil, widget.NewLabel(localIP())),
+		container.NewBorder(nil, nil, widget.NewLabel(L("UDP port")), nil, s.udpPort),
+		note(L("Every connection on one port, to open it in a router.")),
+		s.mapPort,
+		note(L("With UPnP or NAT-PMP, while go-link Desk is open. Off: forward it in the router by hand.")),
+		container.NewBorder(nil, nil, widget.NewLabel(L("Announced address")), nil, s.announce),
+		note(L("Where viewers reach that port through the router: its address on their network. Several, with commas.")),
+		container.NewHBox(widget.NewButton(L("Apply"), apply)),
+		s.netErr, s.portNote, s.relaunch,
+	)
+}
+
+// renderDirect shows the direct connection's settings and what the router
+// did with the port.
+func (s *settingsWindow) renderDirect(cfg models.Config) {
+	focused := s.win.Canvas().Focused()
+	if f, ok := focused.(*widget.Entry); !ok || f != s.udpPort {
+		s.udpPort.SetText("")
+		if cfg.UDPPort > 0 {
+			s.udpPort.SetText(strconv.Itoa(cfg.UDPPort))
+		}
+	}
+	if f, ok := focused.(*widget.Entry); !ok || f != s.announce {
+		s.announce.SetText(strings.Join(cfg.AnnounceIPs, ", "))
+	}
+	s.mapPort.SetChecked(cfg.MapUDPPort)
+	text, tint := s.u.portStatus(cfg)
+	if text == "" && cfg.UDPPort > 0 && !cfg.MapUDPPort {
+		if local := localIP(); local != "" {
+			text = Lf("In the router, forward UDP port %d to %s.", cfg.UDPPort, local)
+		}
+	}
+	s.portNote.SetText(text)
+	s.portNote.Importance = map[string]widget.Importance{"ok": widget.SuccessImportance, "warn": widget.WarningImportance}[tint]
+	if text == "" {
+		s.portNote.Hide()
+	} else {
+		s.portNote.Show()
+		s.portNote.Refresh()
+	}
+	if s.u.directChanged(cfg) {
+		s.relaunch.Show()
+	} else {
+		s.relaunch.Hide()
+	}
 }
 
 // setPassword hashes and keeps a new unattended password, typed twice.
@@ -330,6 +438,7 @@ func (s *settingsWindow) render() {
 			s.language.SetSelectedIndex(i)
 		}
 	}
+	s.renderDirect(cfg)
 }
 
 // renderCode shows the pairing code, which links a browser.

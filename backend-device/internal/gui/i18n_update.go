@@ -12,8 +12,16 @@ func init() {
 		}
 	}
 	add("es", map[string]string{
-		"Try the demo":                "Probar la demo",
-		"Test My Connection…":         "Probar mi conexión…",
+		"Try the demo":                    "Probar la demo",
+		"Test My Connection…":             "Probar mi conexión…",
+		"Open it in the router by itself": "Abrirlo en el router automáticamente",
+		"With UPnP or NAT-PMP, while go-link Desk is open. Off: forward it in the router by hand.": "Con UPnP o NAT-PMP, mientras go-link Desk está abierto. Desactivado: redirigilo a mano en el router.",
+		"Choose a port first: a random one cannot be opened in the router.":                        "Elegí un puerto primero: uno al azar no se puede abrir en el router.",
+		"Asking the router…":                    "Preguntando al router…",
+		"Open in the router (%s): %s, port %d.": "Abierto en el router (%s): %s, puerto %d.",
+		"Open in the router (%s): port %d.":     "Abierto en el router (%s): puerto %d.",
+		"The router did not open it: turn on UPnP or NAT-PMP in it, or forward the port by hand.": "El router no lo abrió: activá UPnP o NAT-PMP en él, o redirigí el puerto a mano.",
+		"Apply":                       "Aplicar",
 		"Check for Updates…":          "Buscar actualizaciones…",
 		"Update to %s…":               "Actualizar a la %s…",
 		"Software update":             "Actualización",
@@ -41,8 +49,16 @@ func init() {
 		"OK":            "Aceptar",
 	})
 	add("pt", map[string]string{
-		"Try the demo":                "Experimentar a demo",
-		"Test My Connection…":         "Testar minha conexão…",
+		"Try the demo":                    "Experimentar a demo",
+		"Test My Connection…":             "Testar minha conexão…",
+		"Open it in the router by itself": "Abrir no roteador automaticamente",
+		"With UPnP or NAT-PMP, while go-link Desk is open. Off: forward it in the router by hand.": "Com UPnP ou NAT-PMP, enquanto o go-link Desk está aberto. Desligado: redirecione no roteador à mão.",
+		"Choose a port first: a random one cannot be opened in the router.":                        "Escolha uma porta primeiro: uma aleatória não pode ser aberta no roteador.",
+		"Asking the router…":                    "Perguntando ao roteador…",
+		"Open in the router (%s): %s, port %d.": "Aberta no roteador (%s): %s, porta %d.",
+		"Open in the router (%s): port %d.":     "Aberta no roteador (%s): porta %d.",
+		"The router did not open it: turn on UPnP or NAT-PMP in it, or forward the port by hand.": "O roteador não a abriu: ative UPnP ou NAT-PMP nele, ou redirecione a porta à mão.",
+		"Apply":                       "Aplicar",
 		"Check for Updates…":          "Procurar atualizações…",
 		"Update to %s…":               "Atualizar para a %s…",
 		"Software update":             "Atualização",

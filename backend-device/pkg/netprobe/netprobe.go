@@ -32,6 +32,10 @@ type Result struct {
 	UPnP bool     `json:"upnp"`
 	PMP  bool     `json:"pmp"`
 	Net  string   `json:"net,omitempty"`
+	// Port is the fixed UDP port the app uses (0: random ports), and
+	// Open how the router opened it ("upnp", "nat-pmp"; "" by hand or not).
+	Port int    `json:"port,omitempty"`
+	Open string `json:"open,omitempty"`
 }
 
 // Fragment is "#d=<base64url JSON>", which browsers never send to a server.

@@ -98,6 +98,10 @@ export type Native = {
   upnp?: boolean;
   pmp?: boolean;
   net?: "wifi" | "cellular" | "ethernet" | "other";
+  /** The computer app's fixed UDP port (absent: random ports). */
+  port?: number;
+  /** How the router opened that port by itself (absent: by hand, or not). */
+  open?: "upnp" | "nat-pmp";
 };
 
 const ipOrUndefined = (v: unknown): string | undefined =>
@@ -136,6 +140,8 @@ export function parseNative(hash: string): Native | null {
   if (typeof o.upnp === "boolean") n.upnp = o.upnp;
   if (typeof o.pmp === "boolean") n.pmp = o.pmp;
   if (o.net === "wifi" || o.net === "cellular" || o.net === "ethernet" || o.net === "other") n.net = o.net;
+  if (typeof o.port === "number" && Number.isInteger(o.port) && o.port >= 1024 && o.port <= 65535) n.port = o.port;
+  if (n.port && (o.open === "upnp" || o.open === "nat-pmp")) n.open = o.open;
   return n;
 }
 

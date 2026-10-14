@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -58,6 +59,9 @@ type StreamConfig struct {
 	// (the WAN side of a router that forwards it). Each one is sent as an
 	// additional host candidate.
 	AnnounceIPs []string
+	// Outside, when set, is the router's outside address and port while it
+	// forwards UDPPort (PortMapper.Outside), announced like AnnounceIPs.
+	Outside func() (netip.Addr, int)
 	// API, when set, is a WebRTC API shared with other connections, so all
 	// use the same UDP port.
 	API *webrtc.API
@@ -153,6 +157,9 @@ type viewer struct {
 	audio   *webrtc.TrackLocalStaticSample
 	call    *callTracks // the video call's media
 	files   *webrtc.DataChannel
+	// ports copies the fixed port's candidate to the routers' addresses;
+	// a new one for every gathering (the first, each ICE restart).
+	ports atomic.Pointer[portAnnouncer]
 	// hears: the viewer may hear the computer's sound (Permissions.Audio).
 	hears atomic.Bool
 	// gated: a linked browser still proving itself (AddWaiting). It has a
@@ -1033,17 +1040,29 @@ func (s *StreamService) SendFiles(peerID string, isString bool, data []byte) boo
 
 func (s *StreamService) offer(v *viewer) error {
 	pc, peerID := v.pc, v.id
+	v.ports.Store(s.newPorts())
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return // gathering finished
 		}
 		init := c.ToJSON()
 		s.sendSignal(peerID, RTCSignal{Kind: "candidate", Candidate: &init})
-		// The same port behind a forwarding router: announce it there too.
-		if c.Typ == webrtc.ICECandidateTypeHost && s.cfg.UDPPort > 0 && int(c.Port) == s.cfg.UDPPort {
-			for _, extra := range announcedCandidates(init, s.cfg.AnnounceIPs) {
-				s.sendSignal(peerID, RTCSignal{Kind: "candidate", Candidate: &extra})
+		if s.cfg.UDPPort <= 0 {
+			return
+		}
+		// The fixed port behind a router that forwards it: announce it at
+		// the router's addresses too.
+		var extra []webrtc.ICECandidateInit
+		switch {
+		case c.Typ == webrtc.ICECandidateTypeHost && int(c.Port) == s.cfg.UDPPort && c.Protocol == webrtc.ICEProtocolUDP:
+			extra = v.ports.Load().host(init)
+		case c.Typ == webrtc.ICECandidateTypeSrflx:
+			if a, err := netip.ParseAddr(c.Address); err == nil {
+				extra = v.ports.Load().at(netip.AddrPortFrom(a, uint16(s.cfg.UDPPort)))
 			}
+		}
+		for i := range extra {
+			s.sendSignal(peerID, RTCSignal{Kind: "candidate", Candidate: &extra[i]})
 		}
 	})
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -1126,6 +1145,7 @@ func (s *StreamService) restartICE(v *viewer) {
 		s.drop(v.id, models.EndNetwork)
 		return
 	}
+	v.ports.Store(s.newPorts())
 	offer, err := v.pc.CreateOffer(&webrtc.OfferOptions{ICERestart: true})
 	if err == nil {
 		err = v.pc.SetLocalDescription(offer)
@@ -1562,31 +1582,116 @@ func (s *StreamService) ViewerCount() int {
 	return len(s.viewers)
 }
 
-// announcedCandidates copies a host candidate for each announced address:
-// same port and transport, another address and foundation, and a slightly
-// lower priority than the real host candidate.
-func announcedCandidates(host webrtc.ICECandidateInit, ips []string) []webrtc.ICECandidateInit {
-	fields := strings.Fields(host.Candidate)
+// portAnnouncer sends, for one connection, copies of the host candidate
+// on the fixed UDP port at the other addresses where browsers can reach
+// it: those set by hand (AnnounceIPs), the router's outside address when
+// it forwards the port (PortMapper), and the public address STUN saw. Pion
+// gathers that one (srflx) on other sockets, so a router forwarding the
+// fixed port is only reached through the copy. Each copy has the same
+// transport, another address (and port, for a router that gave another),
+// its own foundation and a slightly lower priority than the real one.
+type portAnnouncer struct {
+	mu      sync.Mutex
+	fields  []string // the host candidate's, once it came
+	prio    uint64
+	init    webrtc.ICECandidateInit
+	sent    map[netip.AddrPort]bool
+	pending []netip.AddrPort
+}
+
+// host takes the host candidate on the fixed port and returns the copies
+// for the addresses that came before it.
+func (a *portAnnouncer) host(c webrtc.ICECandidateInit) []webrtc.ICECandidateInit {
+	f := strings.Fields(c.Candidate)
 	// candidate:<foundation> <component> <transport> <priority> <address> <port> typ host ...
-	if len(fields) < 8 || !strings.HasPrefix(fields[0], "candidate:") || fields[6] != "typ" {
+	if len(f) < 8 || !strings.HasPrefix(f[0], "candidate:") || f[6] != "typ" {
 		return nil
 	}
-	prio, err := strconv.ParseUint(fields[3], 10, 32)
+	prio, err := strconv.ParseUint(f[3], 10, 32)
 	if err != nil {
 		return nil
 	}
+	own, err := netip.ParseAddr(f[4])
+	if err != nil {
+		return nil
+	}
+	port, err := strconv.Atoi(f[5])
+	if err != nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.fields != nil {
+		return nil
+	}
+	a.fields, a.prio, a.init = f, prio, c
+	if a.sent == nil {
+		a.sent = map[netip.AddrPort]bool{}
+	}
+	a.sent[netip.AddrPortFrom(own, uint16(port))] = true
+	pending := a.pending
+	a.pending = nil
+	return a.copies(pending)
+}
+
+// at returns the copies for these addresses (now, or once the host
+// candidate came). An address of another family than the host candidate's
+// is left out.
+func (a *portAnnouncer) at(addrs ...netip.AddrPort) []webrtc.ICECandidateInit {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.fields == nil {
+		a.pending = append(a.pending, addrs...)
+		return nil
+	}
+	return a.copies(addrs)
+}
+
+func (a *portAnnouncer) copies(addrs []netip.AddrPort) []webrtc.ICECandidateInit {
 	var out []webrtc.ICECandidateInit
-	for i, ip := range ips {
-		if net.ParseIP(ip) == nil || ip == fields[4] {
+	for _, ap := range addrs {
+		ap = netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+		if !ap.IsValid() || ap.Port() == 0 || a.sent[ap] || ap.Addr().Is4() != strings.Contains(a.fields[4], ".") {
 			continue
 		}
-		f := slices.Clone(fields)
-		f[0] = fmt.Sprintf("candidate:%d", 4000000000+i)
-		f[3] = strconv.FormatUint(prio-uint64(i+1)*256, 10)
-		f[4] = ip
-		c := host
+		a.sent[ap] = true
+		n := uint64(len(a.sent) - 1)
+		f := slices.Clone(a.fields)
+		f[0] = fmt.Sprintf("candidate:%d", 4000000000+n)
+		f[3] = strconv.FormatUint(a.prio-n*256, 10)
+		f[4] = ap.Addr().String()
+		f[5] = strconv.Itoa(int(ap.Port()))
+		c := a.init
 		c.Candidate = strings.Join(f, " ")
 		out = append(out, c)
+	}
+	return out
+}
+
+// newPorts starts a gathering's copies of the fixed port's candidate with
+// the addresses known ahead: set by hand, and the router's outside address
+// while it forwards the port.
+func (s *StreamService) newPorts() *portAnnouncer {
+	a := &portAnnouncer{}
+	if s.cfg.UDPPort <= 0 {
+		return a
+	}
+	a.at(announced(s.cfg.AnnounceIPs, s.cfg.UDPPort)...)
+	if s.cfg.Outside != nil {
+		if ip, port := s.cfg.Outside(); ip.IsValid() && port > 0 {
+			a.at(netip.AddrPortFrom(ip, uint16(port)))
+		}
+	}
+	return a
+}
+
+// announced are the addresses set by hand, on the fixed port.
+func announced(ips []string, port int) []netip.AddrPort {
+	var out []netip.AddrPort
+	for _, ip := range ips {
+		if a, err := netip.ParseAddr(ip); err == nil {
+			out = append(out, netip.AddrPortFrom(a, uint16(port)))
+		}
 	}
 	return out
 }

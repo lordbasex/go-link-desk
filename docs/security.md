@@ -89,6 +89,12 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Connecting to this computer's own code is refused.
 - A signaling server chosen in Settings must be `wss://` outside this computer: Settings warns about `ws://`, which is not encrypted. The media and control stay end-to-end encrypted (DTLS) whatever the server.
 
+### A port opened in the router
+
+- The fixed UDP port and opening it in the router (Settings › Direct connection) are off by default, and opening it is a box of its own. Nothing else is ever asked of the router; the connection test only reads (its outside address).
+- The port answers only ICE checks with a connection's short-lived credentials, exchanged through the signaling server for a session the person accepted, and then DTLS with the fingerprint from the same exchange (as a random port does): an open port lets nobody in by itself.
+- The mapping names only this computer's own address, never another; the router is found only on the local network (a UPnP description elsewhere, or not plain HTTP, is ignored). It is leased for an hour and removed on quitting, so a crash leaves it at most an hour.
+
 ### A session left open
 
 - Settings can end a session after 5 minutes to an hour without input from the viewer (`idle`), and lock the screen when any session ends.

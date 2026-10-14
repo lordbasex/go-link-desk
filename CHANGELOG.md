@@ -4,6 +4,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The computer app opens its fixed UDP port in the router by itself** (macOS, Windows, Linux): a new **Open it in the router by itself** box in Settings › Direct connection (advanced), off by default. With a UDP port chosen, it asks the router with NAT-PMP, then UPnP, for this computer only, keeps the lease (an hour, asked again at half), and removes it on quitting; Settings says what the router answered. See [docs/network.md](docs/network.md#one-port-for-every-connection).
+- **Settings › Direct connection (advanced) on Windows and Linux**, as on the Mac: the UDP port, opening it in the router, and the announced addresses (before, only in `device.json`).
+- **The connection test gives the exact rules for the fixed port**: the app sends it (and whether the router opened it) with the rest, and the guide shows `UDP 40000 to: 172.17.0.5` for each router instead of the generic steps.
+
+### Fixed
+
+- **A port forwarded to the fixed UDP port was never tried:** pion gathers the public address (srflx) on other sockets, with random ports, so viewers got the router's public address with the wrong port. The app now also announces the public address STUN saw, and the router's while it forwards the port, on the fixed port.
+- **The connection test's guide** promised a fixed port "coming soon" (it was already there) and said UPnP alone lets go-link Desk open its port: now it says how.
+
 ## [1.3.3] - 2026-10-13
 
 Does your network go direct or through the relay? A connection test at desk.go-link.org/network, like a speed test, finds out and explains double NAT, CGNAT and blocked UDP, with the steps to fix each; Test My Connection… in the computer app sees the routers a browser cannot.

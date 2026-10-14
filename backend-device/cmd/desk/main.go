@@ -16,6 +16,7 @@ import (
 	_ "image/png"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -287,8 +288,15 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The fixed port, opened in the router by the app when asked.
+	var ports *services.PortMapper
+	var outside func() (netip.Addr, int)
+	if cfg.UDPPort > 0 && cfg.MapUDPPort {
+		ports = &services.PortMapper{Port: cfg.UDPPort, Log: logger}
+		outside = ports.Outside
+	}
 	stream, err := services.NewStreamService(services.StreamConfig{
-		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs,
+		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs, Outside: outside,
 		Welcome: meta, Source: source, Logger: logger, RelayOnly: f.relayOnly,
 	}, ice)
 	if err != nil {
@@ -482,6 +490,15 @@ func run(args []string) error {
 		}
 	}()
 	go services.NewMetricsService(ctx, status, 5*time.Second, nil).Run(ctx)
+	portsDone := make(chan struct{})
+	if ports != nil {
+		go func() {
+			defer close(portsDone)
+			_ = ports.Run(ctx)
+		}()
+	} else {
+		close(portsDone)
+	}
 
 	// The computers this app connects to, next to device.json.
 	remotesFile := repositories.NewRemotesFile(filepath.Dir(store.Path()))
@@ -516,10 +533,16 @@ func run(args []string) error {
 		webURL:         web,
 		woken:          lock.Woken(),
 		language:       cfg.Language,
+		ports:          ports,
 		logger:         logger,
 	})
 	logger.Info("shutting down")
 	cancel()
+	// The port comes out of the router before the app goes.
+	select {
+	case <-portsDone:
+	case <-time.After(4 * time.Second):
+	}
 	return nil
 }
 

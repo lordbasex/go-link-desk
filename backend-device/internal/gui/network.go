@@ -34,7 +34,14 @@ func (u *ui) testConnection() {
 	ctx, cancel := context.WithTimeout(u.opts.Ctx, 8*time.Second)
 	defer cancel()
 	r := netprobe.Probe(ctx, signalHost(u.opts.SignalURL))
-	u.opts.Logger.Info("connection test", "lan", r.LAN, "gw", r.GW, "wan", r.WAN, "hops", r.Hops, "upnp", r.UPnP, "natpmp", r.PMP)
+	// The port this run uses, not one set since.
+	if u.prefs.startSet {
+		r.Port = u.prefs.start.UDPPort
+	}
+	if p := u.opts.Ports; p != nil && p.State().Open() {
+		r.Open = p.State().Via
+	}
+	u.opts.Logger.Info("connection test", "lan", r.LAN, "gw", r.GW, "wan", r.WAN, "hops", r.Hops, "upnp", r.UPnP, "natpmp", r.PMP, "udp_port", r.Port, "open", r.Open)
 	page, err := url.Parse(networkPage(u.opts.WebURL) + r.Fragment())
 	if err != nil {
 		return

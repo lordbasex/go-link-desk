@@ -37,6 +37,7 @@ func runUI(o uiOptions) {
 		WebURL:         o.webURL,
 		Language:       o.language,
 		Version:        version,
+		Ports:          o.ports,
 		Logger:         o.logger,
 	})
 }
