@@ -8,8 +8,13 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 - **go-link-desk-terminal's help page** (desk.go-link.org/docs/terminal) covers everything from installing to removing: how it works, what it needs, the installer's options and the packages by hand, the first steps, every command and option, the service, its files and the usual problems.
 
+### Added
+
+- **`go-link-desk-terminal unlink --all`** forgets every linked browser, and **`reset`** goes back to zero (every link and the password forgotten, the session ended; it asks first, `--yes` for a script).
+
 ### Fixed
 
+- **`go-link-desk-terminal password` typed by hand** failed with *broken pipe*: since 1.4.1 the command connected first and the service gives a command only a few seconds, less than typing a password twice. It now checks the service first and connects after.
 - **`go-link-desk-terminal -v`, `-version` and `--version`** said nothing useful (they started the service); they now print the version like `version`. `help` printed no options.
 
 ## [1.4.1] - 2026-10-14

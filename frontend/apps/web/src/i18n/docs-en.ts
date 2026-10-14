@@ -463,6 +463,8 @@ export const docsEn: Docs = {
             ["`go-link-desk-terminal password --stdin`", "Reads it from the standard input (one line), for a setup script."],
             ["`go-link-desk-terminal link`", "Shows a pairing code and asks in this terminal before linking a browser. Ctrl+C stops it. Needs a password first."],
             ["`go-link-desk-terminal unlink ID`", "Forgets a linked browser (its ID is in `status`): it cannot come back."],
+            ["`go-link-desk-terminal unlink --all`", "Forgets every linked browser."],
+            ["`go-link-desk-terminal reset`", "Back to zero: every linked browser and the password forgotten, the session ended (it asks first; `--yes` for a script)."],
             ["`go-link-desk-terminal serve` (or nothing)", "Runs the service itself: systemd does it for you."],
           ],
         },

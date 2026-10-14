@@ -462,6 +462,8 @@ export const docsEs: Docs = {
             ["`go-link-desk-terminal password --stdin`", "La lee de la entrada estándar (una línea), para un script de instalación."],
             ["`go-link-desk-terminal link`", "Muestra un código de vinculación y pregunta en esta terminal antes de vincular un navegador. Ctrl+C lo corta. Necesita una contraseña antes."],
             ["`go-link-desk-terminal unlink ID`", "Olvida un navegador vinculado (su ID está en `status`): no puede volver."],
+            ["`go-link-desk-terminal unlink --all`", "Olvida todos los navegadores vinculados."],
+            ["`go-link-desk-terminal reset`", "Vuelve a cero: olvida todos los navegadores vinculados y la contraseña, y termina la sesión (pregunta antes; `--yes` para un script)."],
             ["`go-link-desk-terminal serve` (o nada)", "Corre el servicio en sí: systemd lo hace por vos."],
           ],
         },

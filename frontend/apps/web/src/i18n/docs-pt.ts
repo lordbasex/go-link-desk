@@ -462,6 +462,8 @@ export const docsPt: Docs = {
             ["`go-link-desk-terminal password --stdin`", "Lê da entrada padrão (uma linha), para um script de instalação."],
             ["`go-link-desk-terminal link`", "Mostra um código de vinculação e pergunta neste terminal antes de vincular um navegador. Ctrl+C para. Precisa de uma senha antes."],
             ["`go-link-desk-terminal unlink ID`", "Esquece um navegador vinculado (o ID está em `status`): ele não pode voltar."],
+            ["`go-link-desk-terminal unlink --all`", "Esquece todos os navegadores vinculados."],
+            ["`go-link-desk-terminal reset`", "Volta ao zero: esquece todos os navegadores vinculados e a senha, e encerra a sessão (pergunta antes; `--yes` para um script)."],
             ["`go-link-desk-terminal serve` (ou nada)", "Roda o serviço em si: o systemd faz isso por você."],
           ],
         },
