@@ -429,7 +429,7 @@ export const docsEn: Docs = {
           items: [
             "Choose the password linked browsers must give: `go-link-desk-terminal password`.",
             "Run `go-link-desk-terminal link`: it shows a 9-digit code.",
-            "In your browser, open desk.go-link.org › **Link a computer** and type the code.",
+            "In your browser, open desk.go-link.org/web and type the code in **Connect to another computer** (as a session code: go-link Desk tries it as a linking code by itself).",
             "The terminal where `link` runs asks: answer `y`. The shell opens in the browser.",
           ],
         },

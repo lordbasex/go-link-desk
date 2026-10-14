@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { editCodeFromChange, formatCode, normalizeCode, saveDevice, updateDevice, type CodeEdit, type SignalClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
 import type { Door, HostInfo, NewLink } from "../session/session";
@@ -73,6 +73,8 @@ function LinkForm() {
 
 function LinkSession({ code, createClient }: { code: string; createClient?: () => SignalClient }) {
   const door = useMemo<Door>(() => ({ kind: "claim", code }), [code]);
+  // From the code box of /web (a linking code typed there): the name was given already.
+  const auto = (useLocation().state as { auto?: boolean } | null)?.auto === true;
   const linked = useRef<NewLink | null>(null);
   const host = useRef<HostInfo | null>(null);
   const [deviceId, setDeviceId] = useState("");
@@ -99,6 +101,7 @@ function LinkSession({ code, createClient }: { code: string; createClient?: () =
       title={t.link.sessionTitle.replace("{code}", formatCode(code))}
       waitingText={t.link.waiting}
       back={{ to: "/link", label: t.link.back }}
+      autoStart={auto}
       onLinked={onLinked}
       onHost={onHost}
       onLive={recent.live}

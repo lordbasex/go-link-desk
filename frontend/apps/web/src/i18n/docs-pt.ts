@@ -428,7 +428,7 @@ export const docsPt: Docs = {
           items: [
             "Escolha a senha que os navegadores vinculados vão dar: `go-link-desk-terminal password`.",
             "Rode `go-link-desk-terminal link`: ele mostra um código de 9 dígitos.",
-            "No navegador, abra desk.go-link.org › **Vincular um computador** e digite o código.",
+            "No navegador, abra desk.go-link.org/web e digite o código em **Conectar a outro computador** (como um código de sessão: o go-link Desk tenta sozinho como código de vinculação).",
             "O terminal onde o `link` roda pergunta: responda `y`. O shell abre no navegador.",
           ],
         },

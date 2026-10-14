@@ -4,6 +4,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **One box for every code at desk.go-link.org/web:** a 9-digit code that is no session's (`go-link-desk-terminal link`'s, or a computer's pairing code) was turned away as "leads nowhere"; now the page tries it as a linking code by itself. `go-link-desk-terminal link` says to type it there, and prints the `/link/<code>` address too.
+- **go-link-desk-terminal's commands as root** (`sudo go-link-desk-terminal link`, or a root shell): they said "not running" and asked for the password first. Now root uses the service of the user who runs it (`--user` when several do; root can do anything on the computer already), the service is checked before anything is asked, and `status` and `link` say whose shell sessions get.
+
 ## [1.4.0] - 2026-10-14
 
 A remote terminal for a Raspberry Pi or a server without a desktop, and screenshots and recordings of a session, which the person at the computer allows and always sees.

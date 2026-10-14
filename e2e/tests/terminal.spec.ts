@@ -64,7 +64,11 @@ test("go-link-desk-terminal: linked in its own terminal, then a shell in the bro
     cmd.send({ cmd: "link" });
     const code = String((await cmd.next("code")).code);
     expect(code).toMatch(/^\d{9}$/);
-    await page.goto(`/link/${code}`);
+    // The code goes in /web's usual box: no session has it, so the page
+    // tries it as a linking code by itself.
+    await page.goto("/web");
+    await page.locator("#ios-code").fill(code);
+    await page.locator("#ios-code").press("Enter");
     await page.getByLabel("Your name").fill("Ana");
     await page.getByRole("button", { name: "Connect" }).click();
     const ask = (await cmd.next("ask")).ask as { name: string };

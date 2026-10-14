@@ -33,14 +33,14 @@ go-link-desk-terminal status     # the service, and the browsers linked
 go-link-desk-terminal unlink ID  # forget a browser
 ```
 
-`go-link-desk-terminal` (or `serve`) runs the service; systemd starts it as the user whose shell the sessions get. The commands talk to it over a Unix socket next to `device.json` (`control.sock`, mode 0600 in a 0700 folder; on Linux the caller's user is checked with `SO_PEERCRED`). The log goes to standard error, so the journal keeps it.
+`go-link-desk-terminal` (or `serve`) runs the service; systemd starts it as the user whose shell the sessions get. The commands talk to it over a Unix socket next to `device.json` (`control.sock`, mode 0600 in a 0700 folder; on Linux the caller's user is checked with `SO_PEERCRED`). The log goes to standard error, so the journal keeps it. Root may run the commands too (`sudo go-link-desk-terminal link`): they find the service of the user who runs it (`--user NAME` when several do).
 
 ## Who can come in
 
 A computer without a screen has nobody to accept a viewer, so **only linked browsers come in, with the password**:
 
 1. `go-link-desk-terminal password` sets the unattended password. Until then nobody can come in, and `link` refuses.
-2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org (Link a computer) is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
+2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org/web, in the same box as a session code (a 9-digit code that is no session's is tried as a linking code), or opens the `/link/<code>` address it prints, is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
 3. From then on the browser comes back from its list of computers (reach): its token, the computer's proof, then the password, as in the app's unattended access.
 
 A link lets the browser see the terminal and type (`view`, `control`).

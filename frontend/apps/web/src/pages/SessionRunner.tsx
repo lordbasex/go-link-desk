@@ -45,6 +45,8 @@ export interface SessionRunnerProps {
   /** Told when the session goes live, and a thumbnail of its screen now and then. */
   onLive?: () => void;
   onSnapshot?: (url: string) => void;
+  /** No computer has that code: a page may try it another way (a linking code) instead of saying so. */
+  onNotFound?: () => void;
   createClient?: () => SignalClient;
 }
 
@@ -53,7 +55,7 @@ export interface SessionRunnerProps {
  * knocks, waits for the person there (or, linked, types the password if
  * the computer asks), and then sees the screen.
  */
-export function SessionRunner({ door, title, waitingText, back, autoStart, onLinked, onUnlinked, onHost, onLive, onSnapshot, createClient }: SessionRunnerProps) {
+export function SessionRunner({ door, title, waitingText, back, autoStart, onLinked, onUnlinked, onHost, onLive, onSnapshot, onNotFound, createClient }: SessionRunnerProps) {
   const [name, setName] = useState(savedName);
   const [attempt, setAttempt] = useState(() => (autoStart && savedName().trim() ? 1 : 0));
   const cursorFn = useRef<((c: CursorState) => void) | null>(null);
@@ -77,6 +79,12 @@ export function SessionRunner({ door, title, waitingText, back, autoStart, onLin
   useEffect(() => {
     if (live) liveRef.current?.();
   }, [live]);
+  const notFoundRef = useRef(onNotFound);
+  notFoundRef.current = onNotFound;
+  const notFound = view?.status.kind === "notFound";
+  useEffect(() => {
+    if (notFound) notFoundRef.current?.();
+  }, [notFound]);
 
   if (!view || attempt === 0) return <NameForm title={title} name={name} setName={setName} onSubmit={start} back={back} />;
   const s = view.status;
@@ -89,6 +97,7 @@ export function SessionRunner({ door, title, waitingText, back, autoStart, onLin
     );
   }
   if (s.kind === "password") return <PasswordForm title={title} view={view} session={session} />;
+  if (s.kind === "notFound" && onNotFound) return null; // the page tries it another way
   if (isOver(s)) return <Over view={view} onRetry={start} back={back} />;
   if (view.host?.terminal) {
     return (
