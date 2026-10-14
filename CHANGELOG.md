@@ -4,6 +4,14 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-10-14
+
+A terminal no longer fills the browser's console with Content Security Policy errors.
+
+### Fixed
+
+- **No Content Security Policy errors in the console with a terminal:** xterm.js writes its colors and sizes into `<style>` elements, which the site's policy refuses (one error each, dozens per session). They are no longer put on the page; their rules go into a stylesheet built in script, as before, so the terminal looks the same.
+
 ## [1.5.1] - 2026-10-14
 
 Computers left on stay reachable through the relay; received files straight into Downloads; a terminal's text size in the monitor button.
