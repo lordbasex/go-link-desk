@@ -76,8 +76,16 @@ describe("mappingOf", () => {
 
 describe("parseNative", () => {
   it("reads what an app sends after #d=", () => {
-    const n = { src: "desktop" as const, lan: "192.168.0.12", gw: "192.168.0.1", wan: "192.168.1.2", upnp: true, net: "ethernet" as const };
+    const n = { src: "desktop" as const, lan: "192.168.0.12", gw: "192.168.0.1", wan: "192.168.1.2", upnp: true, net: "ethernet" as const, port: 40000, open: "nat-pmp" as const };
     expect(parseNative(nativeFragment(n))).toEqual(n);
+  });
+
+  it("takes a fixed port only in range, and how it opened only with one", () => {
+    const frag = (o: object) => "#d=" + btoa(JSON.stringify({ src: "desktop", ...o })).replace(/=+$/, "");
+    expect(parseNative(frag({ port: 80, open: "upnp" }))).toEqual({ src: "desktop" });
+    expect(parseNative(frag({ port: 40000.5 }))).toEqual({ src: "desktop" });
+    expect(parseNative(frag({ port: "40000" }))).toEqual({ src: "desktop" });
+    expect(parseNative(frag({ port: 40000, open: "magic" }))).toEqual({ src: "desktop", port: 40000 });
   });
 
   it("keeps only checked addresses and known words", () => {

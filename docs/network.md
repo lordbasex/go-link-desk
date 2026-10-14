@@ -60,15 +60,27 @@ A browser cannot see the device's local address or ask the router anything. The 
 | `hops` | The first routers toward signal.go-link.org (up to 3), from the system's own traceroute (`traceroute`, `tracepath` or `tracert`, no administrator rights). Many routers do not answer UPnP or NAT-PMP, but every router answers here: after this device's router, each hop on a home network (`192.168.0.0/16`, `172.16.0.0/12`) is another router in cascade, and a `100.64.0.0/10` hop is the provider's CGNAT. A `10.x` hop may be the provider's own network, so it does not count. The second hop is also the provider's modem, whose page the double-router guide links. |
 | `upnp`, `pmp` | Whether the router answers UPnP IGD or NAT-PMP / PCP. |
 | `net` | `wifi`, `cellular`, `ethernet` or `other`. Mobile data counts as CGNAT. |
+| `port` | The computer app's fixed UDP port (1024 to 65535), when it has one: the guide then gives the exact forwarding rules. |
+| `open` | `upnp` or `nat-pmp`: the app opened that port in the router by itself. Only with `port`. |
 
 ## Getting a direct connection
 
-- **Two routers:** put the provider's modem in **bridge** mode so only yours is left; if that is not possible, make your router's outside address the modem's **DMZ** host. Turn on **UPnP** in your router.
-- **One router:** turn on **UPnP** or **NAT-PMP**. Two devices on the same network always connect directly.
+- **Two routers:** put the provider's modem in **bridge** mode so only yours is left; if that is not possible, make your router's outside address the modem's **DMZ** host. Or open one port (below), in both routers.
+- **One router:** open one port (below). Two devices on the same network always connect directly.
 - **CGNAT:** ask the provider for a public IPv4 address, or turn on **IPv6** in the router.
 - **UDP blocked:** ask the network's administrators to allow outgoing UDP; at least UDP 3478 to signal.go-link.org lowers the relay's latency.
 
-A fixed UDP port in the computer app, to forward in each router by hand, is planned.
+### One port for every connection
+
+In the computer app, **Settings › Direct connection (advanced)** (`udp_port`, `map_udp_port` and `announce_ips` in `device.json`; they apply when the app opens again):
+
+- **UDP port:** every WebRTC connection on this one port (pion's ICE UDP mux) instead of random ones, so one rule in a router is enough.
+- **Open it in the router by itself:** off by default, since it opens a port. While the app runs it asks the router to forward the port to this computer, NAT-PMP first (RFC 6886, one packet to the gateway) and then UPnP IGD (`AddPortMapping` on a WAN connection service found on the local network, for this computer's address only). The lease is an hour, asked again at half of it and after a failure every 5 minutes; a router that keeps only permanent mappings (UPnP error 725) gets one without a lease. Quitting removes it. Settings says what the router answered, and the app's log has it (`udp port`).
+- **Announced address:** extra addresses where viewers reach the port, for a computer behind a second router whose viewers on the first network cannot reach it on their own.
+
+The app announces the port at more addresses than its own (extra host candidates, a little lower in priority than the real one): the announced ones, the router's outside address while it forwards the port, and the public address STUN saw, on the fixed port. Pion gathers that one (`srflx`) on other sockets with random ports, so without the copy a router forwarding the fixed port would never be tried. Unused candidates cost one failed check each.
+
+With two routers, the app can open the port in its own router only: the provider's modem needs its own rule toward that router (or bridge mode, or DMZ). The connection test gives both rules with this computer's address and port when the app opens it.
 
 ## Relays
 
