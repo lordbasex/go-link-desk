@@ -39,27 +39,58 @@ export interface TerminalApi {
   cast(): { stop(): string };
 }
 
+/** The terminals' hosts whose <style> elements are kept off the page. */
+const hosts = new Set<HTMLElement>();
+let patched = false;
+
 /**
  * xterm.js writes its colors and sizes into <style> elements, which the
  * site's Content Security Policy (style-src 'self', no inline styles)
- * refuses. Their rules go into a stylesheet built in script instead
- * (adoptedStyleSheets), which the policy allows.
+ * refuses, with an error in the console for each. Inside a terminal's
+ * host they are never put on the page: their rules go into a stylesheet
+ * built in script instead (adoptedStyleSheets), which the policy allows,
+ * and follow them as xterm.js changes them.
  */
 function adoptStyles(el: HTMLElement): () => void {
   if (typeof CSSStyleSheet === "undefined" || !("adoptedStyleSheets" in document)) return () => undefined;
   const sheet = new CSSStyleSheet();
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  const kept = new Set<HTMLStyleElement>();
   const sync = () => {
     try {
-      sheet.replaceSync([...el.querySelectorAll("style")].map((s) => s.textContent ?? "").join("\n"));
+      sheet.replaceSync([...kept].map((s) => s.textContent ?? "").join("\n"));
     } catch {
       // a rule the browser does not take: the others stay
     }
   };
   const mo = new MutationObserver(sync);
-  mo.observe(el, { subtree: true, childList: true, characterData: true });
-  sync();
+  const keep = (style: HTMLStyleElement) => {
+    kept.add(style);
+    mo.observe(style, { subtree: true, childList: true, characterData: true });
+    sync();
+  };
+  (el as HTMLElement & { __keepStyle?: (s: HTMLStyleElement) => void }).__keepStyle = keep;
+  hosts.add(el);
+  if (!patched) {
+    patched = true;
+    const append = Node.prototype.appendChild;
+    Node.prototype.appendChild = function <T extends Node>(this: Node, child: T): T {
+      if (child instanceof HTMLStyleElement) {
+        // xterm.js builds its elements before it puts them in the host: a
+        // style in a tree not yet on the page is the newest terminal's.
+        const detached = this.getRootNode() !== document;
+        for (const h of [...hosts].reverse()) {
+          if (h === this || h.contains(this) || detached) {
+            (h as HTMLElement & { __keepStyle?: (s: HTMLStyleElement) => void }).__keepStyle?.(child);
+            return child; // off the page: its rules are in the adopted sheet
+          }
+        }
+      }
+      return append.call(this, child) as T;
+    };
+  }
   return () => {
+    hosts.delete(el);
     mo.disconnect();
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet);
   };

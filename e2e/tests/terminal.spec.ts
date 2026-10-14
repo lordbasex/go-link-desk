@@ -91,6 +91,9 @@ test("go-link-desk-terminal: linked in its own terminal, terminals with names in
     await page.locator(".terminal-box").click();
     await page.keyboard.type("echo hola-$((40+2)); stty size\n");
     await expect.poll(() => shown(page), { timeout: 15_000 }).toContain("hola-42");
+    // xterm.js's <style> elements stay off the page (the CSP would refuse them).
+    expect(await page.locator(".terminal-host style").count()).toBe(0);
+    expect(await page.evaluate(() => document.adoptedStyleSheets.some((s) => [...s.cssRules].some((r) => r.cssText.includes(".xterm"))))).toBe(true);
     await expect.poll(() => /msg="terminal opened"/.test(log(host))).toBe(true);
     const devices = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { deviceId: string; terminal?: boolean }[]);
     expect(devices).toHaveLength(1);
