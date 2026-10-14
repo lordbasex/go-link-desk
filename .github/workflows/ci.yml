@@ -42,6 +42,27 @@ jobs:
       - run: go test -race ./...
       - name: Build without a window (servers, CI)
         run: go build -tags headless ./cmd/desk
+      # go-link-desk-terminal is pure Go: no libvpx, libopus or window, for
+      # any Linux (Raspberry Pi OS Lite, servers, musl) on x86-64, ARM64 and ARMv7.
+      - name: Without cgo (vet, the tests, and a build for each architecture)
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go vet -tags headless ./...
+          go test -tags headless ./...
+          for arch in amd64 arm64 arm; do
+            GOARCH=$arch GOARM=7 go build -tags headless -o /dev/null ./cmd/desk
+            GOARCH=$arch GOARM=7 go build -tags headless -o /dev/null ./cmd/terminal
+          done
+      - name: go-link-desk-terminal's packages (armv7), installed and run
+        working-directory: .
+        run: |
+          make terminal-packages-arm VERSION=v0.0.0
+          dpkg-deb -c dist/desk/go-link-desk-terminal_*_armhf.deb | grep -E 'usr/bin/go-link-desk-terminal|systemd/user/go-link-desk-terminal.service'
+          make terminal-packages-amd64 VERSION=v0.0.0
+          sudo apt-get install -y ./dist/desk/go-link-desk-terminal_*_amd64.deb
+          go-link-desk-terminal version
+          sh -n frontend/apps/web/public/install.sh
       # The same version as the Makefile's check-go.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 

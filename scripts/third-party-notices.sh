@@ -77,7 +77,7 @@ echo "▶ Go standard library"
 section "Go" "$(cd "$ROOT/backend-device" && go env GOVERSION)" "https://go.dev" "$(cd "$ROOT/backend-device" && go env GOROOT)/LICENSE"
 
 echo "▶ Go modules"
-(cd "$ROOT/backend-device" && go list -deps -f '{{if .Module}}{{.Module.Path}} {{.Module.Version}} {{.Module.Dir}}{{end}}' ./cmd/desk) \
+(cd "$ROOT/backend-device" && go list -deps -f '{{if .Module}}{{.Module.Path}} {{.Module.Version}} {{.Module.Dir}}{{end}}' ./cmd/desk ./cmd/terminal) \
   | sort -u | grep -v '^github.com/lordbasex/' | while read -r path version dir; do
     f="$(license_file "$dir")"
     [[ -n "$f" ]] || { echo "  no license file for $path" >&2; exit 1; }

@@ -86,6 +86,7 @@ export const docsEn: Docs = {
               blocks: [
                 { t: "p", text: "The quickest way: one line that picks the right package for your distribution (.deb, .rpm or Arch), checks it and installs it." },
                 { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh" },
+                { t: "note", tone: "info", text: "A Raspberry Pi or a server without a desktop? Install the remote terminal instead: [A remote terminal](/docs/terminal)." },
                 { t: "p", text: "Add `--user` to install only for your user, without root (in `~/.local`). Remove it with `--uninstall`." },
                 { t: "p", text: "Or download the package for your system from the releases page and install it:" },
                 {
@@ -408,6 +409,43 @@ export const docsEn: Docs = {
         { t: "list", items: ["The sound comes from PulseAudio or PipeWire: everything the speakers play.", "While a session is on, the screen does not go to sleep.", "**Lock the screen when a session ends** uses `loginctl lock-session`."] },
         { t: "h2", id: "no-portal", text: "A Wayland desktop without the portal" },
         { t: "p", text: "Without the remote desktop portal or PipeWire, the app says so and sessions show a test card. Log out and log in again with an Xorg session (the gear on the login screen), or install `xdg-desktop-portal` with your desktop's backend and PipeWire." },
+      ],
+    },
+    {
+      slug: "terminal",
+      group: "Linux",
+      title: "A remote terminal (Raspberry Pi, servers)",
+      lead: "For a computer without a desktop: go-link-desk-terminal gives each session a shell of its own, in the browser. Nothing listens on a port, and only browsers you linked there come in, with a password.",
+      blocks: [
+        { t: "h2", id: "install", text: "Install it" },
+        { t: "p", text: "As the user whose shell the sessions get (not root), on x86-64, ARM64 or ARMv7 (Raspberry Pi OS 32-bit too), with any Linux:" },
+        { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal" },
+        { t: "p", text: "It installs the package for your system (or, with `--user`, into `~/.local`), starts the `go-link-desk-terminal` user service and keeps it running from boot (`loginctl enable-linger`)." },
+        { t: "h2", id: "link", text: "Link your browser" },
+        {
+          t: "steps",
+          items: [
+            "Choose the password linked browsers must give: `go-link-desk-terminal password`.",
+            "Run `go-link-desk-terminal link`: it shows a 9-digit code.",
+            "In your browser, open desk.go-link.org › **Link a computer** and type the code.",
+            "The terminal where `link` runs asks: answer `y`. The shell opens in the browser.",
+          ],
+        },
+        { t: "p", text: "From then on it is in **My computers**: open it and give the password." },
+        { t: "h2", id: "session", text: "In the session" },
+        { t: "list", items: ["A login shell of its own, as that user, in the home folder (`/dev/pts/N`, as an SSH login would have, without SSH).", "The size follows the window; **A−** and **A+** change the text size; full screen works too.", "`exit` ends the session; closing the tab or **Disconnect** hangs the shell up.", "No screen, sound, clipboard or files: use `scp`, `rsync` or the app on a computer with a desktop for those."] },
+        { t: "h2", id: "manage", text: "Manage it" },
+        {
+          t: "table",
+          head: ["Command", "What it does"],
+          rows: [
+            ["`go-link-desk-terminal status`", "The service, the password, and the linked browsers with their IDs."],
+            ["`go-link-desk-terminal unlink ID`", "Forget a browser: it cannot come back."],
+            ["`systemctl --user restart go-link-desk-terminal`", "Restart it; `journalctl --user -u go-link-desk-terminal` shows its log."],
+            ["`curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal --uninstall`", "Remove it (its settings stay in `~/.config/go-link-desk-terminal`)."],
+          ],
+        },
+        { t: "note", tone: "warn", text: "Whoever is linked can do anything this user can. It refuses to run as root; use `sudo` inside the session when you need it." },
       ],
     },
     {

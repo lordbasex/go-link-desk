@@ -68,10 +68,17 @@ type StreamConfig struct {
 	// Welcome is what the viewer learns about the host when its control
 	// channel opens: the computer's name and OS (the room's public meta).
 	Welcome SessionMeta
-	// Source names what sessions show, for the viewer ("test-pattern" or
-	// "screen").
+	// Source names what sessions show, for the viewer ("test-pattern",
+	// "screen" or "terminal").
 	Source string
-	Logger *slog.Logger
+	// DataOnly offers no picture, sound or call, and no pointer, input or
+	// files channel: the control channel and Channels only
+	// (go-link-desk-terminal). Run then only pings the viewers.
+	DataOnly bool
+	// Channels are more DataChannels (ordered, reliable) for each viewer;
+	// OnChannel hands them over before the offer.
+	Channels []string
+	Logger   *slog.Logger
 }
 
 // NewWebRTCAPI builds the WebRTC API. udpPort > 0 carries every connection
@@ -243,6 +250,7 @@ type StreamService struct {
 	onCallTrack func(peerID string, track *webrtc.TrackRemote)
 	onFiles     func(peerID string, isString bool, data []byte)
 	onWaiting   func(peerID string, data []byte)
+	onChannel   func(peerID string, dc *webrtc.DataChannel)
 }
 
 // NewStreamService builds the service. Call Run to start the source.
@@ -427,6 +435,10 @@ func (s *StreamService) Run(ctx context.Context) error {
 			}
 		}
 	}()
+	if s.cfg.DataOnly {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	s.mu.Lock()
 	src := s.source
 	s.mu.Unlock()
@@ -780,6 +792,9 @@ func (s *StreamService) sendStreamStats(window time.Duration) {
 	var targets []target
 	stats := make(map[string]streamStats, len(s.viewers))
 	for id, v := range s.viewers {
+		if v.out == nil {
+			continue // no picture (DataOnly)
+		}
 		frames, bytes := v.out.counts()
 		st := streamStats{
 			Type: "stream_stats", FPS: round1(float64(frames) / window.Seconds()),
@@ -882,6 +897,15 @@ func (s *StreamService) greet(v *viewer) {
 	s.sendDisplays(v)
 }
 
+// OnChannel hands over each viewer's Channels (DataOnly) as they are made,
+// before the offer: the viewer is gated until admitted, so fn reads
+// nothing from them before the session hands it the viewer.
+func (s *StreamService) OnChannel(fn func(peerID string, dc *webrtc.DataChannel)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onChannel = fn
+}
+
 // find returns a viewer, gated or not.
 func (s *StreamService) find(peerID string) *viewer {
 	s.mu.Lock()
@@ -908,30 +932,75 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.H264Available())}
 	v.gated.Store(gated)
 	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
-	video, err := newVideoTrack(trackCodec(v.codec))
+	if !s.cfg.DataOnly {
+		if err := s.addMedia(v); err != nil {
+			return fail(err)
+		}
+	}
+	ordered := true
+	control, err := pc.CreateDataChannel("control", &webrtc.DataChannelInit{Ordered: &ordered})
 	if err != nil {
 		return fail(err)
+	}
+	v.control = control
+	control.OnOpen(func() {
+		if !v.gated.Load() {
+			s.greet(v)
+		}
+	})
+	control.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if msg.IsString && len(msg.Data) <= maxControlMessage {
+			s.handleControl(v, msg.Data)
+		}
+	})
+	if s.cfg.DataOnly {
+		for _, label := range s.cfg.Channels {
+			dc, err := pc.CreateDataChannel(label, &webrtc.DataChannelInit{Ordered: &ordered})
+			if err != nil {
+				return fail(err)
+			}
+			s.mu.Lock()
+			fn := s.onChannel
+			s.mu.Unlock()
+			if fn != nil {
+				fn(peerID, dc)
+			}
+		}
+		return s.offer(v)
+	}
+	if err := s.addInputAndFiles(v); err != nil {
+		return fail(err)
+	}
+	return s.offer(v)
+}
+
+// addMedia gives a viewer its picture, sound and call tracks.
+func (s *StreamService) addMedia(v *viewer) error {
+	pc := v.pc
+	video, err := newVideoTrack(trackCodec(v.codec))
+	if err != nil {
+		return err
 	}
 	v.video = video
 	v.out = &sampleWriter{track: video, cap: &v.sendCap}
 	rtpSender, err := pc.AddTrack(video)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	// The sound: always in the offer, so allowing it later needs no new
 	// negotiation; nothing is sent on it until the viewer may hear.
 	audio, err := newAudioTrack()
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	v.audio = audio
 	audioSender, err := pc.AddTrack(audio)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	go drainRTCP(audioSender)
 	if err := s.addCallTracks(v); err != nil {
-		return fail(err)
+		return err
 	}
 	// Read RTCP: a Picture Loss Indication means this viewer cannot decode
 	// and needs a keyframe (only this viewer's encoder makes one).
@@ -954,30 +1023,20 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 			}
 		}
 	}()
+	return nil
+}
 
+// addInputAndFiles gives a viewer the pointer, input and files channels.
+func (s *StreamService) addInputAndFiles(v *viewer) error {
+	pc := v.pc
 	ordered := true
-	control, err := pc.CreateDataChannel("control", &webrtc.DataChannelInit{Ordered: &ordered})
-	if err != nil {
-		return fail(err)
-	}
-	v.control = control
-	control.OnOpen(func() {
-		if !v.gated.Load() {
-			s.greet(v)
-		}
-	})
-	control.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if msg.IsString && len(msg.Data) <= maxControlMessage {
-			s.handleControl(v, msg.Data)
-		}
-	})
 	// Input: pointer moves where a lost one does not matter (unordered,
 	// never resent), and buttons, keys and the rest where every one does
 	// (ordered, reliable). A lost key release would leave a key stuck.
 	unordered, noRetransmits := false, uint16(0)
 	pointer, err := pc.CreateDataChannel("pointer", &webrtc.DataChannelInit{Ordered: &unordered, MaxRetransmits: &noRetransmits})
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	pointer.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString && !v.gated.Load() {
@@ -986,7 +1045,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 	})
 	inputDC, err := pc.CreateDataChannel("input", &webrtc.DataChannelInit{Ordered: &ordered})
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	inputDC.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString && len(msg.Data) <= maxControlMessage && !v.gated.Load() {
@@ -997,7 +1056,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 	// so a big transfer never holds a control message back.
 	filesDC, err := pc.CreateDataChannel("files", &webrtc.DataChannelInit{Ordered: &ordered})
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	v.files = filesDC
 	filesDC.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -1011,7 +1070,7 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 			fn(v.id, msg.IsString, msg.Data)
 		}
 	})
-	return s.offer(v)
+	return nil
 }
 
 // OnFiles receives a viewer's messages on the files channel.

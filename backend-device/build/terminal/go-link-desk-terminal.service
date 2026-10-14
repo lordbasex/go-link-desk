@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# go-link-desk-terminal as a user service: each session is this user's
+# shell. Enable it as that user (not root):
+#
+#   systemctl --user enable --now go-link-desk-terminal
+#   loginctl enable-linger "$USER"   # keep it running without a login
+#
+# NoNewPrivileges and the like are left out on purpose: they would follow
+# into the sessions' shells and break sudo there.
+[Unit]
+Description=go-link Desk terminal (a remote shell from the browser)
+Documentation=https://github.com/lordbasex/go-link-desk/blob/main/docs/terminal.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=@BIN@ serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -85,6 +85,7 @@ export const docsPt: Docs = {
               blocks: [
                 { t: "p", text: "O jeito mais rápido: uma linha que escolhe o pacote da sua distribuição (.deb, .rpm ou Arch), verifica e instala." },
                 { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh" },
+                { t: "note", tone: "info", text: "Um Raspberry Pi ou um servidor sem área de trabalho? Instale o terminal remoto: [Um terminal remoto](/docs/terminal)." },
                 { t: "p", text: "Acrescente `--user` para instalar só para o seu usuário, sem root (em `~/.local`). Remova com `--uninstall`." },
                 { t: "p", text: "Ou baixe o pacote do seu sistema na página de versões e instale:" },
                 {
@@ -407,6 +408,43 @@ export const docsPt: Docs = {
         { t: "list", items: ["O som vem do PulseAudio ou do PipeWire: tudo o que os alto-falantes tocam.", "Enquanto há uma sessão, a tela não se apaga.", "**Bloquear a tela ao terminar uma sessão** usa `loginctl lock-session`."] },
         { t: "h2", id: "no-portal", text: "Uma área de trabalho Wayland sem o portal" },
         { t: "p", text: "Sem o portal de área de trabalho remota ou sem o PipeWire, o app avisa e as sessões mostram um padrão de teste. Saia e entre de novo com uma sessão Xorg (a engrenagem na tela de login), ou instale o `xdg-desktop-portal` com o backend da sua área de trabalho e o PipeWire." },
+      ],
+    },
+    {
+      slug: "terminal",
+      group: "Linux",
+      title: "Um terminal remoto (Raspberry Pi, servidores)",
+      lead: "Para um computador sem área de trabalho: o go-link-desk-terminal dá a cada sessão um shell próprio, no navegador. Não escuta em nenhuma porta, e só entram os navegadores que você vinculou lá, com senha.",
+      blocks: [
+        { t: "h2", id: "install", text: "Instalar" },
+        { t: "p", text: "Como o usuário cujo shell as sessões terão (não root), em x86-64, ARM64 ou ARMv7 (Raspberry Pi OS de 32 bits também), em qualquer Linux:" },
+        { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal" },
+        { t: "p", text: "Instala o pacote do seu sistema (ou, com `--user`, em `~/.local`), inicia o serviço de usuário `go-link-desk-terminal` e o mantém rodando desde a inicialização (`loginctl enable-linger`)." },
+        { t: "h2", id: "link", text: "Vincular seu navegador" },
+        {
+          t: "steps",
+          items: [
+            "Escolha a senha que os navegadores vinculados vão dar: `go-link-desk-terminal password`.",
+            "Rode `go-link-desk-terminal link`: ele mostra um código de 9 dígitos.",
+            "No navegador, abra desk.go-link.org › **Vincular um computador** e digite o código.",
+            "O terminal onde o `link` roda pergunta: responda `y`. O shell abre no navegador.",
+          ],
+        },
+        { t: "p", text: "Depois disso ele fica em **Meus computadores**: abra e digite a senha." },
+        { t: "h2", id: "session", text: "Na sessão" },
+        { t: "list", items: ["Um shell de login próprio, como esse usuário, na pasta pessoal (`/dev/pts/N`, como um login por SSH teria, sem SSH).", "O tamanho acompanha a janela; **A−** e **A+** mudam o tamanho do texto; tela cheia também funciona.", "`exit` encerra a sessão; fechar a aba ou **Desconectar** desliga o shell.", "Sem tela, som, área de transferência nem arquivos: para isso use `scp`, `rsync` ou o app em um computador com área de trabalho."] },
+        { t: "h2", id: "manage", text: "Administrar" },
+        {
+          t: "table",
+          head: ["Comando", "O que faz"],
+          rows: [
+            ["`go-link-desk-terminal status`", "O serviço, a senha e os navegadores vinculados com seus IDs."],
+            ["`go-link-desk-terminal unlink ID`", "Esquece um navegador: ele não pode voltar."],
+            ["`systemctl --user restart go-link-desk-terminal`", "Reinicia; `journalctl --user -u go-link-desk-terminal` mostra o log."],
+            ["`curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal --uninstall`", "Remove (as configurações ficam em `~/.config/go-link-desk-terminal`)."],
+          ],
+        },
+        { t: "note", tone: "warn", text: "Quem estiver vinculado pode fazer tudo o que esse usuário pode. Ele não roda como root; use `sudo` dentro da sessão quando precisar." },
       ],
     },
     {

@@ -158,6 +158,14 @@ export const es: Messages = {
     stoppedEnded: "La sesión terminó; la grabación quedó guardada.",
     failed: "No se pudo guardar la grabación.",
   },
+  terminal: {
+    title: "Terminal de {name}",
+    bigger: "Texto más grande",
+    smaller: "Texto más chico",
+    readOnly: "Podés ver esta terminal, pero no escribir: la computadora solo te deja mirar.",
+    exited: "El shell terminó (código de salida {code}).",
+    exitedOk: "El shell terminó.",
+  },
   keys: {
     menu: "Teclas",
     items: {

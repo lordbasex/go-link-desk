@@ -27,11 +27,18 @@ type ConfigFile struct {
 // for example ~/Library/Application Support/go-link-desk/device.json on
 // macOS or %AppData%\go-link-desk\device.json on Windows.
 func DefaultConfigPath() (string, error) {
+	return ConfigPathFor("go-link-desk")
+}
+
+// ConfigPathFor returns <user config dir>/<folder>/device.json: another
+// program of go-link Desk (go-link-desk-terminal) keeps an identity, links
+// and settings of its own beside the app's.
+func ConfigPathFor(folder string) (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "go-link-desk", "device.json"), nil
+	return filepath.Join(dir, folder, "device.json"), nil
 }
 
 // NewConfigFile uses the file at path.

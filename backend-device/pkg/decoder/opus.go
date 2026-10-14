@@ -14,13 +14,6 @@ import (
 	"unsafe"
 )
 
-// ErrNeedKeyframe: the decoder waits for a keyframe with its parameter
-// sets (ask the sender for one).
-var ErrNeedKeyframe = errors.New("decoder: waiting for a keyframe")
-
-// OpusRate is the only rate WebRTC uses for Opus.
-const OpusRate = 48000
-
 // Opus decodes Opus to 16-bit samples at 48 kHz. It is not safe for
 // concurrent use.
 type Opus struct {

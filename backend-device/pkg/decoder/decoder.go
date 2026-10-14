@@ -13,6 +13,25 @@ import (
 // ErrUnsupported: no video decoder on this system in this build.
 var ErrUnsupported = errors.New("decoder: not supported on this system")
 
+// ErrNeedKeyframe: the decoder waits for a keyframe with its parameter
+// sets (ask the sender for one).
+var ErrNeedKeyframe = errors.New("decoder: waiting for a keyframe")
+
+// OpusRate is the only rate WebRTC uses for Opus.
+const OpusRate = 48000
+
+// ErrCorrupt: the frame decoded from a missing or damaged one before it;
+// the picture is wrong until the next keyframe.
+var ErrCorrupt = errors.New("decoder: vp8 frame refers to a lost one")
+
+// I420 is a decoded picture: its three planes, each with its own row
+// length (stride). The slices stay valid only until the next Decode.
+type I420 struct {
+	Width, Height     int
+	Y, U, V           []byte
+	StrideY, StrideUV int
+}
+
 // NAL unit types of H.264 the decoder looks at.
 const (
 	nalIDR = 5
