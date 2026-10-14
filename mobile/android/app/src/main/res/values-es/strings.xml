@@ -132,7 +132,7 @@
     <string name="from_files">Desde Archivos</string>
     <string name="from_photos">Desde Fotos</string>
     <string name="file_unreadable">No se puede leer ese archivo.</string>
-    <string name="sent_to_downloads">Enviado a Descargas/go-link-desk de la computadora:</string>
+    <string name="sent_to_downloads">Enviado a Descargas de la computadora:</string>
     <string name="guide_in_touch">Estás en modo táctil: el puntero va adonde tocás.</string>
     <string name="guide_in_trackpad">Estás en modo trackpad: la pantalla funciona como el trackpad de una notebook.</string>
     <string name="trackpad_mode">Modo trackpad</string>
@@ -176,14 +176,14 @@
     <string name="unlock_subtitle">Para que solo vos puedas abrir las computadoras que vinculaste.</string>
     <string name="link_no_lock">Primero poné un bloqueo de pantalla en este equipo: las computadoras vinculadas se protegen con él y con tu huella o tu rostro.</string>
     <string name="link_keystore">El almacén de claves del equipo lo rechazó.</string>
-    <string name="saved_in_downloads">Guardado en Descargas › go-link-desk:</string>
+    <string name="saved_in_downloads">Guardado en Descargas:</string>
     <string name="share">Compartir</string>
-    <string name="shot_saved">Captura guardada en Imágenes › go-link-desk.</string>
+    <string name="shot_saved">Captura guardada en Imágenes.</string>
     <string name="shot_failed">No se pudo guardar la captura.</string>
-    <string name="rec_saved">Grabación guardada en Películas › go-link-desk.</string>
-    <string name="rec_limit">La grabación llegó a su límite de 2 horas y quedó guardada en Películas › go-link-desk.</string>
-    <string name="rec_host_stopped">La persona en la computadora detuvo la grabación; lo grabado está en Películas › go-link-desk.</string>
-    <string name="rec_session_ended">La sesión terminó; la grabación está en Películas › go-link-desk.</string>
+    <string name="rec_saved">Grabación guardada en Películas.</string>
+    <string name="rec_limit">La grabación llegó a su límite de 2 horas y quedó guardada en Películas.</string>
+    <string name="rec_host_stopped">La persona en la computadora detuvo la grabación; lo grabado está en Películas.</string>
+    <string name="rec_session_ended">La sesión terminó; la grabación está en Películas.</string>
     <string name="g_kb_hw">Un teclado conectado a este equipo</string>
     <string name="g_mouse_title">Un mouse o trackpad</string>
 </resources>

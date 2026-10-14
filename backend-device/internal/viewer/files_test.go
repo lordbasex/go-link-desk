@@ -44,7 +44,7 @@ func newWire(t *testing.T) (*Files, string) {
 	t.Helper()
 	home := t.TempDir()
 	w := &wire{queue: make(chan func(), 4096)}
-	w.host = services.NewFilesService(home, filepath.Join(home, "Downloads", services.ReceivedFolder), func(_ string, isString bool, data []byte) bool {
+	w.host = services.NewFilesService(home, filepath.Join(home, "Downloads"), func(_ string, isString bool, data []byte) bool {
 		c := append([]byte(nil), data...)
 		go w.files.onMessage(webrtc.DataChannelMessage{IsString: isString, Data: c})
 		return true
@@ -63,7 +63,7 @@ func TestFilesGoBothWays(t *testing.T) {
 	f, home := newWire(t)
 	local := t.TempDir()
 
-	// Upload: the computer keeps it in Downloads/go-link-desk.
+	// Upload: the computer keeps it in Downloads.
 	data := make([]byte, 300<<10+123)
 	_, _ = rand.Read(data)
 	src := filepath.Join(local, "report.pdf")
@@ -78,18 +78,18 @@ func TestFilesGoBothWays(t *testing.T) {
 	if name != "report.pdf" || sent != int64(len(data)) {
 		t.Fatalf("saved as %q, sent %d", name, sent)
 	}
-	got, err := os.ReadFile(filepath.Join(home, "Downloads", services.ReceivedFolder, "report.pdf"))
+	got, err := os.ReadFile(filepath.Join(home, "Downloads", "report.pdf"))
 	if err != nil || !bytes.Equal(got, data) {
 		t.Fatalf("the computer's copy differs (%v)", err)
 	}
 
 	// Browse and download it back, next to the original without
 	// overwriting it.
-	entries, err := f.List("Downloads/" + services.ReceivedFolder)
+	entries, err := f.List("Downloads")
 	if err != nil || len(entries) != 1 || entries[0].Name != "report.pdf" || entries[0].Size != int64(len(data)) {
 		t.Fatalf("listing %+v %v", entries, err)
 	}
-	dest, err := f.Download("Downloads/"+services.ReceivedFolder+"/report.pdf", local, nil, nil)
+	dest, err := f.Download("Downloads/report.pdf", local, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

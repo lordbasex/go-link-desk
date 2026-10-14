@@ -38,7 +38,7 @@ Dependencies (all Apache-2.0 unless noted): Kotlin, kotlinx coroutines and seria
 
 **Fingers**, as on iOS. Trackpad mode (the default): one finger slides the pointer, a tap clicks, a long press then a slide drags; two fingers tap to right-click and pinch to zoom (zoomed in, they move the view); three fingers scroll. Touch mode: the pointer goes where you touch, and two fingers scroll. A mouse or trackpad moves the pointer, clicks and scrolls.
 
-**The toolbar:** disconnect, the keyboard (with a bar of the keys it lacks: Esc, Tab, Ctrl, Alt, Win or ⌘, the arrows, F1 to F12), special keys and shortcuts, chat (with "is typing" and the message sound), files (downloads go to Downloads › go-link-desk), the screen menu (displays, picture, fingers, sound, details), the lock to watch without touching, and the guide. On a phone held upright the lock and the guide move into the screen menu.
+**The toolbar:** disconnect, the keyboard (with a bar of the keys it lacks: Esc, Tab, Ctrl, Alt, Win or ⌘, the arrows, F1 to F12), special keys and shortcuts, chat (with "is typing" and the message sound), files (downloads go to Downloads), the screen menu (displays, picture, fingers, sound, details), the lock to watch without touching, and the guide. On a phone held upright the lock and the guide move into the screen menu.
 
 ## Build
 

@@ -13,17 +13,16 @@ export const MAX_RECORDING_MEMORY = 1 << 30;
 /** The recording's bit rate: screen text stays sharp. */
 const RECORDING_BPS = 6_000_000;
 
-/** A file name: "go-link Desk - Office Mac - 2026-10-14 15.04.05.png". */
+/** A file name without spaces: "go-link-desk-office-mac-2026-10-14-150405.png". */
 export function captureName(host: string, when: Date, ext: string): string {
   const clean = host
-    .replace(/[\p{Cc}\p{Cf}/\\:*?"<>|]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .slice(0, 40)
-    .trim();
+    .replace(/^-+|-+$/g, "");
   const p = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${when.getFullYear()}-${p(when.getMonth() + 1)}-${p(when.getDate())} ${p(when.getHours())}.${p(when.getMinutes())}.${p(when.getSeconds())}`;
-  return `go-link Desk - ${clean ? `${clean} - ` : ""}${stamp}.${ext}`;
+  const stamp = `${when.getFullYear()}-${p(when.getMonth() + 1)}-${p(when.getDate())}-${p(when.getHours())}${p(when.getMinutes())}${p(when.getSeconds())}`;
+  return `go-link-desk-${clean ? `${clean}-` : ""}${stamp}.${ext}`;
 }
 
 /** The first recording format this browser makes: WebM (Chromium, Firefox), else MP4 (Safari). */

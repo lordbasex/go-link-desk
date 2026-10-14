@@ -123,7 +123,7 @@ export const es: Messages = {
     dropHint: "Soltá archivos acá, o en cualquier parte de la pantalla.",
     dropHere: "Soltá para enviar a la otra computadora",
     choose: "Elegir archivos",
-    whereHint: "Quedan en Descargas › go-link-desk, sin pisar ningún archivo que ya esté.",
+    whereHint: "Quedan en Descargas, sin pisar ningún archivo que ya esté.",
     home: "Inicio",
     empty: "Esta carpeta está vacía.",
     download: "Descargar",

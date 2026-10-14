@@ -8,7 +8,7 @@ import SwiftUI
  * The computer's files, as on the Mac app: its home folder to browse, a
  * tap on a file downloads it (into the Files app, On My iPhone or iPad ›
  * go-link Desk), and Send takes a file from the Files app or a photo to
- * the computer's Downloads/go-link-desk.
+ * the computer's Downloads.
  */
 struct FilesView: View {
     @ObservedObject var model: FilesModel
@@ -169,7 +169,7 @@ private struct TransferBar: View {
                     ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
                 case let .uploaded(name):
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text(verbatim: String(localized: "Sent to the computer's Downloads/go-link-desk:") + " " + name).font(.footnote).lineLimit(2)
+                    Text(verbatim: String(localized: "Sent to the computer's Downloads:") + " " + name).font(.footnote).lineLimit(2)
                     Spacer()
                 case let .failed(why):
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)

@@ -133,7 +133,7 @@
     <string name="from_files">From Files</string>
     <string name="from_photos">From Photos</string>
     <string name="file_unreadable">That file cannot be read.</string>
-    <string name="sent_to_downloads">Sent to the computer\'s Downloads/go-link-desk:</string>
+    <string name="sent_to_downloads">Sent to the computer\'s Downloads:</string>
     <string name="guide_in_touch">You are in touch mode: the pointer goes where you touch.</string>
     <string name="guide_in_trackpad">You are in trackpad mode: the screen works like a laptop\'s trackpad.</string>
     <string name="trackpad_mode">Trackpad mode</string>
@@ -177,14 +177,14 @@
     <string name="unlock_subtitle">So that only you can open the computers you linked.</string>
     <string name="link_no_lock">Set a screen lock on this device first: linked computers are protected with it and with your fingerprint or face.</string>
     <string name="link_keystore">The device\'s keystore refused it.</string>
-    <string name="saved_in_downloads">Saved in Downloads › go-link-desk:</string>
+    <string name="saved_in_downloads">Saved in Downloads:</string>
     <string name="share">Share</string>
-    <string name="shot_saved">Screenshot saved in Pictures › go-link-desk.</string>
+    <string name="shot_saved">Screenshot saved in Pictures.</string>
     <string name="shot_failed">The screenshot could not be saved.</string>
-    <string name="rec_saved">Recording saved in Movies › go-link-desk.</string>
-    <string name="rec_limit">The recording reached its 2-hour limit and was saved in Movies › go-link-desk.</string>
-    <string name="rec_host_stopped">The person at the computer stopped the recording; what was recorded is in Movies › go-link-desk.</string>
-    <string name="rec_session_ended">The session ended; the recording is in Movies › go-link-desk.</string>
+    <string name="rec_saved">Recording saved in Movies.</string>
+    <string name="rec_limit">The recording reached its 2-hour limit and was saved in Movies.</string>
+    <string name="rec_host_stopped">The person at the computer stopped the recording; what was recorded is in Movies.</string>
+    <string name="rec_session_ended">The session ended; the recording is in Movies.</string>
     <string name="g_kb_hw">A keyboard connected to this device</string>
     <string name="g_mouse_title">A mouse or trackpad</string>
 </resources>

@@ -6,6 +6,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **Files sent to a computer land straight in Downloads**, on macOS, Windows, Linux and with go-link-desk-terminal (`~/Downloads`, created if missing), never over a file already there. The Mac app's screenshots and recordings go to Downloads too, and Android's to Downloads, Pictures and Movies, without a folder of their own.
+- **Screenshots and recordings are named without spaces**: `go-link-desk-office-mac-2026-10-14-150405.png` (in the browser and the Mac and Android apps).
+
+### Changed
+
 - **A terminal's text size is in the monitor button**, like a screen's settings: A+, A− and Normal size, with the size shown and the menu kept open while you adjust (it was in the Terminals menu).
 
 ## [1.5.0] - 2026-10-14

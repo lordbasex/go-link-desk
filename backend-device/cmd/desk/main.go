@@ -374,7 +374,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	files := services.NewFilesService(home, filepath.Join(home, "Downloads", services.ReceivedFolder), stream.SendFiles, logger)
+	files := services.NewFilesService(home, filepath.Join(home, "Downloads"), stream.SendFiles, logger)
 	if f.filesDir != "" {
 		files = services.NewFilesService(f.filesDir, filepath.Join(f.filesDir, "Received"), stream.SendFiles, logger)
 		files.SetMaxUpload(demoMaxUpload)

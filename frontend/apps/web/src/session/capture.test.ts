@@ -5,9 +5,10 @@ import { MAX_RECORDING_MEMORY, ScreenRecorder, captureName, recordingType, type 
 describe("captureName", () => {
   it("names the file after the computer and the time, with nothing a file system refuses", () => {
     const when = new Date(2026, 9, 14, 15, 4, 5);
-    expect(captureName("Office Mac", when, "png")).toBe("go-link Desk - Office Mac - 2026-10-14 15.04.05.png");
-    expect(captureName(' a/b\\c:*?"<>|‮ d ', when, "webm")).toBe("go-link Desk - a b c d - 2026-10-14 15.04.05.webm");
-    expect(captureName("", when, "mp4")).toBe("go-link Desk - 2026-10-14 15.04.05.mp4");
+    expect(captureName("Office Mac", when, "png")).toBe("go-link-desk-office-mac-2026-10-14-150405.png");
+    expect(captureName(' a/b\\c:*?"<>|‮ d ', when, "webm")).toBe("go-link-desk-a-b-c-d-2026-10-14-150405.webm");
+    expect(captureName("Café de Ana", when, "png")).toBe("go-link-desk-café-de-ana-2026-10-14-150405.png");
+    expect(captureName("", when, "mp4")).toBe("go-link-desk-2026-10-14-150405.mp4");
   });
 });
 

@@ -274,7 +274,7 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
 
     // Screenshots and recording
 
-    /** A screenshot: the picture now, saved in Pictures › go-link-desk once the computer shows it. */
+    /** A screenshot: the picture now, saved in Pictures once the computer shows it. */
     fun takeScreenshot() {
         val shot = frameTap.snapshot() ?: return
         session.askScreenshot { yes ->
