@@ -1737,6 +1737,9 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 - (void)updates:(id)s {
 	action(self.handle, @"updates", @"");
 }
+- (void)network:(id)s {
+	action(self.handle, @"network", @"");
+}
 - (void)allow:(NSButton *)s {
 	action(self.handle, @"allow", s.identifier);
 }
@@ -1900,6 +1903,8 @@ void rv_app_menu(const char *labelsJSON) {
 		ab.target = gMain;
 		NSMenuItem *up = [menu addItemWithTitle:l[@"updates"] ?: @"Check for Updates…" action:@selector(updates:) keyEquivalent:@""];
 		up.target = gMain;
+		NSMenuItem *nt = [menu addItemWithTitle:l[@"network"] ?: @"Test My Connection…" action:@selector(network:) keyEquivalent:@""];
+		nt.target = gMain;
 		[menu addItem:NSMenuItem.separatorItem];
 		NSMenuItem *pr = [menu addItemWithTitle:st action:@selector(settings:) keyEquivalent:@","];
 		pr.target = gMain;

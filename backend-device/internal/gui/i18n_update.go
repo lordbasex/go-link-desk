@@ -13,6 +13,7 @@ func init() {
 	}
 	add("es", map[string]string{
 		"Try the demo":                "Probar la demo",
+		"Test My Connection…":         "Probar mi conexión…",
 		"Check for Updates…":          "Buscar actualizaciones…",
 		"Update to %s…":               "Actualizar a la %s…",
 		"Software update":             "Actualización",
@@ -41,6 +42,7 @@ func init() {
 	})
 	add("pt", map[string]string{
 		"Try the demo":                "Experimentar a demo",
+		"Test My Connection…":         "Testar minha conexão…",
 		"Check for Updates…":          "Procurar atualizações…",
 		"Update to %s…":               "Atualizar para a %s…",
 		"Software update":             "Atualização",
