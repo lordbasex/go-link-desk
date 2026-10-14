@@ -54,7 +54,8 @@ Usage:
   go-link-desk-terminal password         set the password linked browsers must give (--stdin: from a script)
   go-link-desk-terminal link             show a pairing code, and accept the browser that uses it
   go-link-desk-terminal status           show the service and its linked browsers
-  go-link-desk-terminal unlink ID        forget a linked browser
+  go-link-desk-terminal unlink ID        forget a linked browser (--all: every one)
+  go-link-desk-terminal reset            back to zero: every linked browser and the password forgotten
   go-link-desk-terminal version
 
 Flags (serve):
@@ -63,20 +64,23 @@ Flags (serve):
 func main() {
 	args := os.Args[1:]
 	cmd := "serve"
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		cmd, args = args[0], args[1:]
+	if len(args) > 0 {
+		switch a := args[0]; {
+		case !strings.HasPrefix(a, "-"), a == "-v", a == "-version", a == "--version", a == "-h", a == "--help":
+			cmd, args = a, args[1:]
+		}
 	}
 	var err error
 	switch cmd {
 	case "serve":
 		err = serve(args)
-	case "password", "link", "status", "unlink":
+	case "password", "link", "status", "unlink", "reset":
 		err = command(cmd, args)
-	case "version":
+	case "version", "-v", "-version", "--version":
 		fmt.Println("go-link-desk-terminal", version)
 	case "help", "-h", "--help":
 		fmt.Print(usage)
-		flags(io.Discard).PrintDefaults()
+		flags(os.Stdout).PrintDefaults()
 	default:
 		err = fmt.Errorf("unknown command %q (go-link-desk-terminal help)", cmd)
 	}
@@ -225,6 +229,10 @@ func serve(args []string) error {
 			return settings.Update(func(c *models.Config) { c.Unattended = models.Unattended{Enabled: true, PasswordHash: hash} })
 		},
 		Unlink: func(id string) bool {
+			if id == "*" {
+				links.UnlinkAll()
+				return true
+			}
 			for _, l := range links.Links() {
 				if l.ID == id {
 					links.Revoke(id)
@@ -232,6 +240,11 @@ func serve(args []string) error {
 				}
 			}
 			return false
+		},
+		Reset: func() error {
+			links.UnlinkAll()
+			session.End(models.EndRevoked)
+			return settings.Update(func(c *models.Config) { c.Unattended = models.Unattended{} })
 		},
 	}
 	session.SetConsent(ctl)

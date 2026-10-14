@@ -26,6 +26,8 @@ import (
 func command(cmd string, args []string) error {
 	fs := flags(io.Discard)
 	stdin := fs.Bool("stdin", false, "password: read it from the standard input (one line), for a setup script")
+	all := fs.Bool("all", false, "unlink: every linked browser")
+	yes := fs.Bool("yes", false, "reset: without asking")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -34,18 +36,35 @@ func command(cmd string, args []string) error {
 		return err
 	}
 	// The service first: nothing is asked of the person if it is not there.
-	conn, err := terminal.Dial(socketPath(path))
+	// (The connection itself opens after: the service waits only a few
+	// seconds for a command, less than typing a password twice takes.)
+	probe, err := terminal.Dial(socketPath(path))
 	if err != nil {
 		return notRunning()
 	}
-	defer conn.Close()
+	probe.Close()
 	req := terminal.Request{Cmd: cmd}
 	switch cmd {
 	case "unlink":
-		if fs.NArg() != 1 {
-			return errors.New("which one? go-link-desk-terminal unlink ID (the IDs are in: go-link-desk-terminal status)")
+		switch {
+		case *all:
+			req.ID = "*"
+		case fs.NArg() == 1:
+			req.ID = fs.Arg(0)
+		default:
+			return errors.New("which one? go-link-desk-terminal unlink ID (the IDs are in: go-link-desk-terminal status), or unlink --all")
 		}
-		req.ID = fs.Arg(0)
+	case "reset":
+		if !*yes {
+			if !term.IsTerminal(int(os.Stdin.Fd())) {
+				return errors.New("reset forgets every linked browser and the password: confirm with --yes")
+			}
+			fmt.Print("This forgets every linked browser and the password, and ends the session now. Go on? [y/N] ")
+			line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+			if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" && a != "s" && a != "si" && a != "sí" {
+				return errors.New("nothing changed")
+			}
+		}
 	case "password":
 		if *stdin {
 			line, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -57,6 +76,11 @@ func command(cmd string, args []string) error {
 			return err
 		}
 	}
+	conn, err := terminal.Dial(socketPath(path))
+	if err != nil {
+		return notRunning()
+	}
+	defer conn.Close()
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return err
 	}
@@ -75,7 +99,13 @@ func command(cmd string, args []string) error {
 	case "password":
 		fmt.Println("Password set. Link a browser with: go-link-desk-terminal link")
 	case "unlink":
-		fmt.Println("That browser is no longer linked.")
+		if req.ID == "*" {
+			fmt.Println("No browser is linked any more.")
+		} else {
+			fmt.Println("That browser is no longer linked.")
+		}
+	case "reset":
+		fmt.Println("Back to zero: no linked browsers, no password. Start again with: go-link-desk-terminal password")
 	}
 	return nil
 }

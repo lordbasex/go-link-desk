@@ -38,7 +38,9 @@ type Control struct {
 	Status      func() Status
 	Code        func() string
 	SetPassword func(password string) error
-	Unlink      func(id string) bool
+	Unlink      func(id string) bool // "*": every one
+	// Reset forgets every link and the password, and ends the session.
+	Reset func() error
 
 	mu     sync.Mutex
 	linker *linker // the "link" command waiting, if any
@@ -67,7 +69,7 @@ type LinkInfo struct {
 
 // Request is a command's one line to the service.
 type Request struct {
-	Cmd      string `json:"cmd"` // status, password, link, unlink
+	Cmd      string `json:"cmd"` // status, password, link, unlink, reset
 	Password string `json:"password,omitempty"`
 	ID       string `json:"id,omitempty"`
 }
@@ -169,6 +171,13 @@ func (c *Control) handle(ctx context.Context, conn *net.UnixConn) {
 			_ = enc.Encode(Reply{Error: "no linked browser " + req.ID})
 			return
 		}
+		_ = enc.Encode(Reply{OK: true})
+	case "reset":
+		if err := c.Reset(); err != nil {
+			_ = enc.Encode(Reply{Error: err.Error()})
+			return
+		}
+		c.Log.Info("terminal: reset: every link and the password were forgotten")
 		_ = enc.Encode(Reply{OK: true})
 	case "link":
 		c.link(ctx, r, enc)
