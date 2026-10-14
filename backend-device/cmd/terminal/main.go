@@ -201,7 +201,7 @@ func serve(args []string) error {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs, Outside: outside,
-		Welcome: meta, Source: "terminal", DataOnly: true, Channels: []string{terminal.Channel}, Logger: logger,
+		Welcome: meta, Source: "terminal", DataOnly: true, Channels: []string{terminal.Channel}, Features: []string{"terminal-tabs"}, Logger: logger,
 	}, ice)
 	if err != nil {
 		return err
@@ -261,9 +261,13 @@ func serve(args []string) error {
 	idle.SetMinutes(cfg.IdleMinutes)
 	settings.OnChange(func(c models.Config) { idle.SetMinutes(c.IdleMinutes) })
 	go idle.Run(ctx)
-	term := terminal.NewService(shell, stream.SendControl, func(peer string) { session.Drop(peer, models.EndHost) }, logger)
+	// The terminals live as long as the service, like screen's: a viewer
+	// leaving does not close them.
+	term := terminal.NewService(shell, stream.SendControl, logger)
+	defer term.Close()
 	term.OnTyped(idle.Touch)
 	stream.OnChannel(term.Channel)
+	record := services.NewRecordService(stream.SendControl, status, logger)
 	session.OnPermissions(func(peer string, p models.Permissions) {
 		if p.View {
 			idle.Session(peer)
@@ -271,10 +275,21 @@ func serve(args []string) error {
 			idle.Session("")
 		}
 		term.Allow(peer, p)
+		record.Allow(peer, p.View, p.Record)
 	})
+	// Links made before 1.5 could only see and type.
+	for _, l := range links.Links() {
+		if l.Permissions != terminal.LinkPermissions {
+			links.SetLink(l.ID, func(x *models.Link) { x.Permissions = terminal.LinkPermissions })
+		}
+	}
 	control := controllers.NewControl(logger)
 	controllers.SessionRoutes(control, session)
-	control.Handle("terminal_size", term.HandleSize)
+	for _, kind := range []string{"terminal_size", "terminal_open", "terminal_close", "terminal_rename"} {
+		control.Handle(kind, func(peer string, data []byte) { term.HandleControl(peer, kind, data) })
+	}
+	control.Handle("recording", record.Handle)
+	control.Handle("screenshot", record.HandleScreenshot)
 	for _, kind := range []string{"auth", "auth_challenge", "unlink"} {
 		control.Handle(kind, unattended.HandleControl)
 	}

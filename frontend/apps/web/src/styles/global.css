@@ -314,10 +314,22 @@ code, kbd, .mono { font-family: var(--font-mono); }
 }
 
 /* ---------- terminal (go-link-desk-terminal) ---------- */
-.terminal-stage { display: flex; flex-direction: column; background: #0d1117; }
-.terminal-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: rgb(28 28 30 / 0.95); color: #fff; }
-.terminal-bar-spacer { flex: 1; }
-.terminal-zoom { font: 600 13px/1 var(--font-text); }
+.stage-terminal { display: flex; flex-direction: column; background: #0d1117; touch-action: auto; -webkit-user-select: text; user-select: text; }
 .terminal-box { flex: 1; min-height: 0; padding: 8px 6px 6px 10px; }
+.terminal-box { display: flex; overflow: hidden; }
+.terminal-host { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .terminal-box .xterm { height: 100%; }
 .terminal-box .xterm-viewport { background-color: #0d1117; }
+
+/* the terminals' strip, like tmux's status line */
+.term-tabs { display: flex; gap: 2px; align-items: stretch; overflow-x: auto; padding: 0 6px; background: #161b22; border-top: 1px solid #30363d; font: 12px/1 var(--font-mono, ui-monospace, Menlo, monospace); scrollbar-width: none; }
+.term-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 0; background: transparent; color: #8b949e; font: inherit; white-space: nowrap; cursor: pointer; border-top: 2px solid transparent; }
+.term-tab:hover { color: #e6edf3; }
+.term-tab.is-on { color: #e6edf3; background: #0d1117; border-top-color: #58a6ff; }
+.term-tab:focus-visible { outline: 2px solid #58a6ff; outline-offset: -2px; }
+.term-tab-n { color: #6e7681; }
+.term-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: #3fb950; }
+.term-tab-new { font-size: 15px; padding: 5px 12px; }
+.term-tab-edit { width: 14ch; margin: 3px 0; padding: 3px 8px; border: 1px solid #58a6ff; border-radius: 4px; background: #0d1117; color: #e6edf3; font: inherit; }
+.stage-banner-ok { background: var(--tint-ok-bg); border-bottom-color: var(--tint-ok-border); }
+.stage-terminal .terminal-box { padding-top: 56px; } /* under the floating toolbar */

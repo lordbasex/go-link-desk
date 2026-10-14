@@ -426,10 +426,10 @@ export const docsEn: Docs = {
       slug: "terminal",
       group: "Linux",
       title: "A remote terminal (Raspberry Pi, servers)",
-      lead: "For a computer without a desktop: go-link-desk-terminal gives each session a shell of its own, in the browser. Nothing listens on a port, and only browsers you linked there come in, with a password.",
+      lead: "For a computer without a desktop: go-link-desk-terminal gives you its shells in the browser: terminals with names that keep running when you leave, like screen. Nothing listens on a port, and only browsers you linked there come in, with a password.",
       blocks: [
         { t: "h2", id: "how", text: "How it works" },
-        { t: "list", items: ["A small program runs as a service on the computer, as one user (never root). It connects out to go-link Desk's signaling server, like the desktop app: no port is opened and there is no SSH.", "You link your browser once, with a code the computer shows and that you accept there. From then on the computer is in **My computers** and opens with its password.", "Each session is a login shell of its own on a new pseudo-terminal (`/dev/pts/N`), as that user, encrypted end to end (WebRTC)."] },
+        { t: "list", items: ["A small program runs as a service on the computer, as one user (never root). It connects out to go-link Desk's signaling server, like the desktop app: no port is opened and there is no SSH.", "You link your browser once, with a code the computer shows and that you accept there. From then on the computer is in **My computers** and opens with its password.", "Each terminal is a login shell on a pseudo-terminal of its own (`/dev/pts/N`), as that user, that keeps running between sessions; everything goes encrypted end to end (WebRTC)."] },
         { t: "h2", id: "requirements", text: "What it needs" },
         { t: "list", items: ["Linux on x86-64, ARM64 or ARMv7: Raspberry Pi OS (32 and 64-bit, Lite too), Debian, Ubuntu, Fedora, Arch, Alpine and others. No desktop.", "systemd, to run it as a service (without it, run `go-link-desk-terminal serve` yourself).", "Outgoing internet (HTTPS and UDP). Nothing incoming."] },
         { t: "h2", id: "install", text: "Install it" },
@@ -459,7 +459,7 @@ export const docsEn: Docs = {
         { t: "h2", id: "back", text: "Coming back" },
         { t: "p", text: "At desk.go-link.org/web, **My computers** lists it with a terminal icon: open it and type the password. No code, and nobody has to accept." },
         { t: "h2", id: "session", text: "In the session" },
-        { t: "list", items: ["A login shell as that user, in the home folder, with `TERM=xterm-256color`.", "The size follows the window; **A−** and **A+** change the text size; the corners button is full screen.", "`exit` ends the session; **✕** or closing the tab hangs the shell up.", "No screen, sound, clipboard or files: use `scp`, `rsync` or the desktop app for those.", "One session at a time; it ends after the idle time if set."] },
+        { t: "list", items: ["The session looks like any other: the same toolbar, with a **Terminals** menu in place of Screen.", "**Several terminals, with names:** the strip at the bottom lists them, like tmux. **＋** (or Alt+Shift+T) opens one, a double click renames it, Alt+Shift+← → move between them, and a dot marks new output. Up to 16.", "**They outlive the session, like screen:** closing the tab, losing the network or **✕** leaves them running. The next time you connect you find them as they were, with what they printed meanwhile, and a *Resumed* notice.", "`exit` closes only that terminal; **Close** in the Terminals menu hangs its shell up.", "A login shell as that user, in the home folder, with `TERM=xterm-256color`. The size follows the window; the Terminals menu changes the text size, copies what is shown and pastes.", "**Screenshot and recording:** a PNG, a video like any session, or **Record as text (.cast)**, a file for asciinema. The computer is asked first, as for a screen.", "No sound, chat or files: use `scp`, `rsync` or the desktop app for those.", "One session at a time; it ends after the idle time if set (the terminals stay)."] },
         { t: "h2", id: "commands", text: "Every command" },
         {
           t: "table",

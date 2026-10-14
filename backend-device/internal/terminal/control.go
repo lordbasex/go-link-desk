@@ -105,8 +105,10 @@ type linkAsk struct {
 	reply chan bool
 }
 
-// linkPermissions are a terminal link's: see the terminal and type.
-var linkPermissions = models.Permissions{View: true, Control: true}
+// LinkPermissions are a terminal link's: the computer is its owner's, so
+// they see and type in its terminals, copy and paste, and may save
+// screenshots and recordings.
+var LinkPermissions = models.Permissions{View: true, Control: true, Clipboard: true, Record: true}
 
 // Serve listens until ctx ends.
 func (c *Control) Serve(ctx context.Context) error {
@@ -292,7 +294,7 @@ func (c *Control) Ask(ctx context.Context, req services.ConsentRequest) (models.
 			return models.Permissions{}, services.ErrDeclined
 		}
 		c.Log.Info("terminal: a browser was linked", "name", req.Knock.Name, "browser", req.Knock.Browser)
-		return linkPermissions, nil
+		return LinkPermissions, nil
 	case <-ctx.Done():
 		return models.Permissions{}, ctx.Err()
 	}

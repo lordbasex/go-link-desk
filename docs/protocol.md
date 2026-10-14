@@ -99,7 +99,7 @@ The host creates them, as in go-link.
 
 | Message | Direction | Content |
 |---|---|---|
-| `welcome` | host → viewer | `{host: {name, os}, source}` when the channel opens; `source` is `test-pattern`, `screen` or `terminal` (go-link-desk-terminal: no picture, a `terminal` channel). |
+| `welcome` | host → viewer | `{host: {name, os}, source, features?}` when the channel opens; `source` is `test-pattern`, `screen` or `terminal` (go-link-desk-terminal: no picture, a `terminal` channel). `features` lists what the host does beyond the basics: `terminal-tabs` (1.5: terminals with ids and names that outlive the viewer; each `terminal` message starts with the terminal's 4-byte id). |
 | `displays` | host → viewer | `{displays: [{id, name, width, height, points_width, points_height, primary}], current}`: the host's screens (pixels, and points: the desktop's coordinates) and the one shown. Sent when the channel opens and after every `display_select`. Empty for the test card. |
 | `ping` / `pong` | host → viewer → host | `{id}` every 2 s; the round trip over the peer-to-peer path. |
 | `stream_stats` | host → viewer | Every 2 s: `{fps, width, height, kbps, codec, target_kbps, estimate_kbps}`: what the host sent this viewer in the last window (a still screen sends nothing, and says so), the bitrate its encoder aims at, and what the congestion control estimates the path carries. |
@@ -122,8 +122,12 @@ The host creates them, as in go-link.
 | `call_end` | viewer → host | hangs up. |
 | `screenshot` | both | Viewer → host `{id}`: it is about to save a picture of the screen. Host → viewer `{id, ok}`: `ok` only with `permissions.record`, once the session panel shows it ("Took a screenshot at 15:04"); the viewer saves the picture only then. No answer in 5 s is a no. |
 | `recording` | both | Viewer → host `{id, on}`: it asks to start recording the screen (`on: true`), or says it stopped (`id` 0, `on: false`). Host → viewer `{id, on}`: the answer, `on` only with `permissions.record` once the panel, the main window and the tray say "Recording your screen"; the viewer starts only then, and a yes after 5 s is turned down. The host also sends `{id: 0, on: false}` unasked when the person at the computer takes the permission away; the viewer stops and saves what it has. |
-| `terminal_size` | viewer → host | `{cols, rows}` (1 to 1000): the viewer's terminal size, at the start and on every change (go-link-desk-terminal). |
-| `terminal_exit` | host → viewer | `{code}`: the shell ended with that exit code; the session ends after it. |
+| `terminal_size` | viewer → host | `{cols, rows}` (1 to 1000): the viewer's terminal size, at the start and on every change; every terminal takes it (go-link-desk-terminal). |
+| `terminal_tabs` | host → viewer | `{tabs: [{id, name, started}], max, resumed?}`: the terminals, oldest first (`started` in unix ms), when the viewer comes and on every change; `resumed` in the first one when they were open before. |
+| `terminal_open` | viewer → host | `{name}`: opens a terminal (with `control`; empty name: `shell N`). |
+| `terminal_close` | viewer → host | `{id}`: closes a terminal; its shell is hung up (with `control`). |
+| `terminal_rename` | viewer → host | `{id, name}`: renames a terminal (with `control`; up to 40 characters, one line). |
+| `terminal_exit` | host → viewer | `{id, code}`: that terminal's shell ended with that exit code; only it closes. A host before 1.5 sends `{code}` and ends the session. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
 A message type nobody handles is dropped. A message is at most 64 KiB.

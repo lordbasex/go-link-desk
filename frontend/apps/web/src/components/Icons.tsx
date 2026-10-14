@@ -121,3 +121,11 @@ export const RecordIcon = ({ size = 18 }: P) => (
     <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
   </svg>
 );
+
+/** go-link-desk-terminal's terminals. */
+export const TerminalIcon = ({ size = 18 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M7 9l3 3-3 3M12.5 15h4.5" />
+  </svg>
+);

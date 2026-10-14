@@ -41,11 +41,21 @@ export interface NewLink {
 export type PasswordError = "wrong" | "blocked" | "locked";
 
 /** The host as its welcome message describes it. */
+/** One of go-link-desk-terminal's terminals. */
+export interface TerminalTab {
+  id: number;
+  name: string;
+  /** When it was opened (unix ms). */
+  started: number;
+}
+
 export interface HostInfo {
   name: string;
   os: string;
   /** go-link-desk-terminal: a shell instead of the screen. */
   terminal: boolean;
+  /** Its terminals have names and outlive the viewer (1.5 and later); older ones send one shell. */
+  terminalTabs?: boolean;
 }
 
 /** What the host says it sends (stream_stats). */
@@ -169,6 +179,10 @@ export interface SessionView {
   recording: boolean;
   /** go-link-desk-terminal's shell ended with this code (the session ends after it). */
   terminalExit: number | null;
+  /** go-link-desk-terminal's terminals, oldest first (empty for an older one: one shell, id 0). */
+  terminalTabs: TerminalTab[];
+  /** The computer's terminals were open before this viewer came (back). */
+  terminalResumed: boolean;
 }
 
 export interface SessionOptions {
@@ -200,7 +214,7 @@ export function isOver(s: SessionStatus): boolean {
  */
 export class Session {
   private view: SessionView = {
-    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null, recording: false, terminalExit: null,
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null, recording: false, terminalExit: null, terminalTabs: [], terminalResumed: false,
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
@@ -209,7 +223,8 @@ export class Session {
   /** The shell's output until the terminal on the page takes it (its first prompt comes at once). */
   private terminalQueue: Uint8Array[] = [];
   private terminalQueued = 0;
-  private terminalSink: ((bytes: Uint8Array) => void) | null = null;
+  private terminalSink: ((id: number, bytes: Uint8Array) => void) | null = null;
+  private terminalReset: (() => void) | null = null;
   private cursor: CursorState = { x: 0, y: 0, visible: false, shape: null };
   private shapes = new Map<string, CursorShape>();
   private stream: HostStream | null = null;
@@ -300,11 +315,17 @@ export class Session {
         this.filesClient = new FilesClient(ch as unknown as ConstructorParameters<typeof FilesClient>[0]);
       },
       onTerminalChannel: (ch) => {
+        // A new connection: the computer sends each terminal's history again.
+        if (this.terminalCh && this.view.host?.terminalTabs) {
+          this.terminalQueue = [];
+          this.terminalQueued = 0;
+          this.terminalReset?.();
+        }
         this.terminalCh = ch;
         ch.onmessage = (e) => {
           if (typeof e.data === "string") return; // the shell's output is bytes
           const bytes = new Uint8Array(e.data as ArrayBuffer);
-          if (this.terminalSink) this.terminalSink(bytes);
+          if (this.terminalSink) this.toTerminal(bytes);
           else if (this.terminalQueued + bytes.length <= MAX_TERMINAL_QUEUE) {
             this.terminalQueue.push(bytes);
             this.terminalQueued += bytes.length;
@@ -431,20 +452,60 @@ export class Session {
     return this.terminalCh !== null;
   }
 
-  /** Hands the shell's output to sink (what came before first); returns how to stop. */
-  attachTerminal(sink: (bytes: Uint8Array) => void): () => void {
+  /**
+   * Hands the terminals' output to sink, by terminal id (0: an older
+   * computer's one shell), what came before first; onReset is told when it
+   * all comes again (a new connection). Returns how to stop.
+   */
+  attachTerminal(sink: (id: number, bytes: Uint8Array) => void, onReset?: () => void): () => void {
     this.terminalSink = sink;
-    for (const b of this.terminalQueue.splice(0)) sink(b);
+    this.terminalReset = onReset ?? null;
+    for (const b of this.terminalQueue.splice(0)) this.toTerminal(b);
     this.terminalQueued = 0;
     return () => {
-      if (this.terminalSink === sink) this.terminalSink = null;
+      if (this.terminalSink === sink) {
+        this.terminalSink = null;
+        this.terminalReset = null;
+      }
     };
   }
 
-  /** Types into the shell (only with the control permission; the host checks too). */
-  sendTerminal(bytes: Uint8Array): void {
+  /** One message of the terminal channel: a terminal's id and its bytes (1.5), or the one shell's bytes. */
+  private toTerminal(b: Uint8Array): void {
+    if (!this.view.host?.terminalTabs) return this.terminalSink?.(0, b);
+    if (b.length < 4) return;
+    const id = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0;
+    this.terminalSink?.(id, b.subarray(4));
+  }
+
+  /** Types into a terminal (only with the control permission; the computer checks too). */
+  sendTerminal(id: number, bytes: Uint8Array): void {
     const ch = this.terminalCh;
-    if (ch?.readyState === "open" && this.view.permissions?.control) ch.send(bytes as Uint8Array<ArrayBuffer>);
+    if (ch?.readyState !== "open" || !this.view.permissions?.control) return;
+    if (!this.view.host?.terminalTabs) {
+      ch.send(bytes as Uint8Array<ArrayBuffer>);
+      return;
+    }
+    const f = new Uint8Array(4 + bytes.length);
+    new DataView(f.buffer).setUint32(0, id >>> 0);
+    f.set(bytes, 4);
+    ch.send(f);
+  }
+
+  /** Opens another terminal on the computer (a name, or its own). */
+  openTerminal(name = ""): void {
+    this.stream?.sendControl({ type: "terminal_open", name: name.slice(0, 40) });
+  }
+
+  /** Closes a terminal: its shell ends. */
+  closeTerminal(id: number): void {
+    this.stream?.sendControl({ type: "terminal_close", id });
+  }
+
+  /** Renames a terminal. */
+  renameTerminal(id: number, name: string): void {
+    const n = name.trim().slice(0, 40);
+    if (n) this.stream?.sendControl({ type: "terminal_rename", id, name: n });
   }
 
   /** Tells go-link-desk-terminal the terminal's size here. */
@@ -543,7 +604,22 @@ export class Session {
     switch (m.type) {
       case "welcome": {
         const h = (typeof m.host === "object" && m.host !== null ? m.host : {}) as Record<string, unknown>;
-        this.set({ host: { name: String(h.name ?? "").slice(0, 64), os: String(h.os ?? "").slice(0, 16), terminal: m.source === "terminal" } });
+        const features = Array.isArray(m.features) ? (m.features as unknown[]) : [];
+        this.set({
+          host: { name: String(h.name ?? "").slice(0, 64), os: String(h.os ?? "").slice(0, 16), terminal: m.source === "terminal", terminalTabs: features.includes("terminal-tabs") },
+        });
+        break;
+      }
+      case "terminal_tabs": {
+        const tabs = Array.isArray(m.tabs) ? (m.tabs as Record<string, unknown>[]) : [];
+        this.set({
+          ...(m.resumed === true ? { terminalResumed: true } : {}),
+          terminalTabs: tabs.slice(0, 32).map((x) => ({
+            id: typeof x.id === "number" ? x.id >>> 0 : 0,
+            name: String(x.name ?? "").slice(0, 40),
+            started: typeof x.started === "number" ? x.started : 0,
+          })),
+        });
         break;
       }
       case "stream_stats":
@@ -579,7 +655,8 @@ export class Session {
         this.answer(n("id"), m.ok === true);
         break;
       case "terminal_exit":
-        this.set({ terminalExit: n("code") });
+        // A computer with terminals closes that one only; an older one ends the session after.
+        if (!this.view.host?.terminalTabs) this.set({ terminalExit: n("code") });
         break;
       case "notice":
         this.set({ notice: String(m.code ?? "").slice(0, 40) || null });

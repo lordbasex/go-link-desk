@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -60,6 +61,7 @@ type browser struct {
 	out      bytes.Buffer
 	control  []string
 	terminal *webrtc.DataChannel
+	tabOut   map[uint32]*bytes.Buffer
 }
 
 type relay struct{ b *browser }
@@ -125,8 +127,19 @@ func newBrowser(t *testing.T, id string, stream *services.StreamService) *browse
 			b.terminal = dc
 			b.mu.Unlock()
 			dc.OnMessage(func(m webrtc.DataChannelMessage) {
+				if len(m.Data) < 4 {
+					return
+				}
+				id := binary.BigEndian.Uint32(m.Data)
 				b.mu.Lock()
-				b.out.Write(m.Data)
+				b.out.Write(m.Data[4:])
+				if b.tabOut == nil {
+					b.tabOut = map[uint32]*bytes.Buffer{}
+				}
+				if b.tabOut[id] == nil {
+					b.tabOut[id] = &bytes.Buffer{}
+				}
+				b.tabOut[id].Write(m.Data[4:])
 				b.mu.Unlock()
 			})
 		case "control":
@@ -157,16 +170,17 @@ func (b *browser) wait(what string, ok func() bool) {
 	b.t.Fatalf("no %s; terminal: %q; control: %v", what, b.out.String(), b.control)
 }
 
-// A viewer in session gets a shell of its own on the terminal channel:
-// what it types runs, the shell's size follows its own, and exit ends it.
-func TestAViewerGetsAShell(t *testing.T) {
+// The terminals are the computer's, like screen's: a viewer opens, names
+// and closes them; exit closes only its own; and a viewer that leaves
+// finds them again, with what they showed meanwhile.
+func TestTerminalsOutliveTheViewer(t *testing.T) {
 	ice := services.NewICEStore()
 	api, err := services.NewWebRTCAPI(0, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
-		API: api, IncludeLoopback: true, Logger: quiet, Source: "terminal",
+		API: api, IncludeLoopback: true, Logger: quiet, Source: "terminal", Features: []string{"terminal-tabs"},
 		DataOnly: true, Channels: []string{Channel}, Welcome: services.SessionMeta{Name: "pi", OS: "linux"},
 	}, ice)
 	if err != nil {
@@ -176,59 +190,97 @@ func TestAViewerGetsAShell(t *testing.T) {
 	defer cancel()
 	go func() { _ = stream.Run(ctx) }()
 
-	ended := make(chan string, 1)
 	sh := ShellConfig{Path: "/bin/sh", Home: t.TempDir(), Env: []string{"PATH=/usr/bin:/bin", "TERM=xterm-256color", "PS1=$ "}}
-	term := NewService(sh, stream.SendControl, func(peer string) { ended <- peer }, quiet)
+	term := NewService(sh, stream.SendControl, quiet)
+	defer term.Close()
 	stream.OnChannel(term.Channel)
-	stream.OnControl(func(peer, kind string, data []byte) {
-		if kind == "terminal_size" {
-			term.HandleSize(peer, data)
+	control := func(peer string, v map[string]any) {
+		b, _ := json.Marshal(v)
+		term.HandleControl(peer, v["type"].(string), b)
+	}
+	connect := func(id string) *browser {
+		b := newBrowser(t, id, stream)
+		stream.SetSender(relay{b})
+		// The session lets the viewer in before its connection exists (a link).
+		term.Allow(id, models.Permissions{View: true, Control: true})
+		if err := stream.AddViewer(id, nil); err != nil {
+			t.Fatal(err)
 		}
-	})
-
-	b := newBrowser(t, "V", stream)
-	stream.SetSender(relay{b})
-	// The session lets the viewer in before its connection exists (a link).
-	term.Allow("V", models.Permissions{View: true})
-	if err := stream.AddViewer("V", nil); err != nil {
-		t.Fatal(err)
+		b.wait("the terminal channel", func() bool { return b.terminal != nil && b.terminal.ReadyState() == webrtc.DataChannelStateOpen })
+		return b
 	}
-	b.wait("terminal channel", func() bool { return b.terminal != nil && b.terminal.ReadyState() == webrtc.DataChannelStateOpen })
-	b.wait("welcome", func() bool { return len(b.control) > 0 && strings.Contains(b.control[0], `"source":"terminal"`) })
-
-	// Before the session lets it type, nothing reaches the shell.
-	_ = b.terminal.Send([]byte("echo typed-without-control\n"))
-	time.Sleep(300 * time.Millisecond)
-	term.Allow("V", models.Permissions{View: true, Control: true})
-	out, _ := json.Marshal(map[string]any{"type": "terminal_size", "cols": 120, "rows": 40})
-	term.HandleSize("V", out) // what the control channel's router hands it
-
-	_ = b.terminal.Send([]byte("echo hola-$((40+2)); stty size\n"))
-	b.wait("the command's output", func() bool { return strings.Contains(b.out.String(), "hola-42") })
-	b.wait("the new size", func() bool { return strings.Contains(b.out.String(), "40 120") })
-	if strings.Contains(b.out.String(), "typed-without-control") && !strings.Contains(b.out.String(), "echo typed") {
-		t.Fatal("a viewer that may not type ran a command")
-	}
-
-	_ = b.terminal.Send([]byte("exit 3\n"))
-	select {
-	case p := <-ended:
-		if p != "V" {
-			t.Fatalf("ended %q", p)
+	typeIn := func(b *browser, id uint32, s string) { _ = b.terminal.Send(frame(id, []byte(s))) }
+	lastTabs := func(b *browser) string {
+		for i := len(b.control) - 1; i >= 0; i-- {
+			if strings.Contains(b.control[i], `"type":"terminal_tabs"`) {
+				return b.control[i]
+			}
 		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("the shell's end did not end the session")
+		return ""
 	}
-	b.wait("terminal_exit", func() bool {
+	tabOut := func(b *browser, id uint32) string {
+		if b.tabOut[id] == nil {
+			return ""
+		}
+		return b.tabOut[id].String()
+	}
+
+	b := connect("V")
+	b.wait("the welcome with tabs", func() bool { return strings.Contains(strings.Join(b.control, " "), `"features":["terminal-tabs"]`) })
+	b.wait("a first terminal", func() bool { return strings.Contains(lastTabs(b), `"name":"shell"`) })
+	if strings.Contains(strings.Join(b.control, " "), `"resumed"`) {
+		t.Fatal("a first terminal was taken as resumed")
+	}
+	typeIn(b, 1, "echo hola-$((40+2))\n")
+	b.wait("its output", func() bool { return strings.Contains(tabOut(b, 1), "hola-42") })
+
+	control("V", map[string]any{"type": "terminal_open", "name": "logs"})
+	b.wait("a second terminal", func() bool { return strings.Contains(lastTabs(b), `"id":2,"name":"logs"`) })
+	control("V", map[string]any{"type": "terminal_rename", "id": 2, "name": "build\u0007 "})
+	b.wait("the new name", func() bool { return strings.Contains(lastTabs(b), `"id":2,"name":"build"`) })
+	typeIn(b, 2, "exit 4\n")
+	b.wait("the second one's end", func() bool {
 		for _, m := range b.control {
-			if strings.Contains(m, `"type":"terminal_exit"`) && strings.Contains(m, `"code":3`) {
+			if strings.Contains(m, `"type":"terminal_exit","id":2,"code":4`) {
 				return true
 			}
 		}
 		return false
 	})
-	if term.Active("V") {
-		t.Fatal("still active")
+	b.wait("one terminal left", func() bool {
+		return !strings.Contains(lastTabs(b), `"id":2`) && strings.Contains(lastTabs(b), `"id":1`)
+	})
+
+	// The viewer leaves while a command runs; it goes on.
+	typeIn(b, 1, "sleep 1; echo despues-$((1+1))\n")
+	time.Sleep(200 * time.Millisecond)
+	term.Allow("V", models.Permissions{})
+	stream.RemoveViewer("V")
+	time.Sleep(1500 * time.Millisecond)
+	if tabs := term.Tabs(); len(tabs) != 1 || tabs[0].ID != 1 {
+		t.Fatalf("the terminals did not outlive the viewer: %+v", tabs)
+	}
+
+	// Back: the same terminal, and what it showed meanwhile.
+	w := connect("W")
+	w.wait("the terminal again", func() bool {
+		return strings.Contains(lastTabs(w), `"id":1,"name":"shell"`) && strings.Contains(lastTabs(w), `"resumed":true`)
+	})
+	w.wait("what happened meanwhile", func() bool {
+		return strings.Contains(tabOut(w, 1), "despues-2") && strings.Contains(tabOut(w, 1), "hola-42")
+	})
+	typeIn(w, 1, "echo otra-vez\n")
+	w.wait("it still answers", func() bool { return strings.Contains(tabOut(w, 1), "otra-vez") })
+
+	// Watch only: nothing typed reaches a shell.
+	term.Allow("W", models.Permissions{View: true})
+	typeIn(w, 1, "echo sin-permiso-$((2+2))\n")
+	time.Sleep(400 * time.Millisecond)
+	w.mu.Lock()
+	leaked := strings.Contains(tabOut(w, 1), "sin-permiso-4")
+	w.mu.Unlock()
+	if leaked {
+		t.Fatal("a viewer that may only watch typed")
 	}
 }
 
@@ -300,7 +352,7 @@ func TestLinkingIsAskedOfTheLinkCommand(t *testing.T) {
 		t.Fatalf("asked %+v", rep)
 	}
 	_ = json.NewEncoder(conn).Encode(Answer{Answer: true})
-	if err := <-got; err != nil || perm != linkPermissions {
+	if err := <-got; err != nil || perm != LinkPermissions {
 		t.Fatalf("%v %+v", err, perm)
 	}
 	if rep := next(); !strings.Contains(rep.Linked, "Ana") {

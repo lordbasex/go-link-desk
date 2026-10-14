@@ -75,6 +75,9 @@ type StreamConfig struct {
 	// files channel: the control channel and Channels only
 	// (go-link-desk-terminal). Run then only pings the viewers.
 	DataOnly bool
+	// Features are what this host does beyond the basics, told in the
+	// welcome ("terminal-tabs").
+	Features []string
 	// Channels are more DataChannels (ordered, reliable) for each viewer;
 	// OnChannel hands them over before the offer.
 	Channels []string
@@ -889,10 +892,11 @@ func (s *StreamService) Admit(peerID string) bool {
 // greet tells a viewer who the host is and what it can show.
 func (s *StreamService) greet(v *viewer) {
 	welcome, _ := json.Marshal(struct {
-		Type   string      `json:"type"`
-		Host   SessionMeta `json:"host"`
-		Source string      `json:"source"`
-	}{"welcome", s.cfg.Welcome, s.cfg.Source})
+		Type     string      `json:"type"`
+		Host     SessionMeta `json:"host"`
+		Source   string      `json:"source"`
+		Features []string    `json:"features,omitempty"`
+	}{"welcome", s.cfg.Welcome, s.cfg.Source, s.cfg.Features})
 	s.sendText(v.control, welcome)
 	s.sendDisplays(v)
 }
