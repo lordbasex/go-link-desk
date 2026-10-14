@@ -4,6 +4,7 @@ go 1.26.9
 
 require (
 	fyne.io/fyne/v2 v2.8.1
+	github.com/creack/pty v1.1.24
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade

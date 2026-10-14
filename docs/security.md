@@ -96,6 +96,14 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Connecting to this computer's own code is refused.
 - A signaling server chosen in Settings must be `wss://` outside this computer: Settings warns about `ws://`, which is not encrypted. The media and control stay end-to-end encrypted (DTLS) whatever the server.
 
+### A remote terminal (go-link-desk-terminal)
+
+- Nothing listens: like the app, it only connects out to signalhub and to its viewers; there is no SSH port to scan.
+- Only browsers linked by someone at the computer come in: `go-link-desk-terminal link` asks in the terminal that runs it, and nobody else is ever asked (a session code is turned down). Every later visit needs the link's token, the computer's proof and the password (argon2id, the PIN gate's limits), and `link` refuses until a password is set.
+- The commands' socket is the user's alone (0600, in a 0700 folder, and `SO_PEERCRED` on Linux); it never reaches the network.
+- It refuses to run as root unless told (`--allow-root`). A session is the service user's shell, with that user's rights: whoever is linked can do what that user can.
+- The shell's environment is rebuilt, not inherited from the service; the shell is hung up when the session ends.
+
 ### A port opened in the router
 
 - The fixed UDP port and opening it in the router (Settings › Direct connection) are off by default, and opening it is a box of its own. Nothing else is ever asked of the router; the connection test only reads (its outside address).
