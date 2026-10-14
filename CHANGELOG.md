@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-14
+
+go-link-desk-terminal's first run, smoother: its code goes in the usual box at desk.go-link.org/web, and its commands work with sudo.
+
 ### Fixed
 
 - **One box for every code at desk.go-link.org/web:** a 9-digit code that is no session's (`go-link-desk-terminal link`'s, or a computer's pairing code) was turned away as "leads nowhere"; now the page tries it as a linking code by itself. `go-link-desk-terminal link` says to type it there, and prints the `/link/<code>` address too.
