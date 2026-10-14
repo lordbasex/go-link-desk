@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-14
+
+A remote terminal for a Raspberry Pi or a server without a desktop, and screenshots and recordings of a session, which the person at the computer allows and always sees.
+
 ### Added
 
 - **go-link-desk-terminal, a remote terminal for a Raspberry Pi or a server without a desktop** instead of the screen, each session gets a shell of its own on a new pseudo-terminal, as the service's user (never root unless `--allow-root`). One pure-Go binary for Linux x86-64, ARM64 and ARMv7, with signalhub, the codes, the relay and unattended access of the app, and its own `device.json`. Only linked browsers come in, with the password: `go-link-desk-terminal password`, then `go-link-desk-terminal link`, which shows the pairing code and asks in that terminal before linking. `status` and `unlink` too. See [docs/terminal.md](docs/terminal.md). In the browser, the session shows the shell in xterm.js instead of the screen, loaded only for a terminal: typing, the size following the window, A−/A+, full screen, watch-only without control, and a terminal icon in My computers. Install it with `curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal` (the `.deb`, `.rpm`, Arch package or `.tar.gz` for x86-64, ARM64 and ARMv7, checked against `SHA256SUMS`), which starts its systemd user service and keeps it running from boot; a help page at desk.go-link.org/docs/terminal. New dependencies: `github.com/creack/pty` and `@xterm/xterm`, `@xterm/addon-fit` (MIT).
