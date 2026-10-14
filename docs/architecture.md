@@ -128,6 +128,8 @@ host microphone ──► AVAudioEngine (echo cancellation) ──► Opus ─�
 
 desk.go-link.org is the static build in an S3 bucket behind CloudFront (`scripts/deploy-web.sh`, `make web-deploy`), with the same Content Security Policy as the build's, HSTS, and a Permissions-Policy that allows the camera, microphone and clipboard only to the site itself. Pages are revalidated on every visit and hashed assets are cached for a year, so a deploy shows at once. The deploy user may only write that bucket and invalidate that distribution.
 
+**The connection test** (`/network`) runs a session's discovery in the browser, against signalhub's STUN and TURN, and says whether this network can go direct or will use the relay, with what to do about it. The apps open it with the local address and the router's in the fragment. See [network.md](network.md).
+
 ## Two kinds of browsers
 
 | Kind | Arrives with | Gets |

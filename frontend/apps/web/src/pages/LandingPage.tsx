@@ -442,6 +442,9 @@ export function SiteFooter() {
                 <Link to="/docs">{t.site.nav.docs}</Link>
               </li>
               <li>
+                <Link to="/network">{f.network}</Link>
+              </li>
+              <li>
                 <a href="/#features">{t.site.nav.features}</a>
               </li>
               <li>
