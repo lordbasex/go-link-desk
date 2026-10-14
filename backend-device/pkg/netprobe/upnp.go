@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -34,30 +35,56 @@ var wanServices = []string{
 // a device on the local network is asked: an answer whose description is
 // elsewhere, or not plain HTTP, is ignored. gw, when known, is preferred.
 func UPnPExternal(ctx context.Context, gw netip.Addr) (netip.Addr, error) {
-	locs, err := ssdpSearch(ctx)
-	if err != nil {
-		return netip.Addr{}, err
-	}
-	// The gateway's own description first.
-	for i, l := range locs {
-		if u, err := url.Parse(l); err == nil && gw.IsValid() && u.Hostname() == gw.String() {
-			locs[0], locs[i] = locs[i], locs[0]
-			break
-		}
-	}
-	client := &http.Client{
-		Timeout:       3 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
 	var last error = errors.New("netprobe: no UPnP gateway")
-	for _, l := range locs {
-		a, err := askExternal(ctx, client, l)
+	for w, err := range wanConnections(ctx, gw) {
+		if err != nil {
+			return netip.Addr{}, err
+		}
+		a, err := w.external(ctx)
 		if err == nil {
 			return a, nil
 		}
 		last = err
 	}
 	return netip.Addr{}, last
+}
+
+// wan is a router's WAN connection service: where its SOAP actions go.
+type wan struct {
+	client  *http.Client
+	control string // the control URL, on the router
+	service string // its service type
+}
+
+// wanConnections yields the WAN connection service of every gateway that
+// answers a search, the gateway's own first; an error ends it.
+func wanConnections(ctx context.Context, gw netip.Addr) func(yield func(wan, error) bool) {
+	return func(yield func(wan, error) bool) {
+		locs, err := ssdpSearch(ctx)
+		if err != nil {
+			yield(wan{}, err)
+			return
+		}
+		for i, l := range locs {
+			if u, err := url.Parse(l); err == nil && gw.IsValid() && u.Hostname() == gw.String() {
+				locs[0], locs[i] = locs[i], locs[0]
+				break
+			}
+		}
+		client := &http.Client{
+			Timeout:       3 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
+		for _, l := range locs {
+			ctl, st, err := describe(ctx, client, l)
+			if err != nil {
+				continue
+			}
+			if !yield(wan{client: client, control: ctl, service: st}, nil) {
+				return
+			}
+		}
+	}
 }
 
 // ssdpSearch sends M-SEARCH for gateways and collects the LOCATION of
@@ -202,42 +229,88 @@ func controlURL(loc string, body []byte) (string, string, error) {
 	return "", "", errors.New("netprobe: no WAN connection service")
 }
 
-// askExternal reads the description, then calls GetExternalIPAddress.
-func askExternal(ctx context.Context, client *http.Client, loc string) (netip.Addr, error) {
+// describe reads a device description and finds its WAN connection
+// service.
+func describe(ctx context.Context, client *http.Client, loc string) (string, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, loc, nil)
 	if err != nil {
-		return netip.Addr{}, err
+		return "", "", err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return netip.Addr{}, err
+		return "", "", err
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDescription))
 	resp.Body.Close()
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return netip.Addr{}, errors.New("netprobe: no device description")
+		return "", "", errors.New("netprobe: no device description")
 	}
-	ctl, st, err := controlURL(loc, body)
-	if err != nil {
-		return netip.Addr{}, err
+	return controlURL(loc, body)
+}
+
+// call sends one SOAP action with its arguments (already XML-safe) and
+// returns the answer. A refusal comes back as a *upnpError.
+func (w wan) call(ctx context.Context, action string, args ...[2]string) ([]byte, error) {
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:` + action + ` xmlns:u="` + w.service + `">`)
+	for _, a := range args {
+		b.WriteString("<" + a[0] + ">")
+		_ = xml.EscapeText(&b, []byte(a[1]))
+		b.WriteString("</" + a[0] + ">")
 	}
-	soap := `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:GetExternalIPAddress xmlns:u="` + st + `"/></s:Body></s:Envelope>`
-	req, err = http.NewRequestWithContext(ctx, http.MethodPost, ctl, strings.NewReader(soap))
+	b.WriteString(`</u:` + action + `></s:Body></s:Envelope>`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.control, strings.NewReader(b.String()))
 	if err != nil {
-		return netip.Addr{}, err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", `text/xml; charset="utf-8"`)
-	req.Header.Set("SOAPAction", `"`+st+`#GetExternalIPAddress"`)
-	resp, err = client.Do(req)
+	req.Header.Set("SOAPAction", `"`+w.service+`#`+action+`"`)
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseFault(action, body)
+	}
+	return body, nil
+}
+
+// external asks for the router's outside address.
+func (w wan) external(ctx context.Context) (netip.Addr, error) {
+	body, err := w.call(ctx, "GetExternalIPAddress")
 	if err != nil {
 		return netip.Addr{}, err
 	}
-	defer resp.Body.Close()
-	body, err = io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return netip.Addr{}, errors.New("netprobe: GetExternalIPAddress failed")
-	}
 	return parseExternal(body)
+}
+
+// upnpError is a router's refusal of an action (a UPnPError in a SOAP
+// fault).
+type upnpError struct {
+	Action string
+	Code   int
+	Text   string
+}
+
+func (e *upnpError) Error() string {
+	return fmt.Sprintf("netprobe: the router refused %s (%d %s)", e.Action, e.Code, e.Text)
+}
+
+// parseFault reads the UPnPError of a SOAP fault.
+func parseFault(action string, body []byte) error {
+	var f struct {
+		Code int    `xml:"Body>Fault>detail>UPnPError>errorCode"`
+		Text string `xml:"Body>Fault>detail>UPnPError>errorDescription"`
+	}
+	if err := xml.Unmarshal(body, &f); err != nil || f.Code == 0 {
+		return &upnpError{Action: action, Text: "no answer"}
+	}
+	return &upnpError{Action: action, Code: f.Code, Text: strings.TrimSpace(f.Text)}
 }
 
 // parseExternal reads NewExternalIPAddress from the SOAP answer.

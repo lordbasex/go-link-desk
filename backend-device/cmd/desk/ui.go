@@ -45,5 +45,7 @@ type uiOptions struct {
 	woken    <-chan struct{}
 	webURL   string // where viewers type the code
 	language string
-	logger   *slog.Logger
+	// ports keeps the fixed UDP port open in the router (nil: not asked).
+	ports  *services.PortMapper
+	logger *slog.Logger
 }
