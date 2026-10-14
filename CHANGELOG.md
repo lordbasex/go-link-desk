@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-14
+
+Computers left on stay reachable through the relay; received files straight into Downloads; a terminal's text size in the monitor button.
+
 ### Changed
 
 - **Files sent to a computer land straight in Downloads**, on macOS, Windows, Linux and with go-link-desk-terminal (`~/Downloads`, created if missing), never over a file already there. The Mac app's screenshots and recordings go to Downloads too, and Android's to Downloads, Pictures and Movies, without a folder of their own.
