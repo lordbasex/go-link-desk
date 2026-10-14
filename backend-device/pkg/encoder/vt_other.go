@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !darwin && !windows && !linux
+//go:build (!darwin && !windows && !linux) || !cgo
 
 package encoder
 

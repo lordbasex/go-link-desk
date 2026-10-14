@@ -29,12 +29,6 @@ import (
 	"unsafe"
 )
 
-// OpusSampleRate is the only rate WebRTC uses for Opus.
-const OpusSampleRate = 48000
-
-// OpusFrameSamples is one 20 ms frame per channel at 48 kHz.
-const OpusFrameSamples = OpusSampleRate / 50
-
 // Opus is a libopus encoder. It is not safe for concurrent use.
 type Opus struct {
 	enc      *C.OpusEncoder

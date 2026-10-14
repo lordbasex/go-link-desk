@@ -22,6 +22,9 @@ func TestSplitAnnexBAndAVCC(t *testing.T) {
 }
 
 func TestOpusRoundTrip(t *testing.T) {
+	if !encoder.Codecs {
+		t.Skip("built without cgo: no libvpx or libopus")
+	}
 	enc, err := encoder.NewOpus(1, 32000)
 	if err != nil {
 		t.Fatal(err)

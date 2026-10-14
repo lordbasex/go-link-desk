@@ -50,18 +50,6 @@ import (
 	"unsafe"
 )
 
-// ErrCorrupt: the frame decoded from a missing or damaged one before it;
-// the picture is wrong until the next keyframe.
-var ErrCorrupt = errors.New("decoder: vp8 frame refers to a lost one")
-
-// I420 is a decoded picture: its three planes, each with its own row
-// length (stride). The slices stay valid only until the next Decode.
-type I420 struct {
-	Width, Height     int
-	Y, U, V           []byte
-	StrideY, StrideUV int
-}
-
 // VP8 decodes a VP8 stream (libvpx), what a computer without an H.264
 // encoder sends.
 type VP8 struct {
