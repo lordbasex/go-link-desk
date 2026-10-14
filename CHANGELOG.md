@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-13
+
+Does your network go direct or through the relay? A connection test at desk.go-link.org/network, like a speed test, finds out and explains double NAT, CGNAT and blocked UDP, with the steps to fix each; Test My Connection… in the computer app sees the routers a browser cannot.
+
 ### Added
 
 - **A connection test at desk.go-link.org/network** (also `/red` and `/rede`), in English, Spanish and Portuguese: does this network go direct or through the relay? Like a speed test, it draws the path from the device through its routers to go-link Desk's servers, with packets moving at each step, a gauge that lands on **Direct**, **Depends** or **Relay**, and each step live: the signaling server's round trip, UDP, the public address, whether the router keeps the port toward two STUN servers (symmetric NAT when it does not), and the relay's round trip and transport (two connections in the page, both forced through the TURN of `hello`; a few bytes, no bandwidth test). It explains that the relay is not a fault, with guides for two routers in cascade (bridge mode, DMZ, UPnP), one router, the provider's CGNAT (a public address, IPv6) and networks that block UDP, and a map of the Americas (Natural Earth) with the relays: Virginia, and São Paulo on the way, with an invitation to offer one. The apps will open it with the local address and the router's after `#d=` (never sent to a server) to find routers in cascade; the session's (i) panel links to it when a session goes through the relay. Everything runs in the browser and nothing is stored (`docs/network.md`).
