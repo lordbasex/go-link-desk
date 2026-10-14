@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-14
+
+A direct connection through a router you set up: with a fixed UDP port, the computer app opens it in the router by itself (UPnP or NAT-PMP, off by default) or tells you the exact rule to add, and a port forwarded by hand finally works.
+
 ### Added
 
 - **Screenshots and recordings of the session, in the web viewer** (also Windows' and Linux' Connect, which open it): a new menu in the session's toolbar takes a screenshot (PNG, with the host's pointer) or records the screen and, when the viewer may hear it, the computer's sound (WebM in Chrome, Edge and Firefox, MP4 in Safari), into a file chosen at the start (Chrome, Edge) or downloaded at the end; a red pill with the time stops it. Everything happens in the browser, from the picture it already gets. A recording stops by itself after 2 hours, or at 1 GB when the browser keeps it in memory.
