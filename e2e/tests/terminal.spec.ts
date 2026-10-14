@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { connect, type Socket } from "node:net";
 import { dirname, join } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { BIN, spawnTerminal, stopHost } from "../host";
 import type { HostProc } from "../stack";
 
@@ -51,7 +51,15 @@ class Commands {
   }
 }
 
-test("go-link-desk-terminal: linked in its own terminal, then a shell in the browser, and back with the password", async ({ page }) => {
+/** What the terminal shows, through its menu's "Copy what is shown". */
+async function shown(page: Page): Promise<string> {
+  await page.getByRole("button", { name: "Terminals" }).click();
+  await page.getByRole("menuitem", { name: "Copy what is shown" }).click();
+  return page.evaluate(() => navigator.clipboard.readText());
+}
+
+test("go-link-desk-terminal: linked in its own terminal, terminals with names in the browser, and back to them, like screen", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   test.setTimeout(120_000);
   const host = spawnTerminal("terminal");
   try {
@@ -77,32 +85,47 @@ test("go-link-desk-terminal: linked in its own terminal, then a shell in the bro
     expect(String((await cmd.next("linked")).linked)).toContain("Ana");
     cmd.close();
 
-    // The shell, in the browser: what is typed runs there.
+    // The shell, in the browser, in the session's own toolbar.
     await expect(page.getByRole("toolbar", { name: "Terminal of pi" })).toBeVisible();
-    const screen = page.locator(".terminal-box .xterm-rows");
+    await expect(page.getByRole("tab", { name: /shell/ })).toHaveAttribute("aria-selected", "true");
     await page.locator(".terminal-box").click();
     await page.keyboard.type("echo hola-$((40+2)); stty size\n");
-    await expect(screen).toContainText("hola-42", { timeout: 15_000 });
+    await expect.poll(() => shown(page), { timeout: 15_000 }).toContain("hola-42");
     await expect.poll(() => /msg="terminal opened"/.test(log(host))).toBe(true);
     const devices = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { deviceId: string; terminal?: boolean }[]);
     expect(devices).toHaveLength(1);
     expect(devices[0]!.terminal).toBe(true);
 
-    // exit ends the session, and says how.
+    // A second terminal; exit closes only it.
+    await page.getByRole("button", { name: "New terminal" }).click();
+    await expect(page.getByRole("tab", { name: /shell 2/ })).toHaveAttribute("aria-selected", "true");
+    await page.locator(".terminal-box").click();
     await page.keyboard.type("exit 3\n");
-    await expect(page.getByText("The shell ended (exit code 3).")).toBeVisible();
+    await expect(page.getByRole("tab", { name: /shell 2/ })).toHaveCount(0);
+    await expect(page.getByRole("toolbar", { name: "Terminal of pi" })).toBeVisible();
 
-    // Back from My computers: the link, then the password.
+    // A name, by double click.
+    await page.getByRole("tab", { name: /shell/ }).dblclick();
+    await page.getByLabel("Terminal name").fill("build");
+    await page.getByLabel("Terminal name").press("Enter");
+    await expect(page.getByRole("tab", { name: /build/ })).toBeVisible();
+
+    // Gone while a command runs: it goes on, like screen.
+    await page.locator(".terminal-box").click();
+    await page.keyboard.type("sleep 2; echo despues-$((1+1))\n");
+    await page.getByRole("button", { name: "Disconnect" }).click();
+    await expect.poll(() => /msg="terminals detached/.test(log(host))).toBe(true);
+    expect(log(host)).not.toMatch(/msg="terminal closed"/);
+
+    // Back from My computers: the link, then the password, and the same terminal.
     await page.goto("/web");
     await page.getByRole("link", { name: /^Connect to / }).first().click();
     await page.getByLabel("Password of that computer").fill(PASSWORD);
     await page.getByRole("button", { name: "Connect" }).click();
-    await expect(page.getByRole("toolbar", { name: "Terminal of pi" })).toBeVisible();
-    await page.locator(".terminal-box").click();
-    await page.keyboard.type("echo again-$((1+1))\n");
-    await expect(screen).toContainText("again-2", { timeout: 15_000 });
+    await expect(page.getByRole("tab", { name: /build/ })).toBeVisible();
+    await expect(page.getByText(/^Resumed: the terminal on pi was still open/)).toBeVisible();
+    await expect.poll(() => shown(page), { timeout: 15_000 }).toContain("despues-2");
     await page.getByRole("button", { name: "Disconnect" }).click();
-    await expect.poll(() => /msg="terminal closed"/.test(log(host))).toBe(true);
   } finally {
     await stopHost(host);
   }

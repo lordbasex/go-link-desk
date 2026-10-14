@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { MAX_THUMB } from "@go-link-desk/shared";
 import { t } from "../i18n";
-import { CameraIcon, ChatIcon, ChevronIcon, CloseIcon, CommandIcon, ExpandIcon, FolderIcon, MonitorIcon, RecordIcon, ShrinkIcon, SoundIcon } from "../components/Icons";
+import { CameraIcon, ChatIcon, ChevronIcon, CloseIcon, CommandIcon, ExpandIcon, FolderIcon, MonitorIcon, RecordIcon, ShrinkIcon, SoundIcon, TerminalIcon } from "../components/Icons";
 import { BarMenu, MenuItem, MenuSection, MenuSeparator } from "../components/BarMenu";
 import { StreamHud, StreamInfo } from "../components/StreamInfo";
 import { useFullscreen } from "../components/useFullscreen";
@@ -15,8 +15,36 @@ import { HostClipboard } from "./hostClipboard";
 import { InputCapture } from "./input";
 import { measureLatency } from "./latency";
 import { downloadBlob, sinkFor } from "./save";
-import type { CursorState, Preset, Session, SessionView } from "./session";
+import type { CursorState, Preset, Session, SessionView, TerminalTab } from "./session";
 import { useStreamStats } from "./useStreamStats";
+import type { TerminalApi } from "./TerminalStage";
+
+// xterm.js comes only with a computer that offers terminals.
+const TerminalStage = lazy(() => import("./TerminalStage"));
+
+const TERM_FONT_KEY = "go-link-desk.terminal-font";
+const TERM_FONTS = [11, 12, 13, 14, 16, 18, 20, 24];
+
+function loadTermFont(): number {
+  try {
+    const n = Number(window.localStorage.getItem(TERM_FONT_KEY));
+    return TERM_FONTS.includes(n) ? n : 14;
+  } catch {
+    return 14;
+  }
+}
+
+/** Special keys a terminal takes, as the bytes they send. */
+const TERMINAL_KEYS: [string, string][] = [
+  ["Esc", "\x1b"],
+  ["Tab", "\t"],
+  ["Ctrl+C", "\x03"],
+  ["Ctrl+D", "\x04"],
+  ["Ctrl+Z", "\x1a"],
+  ["Ctrl+L", "\x0c"],
+  ["↑", "\x1b[A"],
+  ["↓", "\x1b[B"],
+];
 
 /** How the picture fits the window: whole and centred, one pixel for one pixel, or filling it. */
 export type ViewMode = "fit" | "original" | "stretch";
@@ -127,6 +155,17 @@ export function LiveSession({
   const stats = useStreamStats(session?.hostStream ?? null, live);
   const display = view.displays.find((d) => d.id === view.display) ?? null;
   const control = view.permissions?.control === true;
+  // go-link-desk-terminal: terminals where the screen goes, in the same session.
+  const terminal = view.host?.terminal === true;
+  const termApi = useRef<TerminalApi | null>(null);
+  const tabs = view.host?.terminalTabs ? view.terminalTabs : terminal ? [{ id: 0, name: view.host?.name || "shell", started: 0 }] : [];
+  const [activeTab, setActiveTab] = useState(0);
+  const [activity, setActivity] = useState<number[]>([]);
+  const [termFont, setTermFont] = useState(loadTermFont);
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const opening = useRef(false);
+  const knownTabs = useRef<number[]>([]);
+  const shownTab = tabs.find((x) => x.id === activeTab) ? activeTab : (tabs[0]?.id ?? 0);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
   const displaysRef = useRef(view.displays);
@@ -188,7 +227,7 @@ export function LiveSession({
   useEffect(() => {
     const surface = screenRef.current;
     const keys = keysRef.current;
-    if (!control || !live || !session || !surface || !keys) return;
+    if (!control || !live || !session || !surface || !keys || terminal) return;
     const cap = new InputCapture(
       surface,
       keys,
@@ -225,7 +264,7 @@ export function LiveSession({
       captureRef.current = null;
       if (document.pointerLockElement === surface) document.exitPointerLock();
     };
-  }, [control, live, session]);
+  }, [control, live, session, terminal]);
 
   // Full screen takes the system's shortcuts too (Keyboard Lock, Chromium):
   // Cmd+Tab, Alt+Tab and Esc go to the host; holding Esc leaves.
@@ -290,7 +329,6 @@ export function LiveSession({
     session.setQuality(prefs.preset, prefs.retina);
     if (prefs.cursorInVideo) session.setCursorInVideo(true);
     // Only once per session: later changes go through update().
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, session]);
 
   useEffect(() => {
@@ -334,7 +372,7 @@ export function LiveSession({
   // pixels), so nothing is sent that the screen would throw away.
   useEffect(() => {
     const el = screenRef.current;
-    if (!el || !session || !live || typeof ResizeObserver === "undefined") return;
+    if (!el || !session || !live || terminal || typeof ResizeObserver === "undefined") return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const send = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -350,7 +388,7 @@ export function LiveSession({
       ro.disconnect();
       if (timer) clearTimeout(timer);
     };
-  }, [session, live]);
+  }, [session, live, terminal]);
 
   // The host's pointer, drawn here at its place over the picture. While
   // this viewer controls, its own pointer takes the host's shape instead
@@ -423,15 +461,20 @@ export function LiveSession({
   // A screenshot: the picture as it is now, saved once the host shows it.
   const takeScreenshot = async () => {
     const v = videoRef.current;
-    if (!v || !session) return;
+    if (!session || (!v && !terminal)) return;
     const when = new Date();
-    const blob = await screenshot(v, cursorDraw());
+    const canvas = terminal ? termApi.current?.canvas() : null;
+    const blob = terminal
+      ? canvas
+        ? await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"))
+        : new Blob([termApi.current?.text(false) ?? ""], { type: "text/plain" })
+      : await screenshot(v!, cursorDraw());
     if (!blob) return;
     if (!(await session.askScreenshot())) {
       say(t.capture.refused);
       return;
     }
-    const name = captureName(hostName, when, "png");
+    const name = captureName(hostName, when, terminal && !canvas ? "txt" : "png");
     downloadBlob(blob, name);
     say(t.capture.saved.replace("{name}", name));
   };
@@ -440,7 +483,7 @@ export function LiveSession({
     recRef.current = null;
     setRecSince(null);
     session?.stopRecording();
-    if (!prefsRef.current.cursorInVideo) session?.setCursorInVideo(false);
+    if (!terminal && !prefsRef.current.cursorInVideo) session?.setCursorInVideo(false);
     const notes: Record<StopReason, string> = {
       stopped: t.capture.saved.replace("{name}", name),
       host: t.capture.stoppedHost,
@@ -454,9 +497,15 @@ export function LiveSession({
 
   // A recording: where it goes is asked first (while the click counts),
   // then the host, and it starts only once the person there sees it.
-  const startRecording = async () => {
+  const startRecording = async (cast = false) => {
     const v = videoRef.current;
-    if (!session || !v || recRef.current) return;
+    if (!session || (!v && !terminal) || recRef.current) return;
+    if (cast) return startCast();
+    const canvas = terminal ? termApi.current?.canvas() : null;
+    if (terminal && !canvas) {
+      say(t.capture.unsupported);
+      return;
+    }
     const type = recordingType();
     if (!type) {
       say(t.capture.unsupported);
@@ -470,19 +519,42 @@ export function LiveSession({
       say(t.capture.refused);
       return;
     }
-    const tracks = [...((v.srcObject as MediaStream | null)?.getVideoTracks() ?? [])];
+    const tracks = canvas ? canvas.captureStream(30).getVideoTracks() : [...((v!.srcObject as MediaStream | null)?.getVideoTracks() ?? [])];
     const sound = audioRef.current?.srcObject as MediaStream | null;
     if (hears && sound) tracks.push(...sound.getAudioTracks());
-    if (!prefsRef.current.cursorInVideo) session.setCursorInVideo(true);
+    if (!terminal && !prefsRef.current.cursorInVideo) session.setCursorInVideo(true);
     try {
       recRef.current = new ScreenRecorder(new MediaStream(tracks), type.mime, sink, (reason) => recordingStopped(reason, name));
     } catch {
       session.stopRecording();
-      if (!prefsRef.current.cursorInVideo) session.setCursorInVideo(false);
+      if (!terminal && !prefsRef.current.cursorInVideo) session.setCursorInVideo(false);
       await sink.abort();
       say(t.capture.failed);
       return;
     }
+    setRecSince(Date.now());
+    say(null);
+  };
+
+  // A terminal recorded as text: an asciicast of what is shown, saved when it stops.
+  const startCast = async () => {
+    const api = termApi.current;
+    if (!session || !api) return;
+    if (!(await session.startRecording())) {
+      say(t.capture.refused);
+      return;
+    }
+    const name = captureName(hostName, new Date(), "cast");
+    const cast = api.cast();
+    let done = false;
+    recRef.current = {
+      stop: (reason: StopReason) => {
+        if (done) return;
+        done = true;
+        downloadBlob(new Blob([cast.stop()], { type: "application/x-asciicast" }), name);
+        recordingStopped(reason, name);
+      },
+    } as unknown as ScreenRecorder;
     setRecSince(Date.now());
     say(null);
   };
@@ -498,6 +570,65 @@ export function LiveSession({
     return () => window.clearInterval(every);
   }, [recSince]);
   const recTime = recSince === null ? "" : clock(Date.now() - recSince);
+
+  // A terminal opened here is shown at once; one that closed gives way to
+  // another; the first list after coming back says what was still open.
+  const [resumed, setResumed] = useState<string | null>(null);
+  const tabIds = tabs.map((x) => x.id).join(",");
+  useEffect(() => {
+    if (!terminal) return;
+    const ids = tabs.map((x) => x.id);
+    const fresh = ids.filter((id) => !knownTabs.current.includes(id));
+    if (knownTabs.current.length === 0 && view.terminalResumed && ids.length > 0) {
+      const name = view.host?.name || t.session.title;
+      setResumed(ids.length === 1 ? t.terminal.resumedOne.replace("{name}", name) : t.terminal.resumed.replace("{n}", String(ids.length)).replace("{name}", name));
+      window.setTimeout(() => setResumed(null), 7000);
+    }
+    if (opening.current && fresh.length > 0) {
+      opening.current = false;
+      setActiveTab(fresh[fresh.length - 1]!);
+    }
+    knownTabs.current = ids;
+    setActivity((a) => a.filter((id) => ids.includes(id)));
+    // tabIds stands for the list.
+  }, [terminal, tabIds]);
+  const showTab = (id: number) => {
+    setActiveTab(id);
+    setActivity((a) => a.filter((x) => x !== id));
+  };
+  const openTab = () => {
+    opening.current = true;
+    session?.openTerminal();
+  };
+  const setFont = (step: number) => {
+    const i = TERM_FONTS.indexOf(termFont);
+    const next = TERM_FONTS[Math.min(TERM_FONTS.length - 1, Math.max(0, (i < 0 ? 3 : i) + step))] ?? termFont;
+    setTermFont(next);
+    try {
+      window.localStorage.setItem(TERM_FONT_KEY, String(next));
+    } catch {
+      // storage blocked: the size lasts for this visit
+    }
+  };
+  const copyText = async (selectionOnly: boolean) => {
+    const text = termApi.current?.text(selectionOnly) ?? "";
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      say(t.terminal.copied);
+    } catch {
+      // the browser refused: nothing to do
+    }
+  };
+  const pasteText = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) termApi.current?.type(text);
+    } catch {
+      // the browser refused: Cmd+V / Ctrl+V in the terminal works too
+    }
+    termApi.current?.focus();
+  };
 
   const measure = async () => {
     const v = videoRef.current;
@@ -527,13 +658,33 @@ export function LiveSession({
     <div className={`stage${fullscreen.pseudo ? " is-pseudo-fullscreen" : ""}`} ref={stageRef}>
       <div className={`cap-zone${fsBar ? " is-fullscreen" : ""}`} onMouseEnter={fsBar ? keepPeek : undefined} onMouseLeave={fsBar ? dropPeek : undefined}>
         {showBar ? (
-          <div className="cap" role="toolbar" aria-label={t.session.screenOf.replace("{name}", hostName)}>
+          <div className="cap" role="toolbar" aria-label={(terminal ? t.terminal.title : t.session.screenOf).replace("{name}", hostName)}>
             <button type="button" className="bar-button bar-danger" aria-label={t.session.disconnect} title={t.session.disconnect} onClick={() => session?.hangUp()}>
               <CloseIcon />
             </button>
             <span className="cap-title">{hostName}</span>
             <span className="cap-divider" aria-hidden="true" />
-            {control && (
+            {control && terminal && (
+              <BarMenu label={t.terminal.keys} icon={<CommandIcon />} onOpen={onMenu}>
+                {(close) => (
+                  <>
+                    {TERMINAL_KEYS.map(([label, bytes]) => (
+                      <MenuItem
+                        key={label}
+                        onSelect={() => {
+                          close();
+                          termApi.current?.type(bytes);
+                          termApi.current?.focus();
+                        }}
+                      >
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </>
+                )}
+              </BarMenu>
+            )}
+            {control && !terminal && (
               <BarMenu label={t.keys.menu} icon={<CommandIcon />} onOpen={onMenu}>
                 {(close) => (
                   <>
@@ -587,21 +738,23 @@ export function LiveSession({
                 )}
               </BarMenu>
             )}
-            <button
-              type="button"
-              className={`bar-button chat-button${chatOpen ? " is-on" : ""}`}
-              aria-pressed={chatOpen}
-              aria-label={unread ? `${t.chat.title} (${unread})` : t.chat.title}
-              title={t.chat.title}
-              onClick={() => {
-                setChatOpen(!chatOpen);
-                setReadChat(view.chat.length);
-              }}
-            >
-              <ChatIcon size={18} />
-              {unread > 0 && <span className="badge">{unread}</span>}
-            </button>
-            {mayFiles && (
+            {!terminal && (
+              <button
+                type="button"
+                className={`bar-button chat-button${chatOpen ? " is-on" : ""}`}
+                aria-pressed={chatOpen}
+                aria-label={unread ? `${t.chat.title} (${unread})` : t.chat.title}
+                title={t.chat.title}
+                onClick={() => {
+                  setChatOpen(!chatOpen);
+                  setReadChat(view.chat.length);
+                }}
+              >
+                <ChatIcon size={18} />
+                {unread > 0 && <span className="badge">{unread}</span>}
+              </button>
+            )}
+            {mayFiles && !terminal && (
               <button type="button" className={`bar-button${filesOpen ? " is-on" : ""}`} aria-pressed={filesOpen} aria-label={t.files.title} title={t.files.title} onClick={() => setFilesOpen(!filesOpen)}>
                 <FolderIcon size={18} />
               </button>
@@ -627,6 +780,16 @@ export function LiveSession({
                     >
                       {recSince !== null ? t.capture.stop : t.capture.record}
                     </MenuItem>
+                    {terminal && recSince === null && (
+                      <MenuItem
+                        onSelect={() => {
+                          close();
+                          void startRecording(true);
+                        }}
+                      >
+                        {t.terminal.recordCast}
+                      </MenuItem>
+                    )}
                     <MenuSeparator />
                     <p className="bar-menu-note">{t.capture.shown}</p>
                   </>
@@ -645,12 +808,12 @@ export function LiveSession({
                 {recTime}
               </button>
             )}
-            {typeof navigator.mediaDevices?.getUserMedia === "function" && (
+            {!terminal && typeof navigator.mediaDevices?.getUserMedia === "function" && (
               <button type="button" className={`bar-button${callOpen ? " is-on" : ""}`} aria-pressed={callOpen} aria-label={t.call.start} title={t.call.start} disabled={callOpen} onClick={() => setCallOpen(true)}>
                 <CameraIcon size={18} />
               </button>
             )}
-            {hears && (
+            {hears && !terminal && (
               <button
                 type="button"
                 className={`bar-button${prefs.muted ? "" : " is-on"}`}
@@ -662,41 +825,121 @@ export function LiveSession({
                 <SoundIcon size={18} off={prefs.muted} />
               </button>
             )}
-            <BarMenu label={t.session.screenMenu} icon={<MonitorIcon />} onOpen={onMenu}>
-              {() => (
-                <>
-                  {view.displays.length > 1 && (
-                    <>
-                      <MenuSection title={t.session.display} />
-                      {view.displays.map((d, i) => (
-                        <MenuItem key={d.id} kind="radio" checked={d.id === view.display} onSelect={() => session?.selectDisplay(d.id)}>
-                          {d.name || t.session.displayN.replace("{n}", String(i + 1))} <span className="bar-menu-detail">{`${d.width}×${d.height}`}</span>
-                        </MenuItem>
-                      ))}
-                    </>
-                  )}
-                  <MenuSection title={t.session.quality} />
-                  {(["quality", "balanced", "speed"] as const).map((p) => (
-                    <MenuItem key={p} kind="radio" checked={prefs.preset === p} onSelect={() => update({ preset: p })}>
-                      {t.session.presets[p]}
+            {terminal && (
+              <BarMenu label={t.terminal.menu} icon={<TerminalIcon />} onOpen={onMenu}>
+                {(close) => (
+                  <>
+                    {view.host?.terminalTabs && (
+                      <>
+                        <MenuSection title={t.terminal.menu} />
+                        {tabs.map((x) => (
+                          <MenuItem
+                            key={x.id}
+                            kind="radio"
+                            checked={x.id === shownTab}
+                            onSelect={() => {
+                              close();
+                              showTab(x.id);
+                            }}
+                          >
+                            {x.name}
+                          </MenuItem>
+                        ))}
+                        {control && (
+                          <>
+                            <MenuSeparator />
+                            <MenuItem
+                              onSelect={() => {
+                                close();
+                                if (tabs.length < 16) openTab();
+                              }}
+                            >
+                              {t.terminal.newTab} <span className="bar-menu-detail">Alt+Shift+T</span>
+                            </MenuItem>
+                            <MenuItem
+                              onSelect={() => {
+                                close();
+                                setRenaming(shownTab);
+                              }}
+                            >
+                              {t.terminal.rename.replace("{name}", tabs.find((x) => x.id === shownTab)?.name ?? "")}
+                            </MenuItem>
+                            <MenuItem
+                              onSelect={() => {
+                                close();
+                                session?.closeTerminal(shownTab);
+                              }}
+                            >
+                              {t.terminal.close.replace("{name}", tabs.find((x) => x.id === shownTab)?.name ?? "")}{" "}
+                              <span className="bar-menu-detail">{t.terminal.closeHint}</span>
+                            </MenuItem>
+                          </>
+                        )}
+                      </>
+                    )}
+                    <MenuSection title={t.terminal.textSection} />
+                    <MenuItem onSelect={() => setFont(-1)}>{t.terminal.smaller}</MenuItem>
+                    <MenuItem onSelect={() => setFont(1)}>{t.terminal.bigger}</MenuItem>
+                    <MenuSeparator />
+                    <MenuItem
+                      onSelect={() => {
+                        close();
+                        void copyText(false);
+                      }}
+                    >
+                      {t.terminal.copyScreen}
                     </MenuItem>
-                  ))}
-                  <MenuSection title={t.session.view} />
-                  {(["fit", "original", "stretch"] as const).map((v) => (
-                    <MenuItem key={v} kind="radio" checked={prefs.view === v} onSelect={() => update({ view: v })}>
-                      {t.session.views[v]}
+                    {control && (
+                      <MenuItem
+                        onSelect={() => {
+                          close();
+                          void pasteText();
+                        }}
+                      >
+                        {t.terminal.paste}
+                      </MenuItem>
+                    )}
+                  </>
+                )}
+              </BarMenu>
+            )}
+            {!terminal && (
+              <BarMenu label={t.session.screenMenu} icon={<MonitorIcon />} onOpen={onMenu}>
+                {() => (
+                  <>
+                    {view.displays.length > 1 && (
+                      <>
+                        <MenuSection title={t.session.display} />
+                        {view.displays.map((d, i) => (
+                          <MenuItem key={d.id} kind="radio" checked={d.id === view.display} onSelect={() => session?.selectDisplay(d.id)}>
+                            {d.name || t.session.displayN.replace("{n}", String(i + 1))} <span className="bar-menu-detail">{`${d.width}×${d.height}`}</span>
+                          </MenuItem>
+                        ))}
+                      </>
+                    )}
+                    <MenuSection title={t.session.quality} />
+                    {(["quality", "balanced", "speed"] as const).map((p) => (
+                      <MenuItem key={p} kind="radio" checked={prefs.preset === p} onSelect={() => update({ preset: p })}>
+                        {t.session.presets[p]}
+                      </MenuItem>
+                    ))}
+                    <MenuSection title={t.session.view} />
+                    {(["fit", "original", "stretch"] as const).map((v) => (
+                      <MenuItem key={v} kind="radio" checked={prefs.view === v} onSelect={() => update({ view: v })}>
+                        {t.session.views[v]}
+                      </MenuItem>
+                    ))}
+                    <MenuSeparator />
+                    <MenuItem kind="check" checked={prefs.retina} onSelect={() => update({ retina: !prefs.retina })}>
+                      {t.session.retina}
                     </MenuItem>
-                  ))}
-                  <MenuSeparator />
-                  <MenuItem kind="check" checked={prefs.retina} onSelect={() => update({ retina: !prefs.retina })}>
-                    {t.session.retina}
-                  </MenuItem>
-                  <MenuItem kind="check" checked={prefs.cursorInVideo} onSelect={() => update({ cursorInVideo: !prefs.cursorInVideo })}>
-                    {t.session.cursorInVideo}
-                  </MenuItem>
-                </>
-              )}
-            </BarMenu>
+                    <MenuItem kind="check" checked={prefs.cursorInVideo} onSelect={() => update({ cursorInVideo: !prefs.cursorInVideo })}>
+                      {t.session.cursorInVideo}
+                    </MenuItem>
+                  </>
+                )}
+              </BarMenu>
+            )}
             <button
               type="button"
               className="bar-button"
@@ -729,6 +972,16 @@ export function LiveSession({
           {hostNotice}
         </p>
       )}
+      {resumed && (
+        <p className="stage-banner stage-banner-ok" role="status">
+          {resumed}
+        </p>
+      )}
+      {terminal && !control && (
+        <p className="stage-banner" role="status">
+          {t.terminal.readOnly}
+        </p>
+      )}
       {captureNote && (
         <p className="stage-banner" role="status">
           {captureNote}
@@ -750,6 +1003,55 @@ export function LiveSession({
           </button>
         </p>
       )}
+      {terminal && session ? (
+        <div className="stage-screen stage-terminal">
+          <Suspense fallback={null}>
+            <TerminalStage
+              session={session}
+              ids={tabs.map((x) => x.id)}
+              active={shownTab}
+              fontSize={termFont}
+              control={control}
+              onActivity={(id) => setActivity((a) => (a.includes(id) ? a : [...a, id]))}
+              onKey={(key) => {
+                if (!view.host?.terminalTabs) return;
+                if (key === "new") {
+                  if (control && tabs.length < 16) openTab();
+                  return;
+                }
+                const i = tabs.findIndex((x) => x.id === shownTab);
+                const next = tabs[(i + (key === "next" ? 1 : tabs.length - 1)) % tabs.length];
+                if (next) showTab(next.id);
+              }}
+              onApi={(api) => {
+                termApi.current = api;
+              }}
+            />
+          </Suspense>
+          {view.host?.terminalTabs && (
+            <TerminalTabs
+              tabs={tabs}
+              active={shownTab}
+              activity={activity}
+              control={control}
+              renaming={renaming}
+              onShow={showTab}
+              onOpen={openTab}
+              onRename={(id, name) => {
+                setRenaming(null);
+                if (name !== null) session.renameTerminal(id, name);
+                termApi.current?.focus();
+              }}
+              onStartRename={setRenaming}
+            />
+          )}
+          {notice && (
+            <p className="stage-notice" role="status">
+              {notice}
+            </p>
+          )}
+        </div>
+      ) : (
       <div
         className={`stage-screen view-${prefs.view}`}
         ref={screenRef}
@@ -832,6 +1134,73 @@ export function LiveSession({
           </p>
         )}
       </div>
+      )}
+    </div>
+  );
+}
+
+/** The terminals' strip, like tmux's: a click shows one, a double click renames it. */
+function TerminalTabs({
+  tabs,
+  active,
+  activity,
+  control,
+  renaming,
+  onShow,
+  onOpen,
+  onRename,
+  onStartRename,
+}: {
+  tabs: TerminalTab[];
+  active: number;
+  activity: number[];
+  control: boolean;
+  renaming: number | null;
+  onShow: (id: number) => void;
+  onOpen: () => void;
+  onRename: (id: number, name: string | null) => void;
+  onStartRename: (id: number) => void;
+}) {
+  return (
+    <div className="term-tabs" role="tablist" aria-label={t.terminal.menu}>
+      {tabs.map((x, i) =>
+        renaming === x.id ? (
+          <input
+            key={x.id}
+            className="term-tab-edit"
+            aria-label={t.terminal.renameField}
+            defaultValue={x.name}
+            maxLength={40}
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={(e) => onRename(x.id, e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onRename(x.id, e.currentTarget.value);
+              else if (e.key === "Escape") onRename(x.id, null);
+            }}
+          />
+        ) : (
+          <button
+            key={x.id}
+            type="button"
+            role="tab"
+            aria-selected={x.id === active}
+            className={`term-tab${x.id === active ? " is-on" : ""}`}
+            title={activity.includes(x.id) ? `${x.name} · ${t.terminal.newOutput}` : x.name}
+            onClick={() => onShow(x.id)}
+            onDoubleClick={() => control && onStartRename(x.id)}
+          >
+            <span className="term-tab-n">{i + 1}</span>
+            <span className="term-tab-name">{x.name}</span>
+            {activity.includes(x.id) && <span className="term-tab-dot" aria-label={t.terminal.newOutput} />}
+          </button>
+        ),
+      )}
+      {control && tabs.length < 16 && (
+        <button type="button" className="term-tab term-tab-new" aria-label={t.terminal.newTab} title={`${t.terminal.newTab} (Alt+Shift+T)`} onClick={onOpen}>
+          +
+        </button>
+      )}
     </div>
   );
 }

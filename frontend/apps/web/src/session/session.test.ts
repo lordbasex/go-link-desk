@@ -242,38 +242,86 @@ describe("Screenshots and recording", () => {
 });
 
 describe("go-link-desk-terminal", () => {
-  it("knows a terminal from its welcome, keeps the shell's first output for the page, and says how the shell ended", async () => {
+  type Inner = { onControl(m: unknown): void; stream: { sendControl(m: unknown): void; opts: { onTerminalChannel(ch: unknown): void } } };
+  const channel = () => {
+    const typed: Uint8Array[] = [];
+    return { typed, ch: { readyState: "open", onmessage: null as ((e: { data: unknown }) => void) | null, send: (b: Uint8Array) => typed.push(b) } };
+  };
+  const bytes = (s: string) => new TextEncoder().encode(s);
+  const framed = (id: number, s: string) => {
+    const b = bytes(s);
+    const f = new Uint8Array(4 + b.length);
+    new DataView(f.buffer).setUint32(0, id);
+    f.set(b, 4);
+    return f;
+  };
+
+  it("an older one (1.4): one shell, its first output kept for the page, and its end ends the session", async () => {
     const client = new FakeClient();
     const { s } = start(client);
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
-    const inner = s as unknown as { onControl(m: unknown): void; stream: { sendControl(m: unknown): void; opts: { onTerminalChannel(ch: unknown): void } } };
+    const inner = s as unknown as Inner;
     const sent: unknown[] = [];
     inner.stream.sendControl = (m) => sent.push(m);
     inner.onControl({ type: "permissions", permissions: { view: true, control: true } });
     inner.onControl({ type: "welcome", host: { name: "pi", os: "linux" }, source: "terminal" });
-    expect(s.current.host).toEqual({ name: "pi", os: "linux", terminal: true });
+    expect(s.current.host).toEqual({ name: "pi", os: "linux", terminal: true, terminalTabs: false });
 
-    const typed: Uint8Array[] = [];
-    const ch = { readyState: "open", onmessage: null as ((e: { data: unknown }) => void) | null, send: (b: Uint8Array) => typed.push(b) };
+    const { typed, ch } = channel();
     inner.stream.opts.onTerminalChannel(ch);
     expect(s.hasTerminal).toBe(true);
-    ch.onmessage?.({ data: new TextEncoder().encode("pi@pi:~$ ").buffer });
+    ch.onmessage?.({ data: bytes("pi@pi:~$ ").buffer });
     const seen: string[] = [];
-    const detach = s.attachTerminal((b) => seen.push(new TextDecoder().decode(b)));
-    ch.onmessage?.({ data: new TextEncoder().encode("ls\r\n").buffer });
-    expect(seen).toEqual(["pi@pi:~$ ", "ls\r\n"]);
+    const detach = s.attachTerminal((id, b) => seen.push(`${id}:${new TextDecoder().decode(b)}`));
+    ch.onmessage?.({ data: bytes("ls\r\n").buffer });
+    expect(seen).toEqual(["0:pi@pi:~$ ", "0:ls\r\n"]);
     detach();
 
-    s.sendTerminal(new TextEncoder().encode("exit\r"));
-    expect(typed).toHaveLength(1);
+    s.sendTerminal(0, bytes("exit\r"));
+    expect(new TextDecoder().decode(typed[0])).toBe("exit\r");
     s.sendTerminalSize(120.4, 40);
     expect(sent.at(-1)).toEqual({ type: "terminal_size", cols: 120, rows: 40 });
     inner.onControl({ type: "permissions", permissions: { view: true } });
-    s.sendTerminal(new TextEncoder().encode("rm -rf ~\r"));
+    s.sendTerminal(0, bytes("rm -rf ~\r"));
     expect(typed).toHaveLength(1); // may only watch
 
     inner.onControl({ type: "terminal_exit", code: 3 });
     expect(s.current.terminalExit).toBe(3);
+  });
+
+  it("terminals with names (1.5): each one's bytes after its id, opened, renamed and closed by message; exit closes only that one", async () => {
+    const client = new FakeClient();
+    const { s } = start(client);
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const inner = s as unknown as Inner;
+    const sent: unknown[] = [];
+    inner.stream.sendControl = (m) => sent.push(m);
+    inner.onControl({ type: "permissions", permissions: { view: true, control: true } });
+    inner.onControl({ type: "welcome", host: { name: "pi", os: "linux" }, source: "terminal", features: ["terminal-tabs"] });
+    expect(s.current.host?.terminalTabs).toBe(true);
+    inner.onControl({ type: "terminal_tabs", tabs: [{ id: 1, name: "shell", started: 5 }, { id: 7, name: "logs", started: 9 }], max: 16 });
+    expect(s.current.terminalTabs).toEqual([{ id: 1, name: "shell", started: 5 }, { id: 7, name: "logs", started: 9 }]);
+
+    const { typed, ch } = channel();
+    inner.stream.opts.onTerminalChannel(ch);
+    ch.onmessage?.({ data: framed(7, "tail -f").buffer });
+    const seen: string[] = [];
+    s.attachTerminal((id, b) => seen.push(`${id}:${new TextDecoder().decode(b)}`));
+    ch.onmessage?.({ data: framed(1, "$ ").buffer });
+    expect(seen).toEqual(["7:tail -f", "1:$ "]);
+
+    s.sendTerminal(7, bytes("q"));
+    expect([...typed[0]!]).toEqual([0, 0, 0, 7, 113]);
+    s.openTerminal("build");
+    s.renameTerminal(7, "  syslog ");
+    s.closeTerminal(1);
+    expect(sent.slice(-3)).toEqual([
+      { type: "terminal_open", name: "build" },
+      { type: "terminal_rename", id: 7, name: "syslog" },
+      { type: "terminal_close", id: 1 },
+    ]);
+    inner.onControl({ type: "terminal_exit", id: 7, code: 0 });
+    expect(s.current.terminalExit).toBeNull();
   });
 });
 

@@ -94,7 +94,23 @@ type viewer struct {
 	goneSet sync.Once
 }
 
-func (v *viewer) leave() { v.goneSet.Do(func() { close(v.gone) }) }
+// leave stops what goes to v; true the first time.
+func (v *viewer) leave() (first bool) {
+	v.goneSet.Do(func() { close(v.gone); first = true })
+	return first
+}
+
+// detach lets v go: the terminals stay, running.
+func (t *Service) detach(v *viewer) {
+	t.mu.Lock()
+	if t.viewer == v {
+		t.viewer = nil
+	}
+	t.mu.Unlock()
+	if v.leave() {
+		t.log.Info("terminals detached: they go on running", "peer_id", v.peer)
+	}
+}
 
 // TabInfo is a terminal as the viewer lists it (terminal_tabs).
 type TabInfo struct {
@@ -152,15 +168,9 @@ func (t *Service) Allow(peerID string, perm models.Permissions) {
 		delete(t.allowed, peerID)
 		delete(t.waiting, peerID)
 		v := t.viewer
-		if v != nil && v.peer == peerID {
-			t.viewer = nil
-		} else {
-			v = nil
-		}
 		t.mu.Unlock()
-		if v != nil {
-			v.leave()
-			t.log.Info("terminals detached: they go on running", "peer_id", peerID)
+		if v != nil && v.peer == peerID {
+			t.detach(v)
 		}
 		return
 	}
@@ -192,7 +202,7 @@ func (t *Service) attach(peerID string, dc *webrtc.DataChannel, perm models.Perm
 	empty := len(t.tabs) == 0
 	t.mu.Unlock()
 	if old != nil {
-		old.leave()
+		t.detach(old)
 	}
 	if empty {
 		if _, err := t.open(""); err != nil {
@@ -222,14 +232,7 @@ func (t *Service) attach(peerID string, dc *webrtc.DataChannel, perm models.Perm
 			}
 		}
 	})
-	dc.OnClose(func() {
-		v.leave()
-		t.mu.Lock()
-		if t.viewer == v {
-			t.viewer = nil
-		}
-		t.mu.Unlock()
-	})
+	dc.OnClose(func() { t.detach(v) })
 	welcome := func() {
 		t.mu.Lock()
 		if t.viewer != v || v.open {
@@ -246,7 +249,7 @@ func (t *Service) attach(peerID string, dc *webrtc.DataChannel, perm models.Perm
 		}
 		v.sendMu.Lock() // output from now on waits for the history
 		t.mu.Unlock()
-		t.sendTabs()
+		t.sendTabsTo(v, !empty)
 		for _, f := range replay {
 			t.send1(v, f)
 		}
@@ -393,14 +396,20 @@ func (t *Service) sendTabs() {
 	t.mu.Lock()
 	v := t.viewer
 	t.mu.Unlock()
-	if v == nil {
-		return
+	if v != nil {
+		t.sendTabsTo(v, false)
 	}
+}
+
+// sendTabsTo sends v the list; resumed says the terminals were there
+// before it came (the first list after a viewer comes back).
+func (t *Service) sendTabsTo(v *viewer, resumed bool) {
 	msg, _ := json.Marshal(struct {
-		Type string    `json:"type"`
-		Tabs []TabInfo `json:"tabs"`
-		Max  int       `json:"max"`
-	}{"terminal_tabs", t.Tabs(), MaxTabs})
+		Type    string    `json:"type"`
+		Tabs    []TabInfo `json:"tabs"`
+		Max     int       `json:"max"`
+		Resumed bool      `json:"resumed,omitempty"`
+	}{"terminal_tabs", t.Tabs(), MaxTabs, resumed})
 	t.send(v.peer, msg)
 }
 

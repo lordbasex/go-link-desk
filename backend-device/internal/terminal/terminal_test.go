@@ -228,6 +228,9 @@ func TestTerminalsOutliveTheViewer(t *testing.T) {
 	b := connect("V")
 	b.wait("the welcome with tabs", func() bool { return strings.Contains(strings.Join(b.control, " "), `"features":["terminal-tabs"]`) })
 	b.wait("a first terminal", func() bool { return strings.Contains(lastTabs(b), `"name":"shell"`) })
+	if strings.Contains(strings.Join(b.control, " "), `"resumed"`) {
+		t.Fatal("a first terminal was taken as resumed")
+	}
 	typeIn(b, 1, "echo hola-$((40+2))\n")
 	b.wait("its output", func() bool { return strings.Contains(tabOut(b, 1), "hola-42") })
 
@@ -260,7 +263,9 @@ func TestTerminalsOutliveTheViewer(t *testing.T) {
 
 	// Back: the same terminal, and what it showed meanwhile.
 	w := connect("W")
-	w.wait("the terminal again", func() bool { return strings.Contains(lastTabs(w), `"id":1,"name":"shell"`) })
+	w.wait("the terminal again", func() bool {
+		return strings.Contains(lastTabs(w), `"id":1,"name":"shell"`) && strings.Contains(lastTabs(w), `"resumed":true`)
+	})
 	w.wait("what happened meanwhile", func() bool {
 		return strings.Contains(tabOut(w, 1), "despues-2") && strings.Contains(tabOut(w, 1), "hola-42")
 	})
