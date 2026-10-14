@@ -22,11 +22,13 @@ data class Permissions(
     val audio: Boolean = false,
     val clipboard: Boolean = false,
     val files: Boolean = false,
+    /** Screenshots and recordings, each asked of the computer first. */
+    val record: Boolean = false,
 ) {
     companion object {
         fun parse(v: JsonElement?): Permissions {
             val o = v.obj()
-            return Permissions(o["control"].isTrue(), o["audio"].isTrue(), o["clipboard"].isTrue(), o["files"].isTrue())
+            return Permissions(o["control"].isTrue(), o["audio"].isTrue(), o["clipboard"].isTrue(), o["files"].isTrue(), o["record"].isTrue())
         }
     }
 }

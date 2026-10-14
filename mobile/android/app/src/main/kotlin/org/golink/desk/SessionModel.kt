@@ -114,6 +114,16 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
     var onHostPointer: ((Double, Double, Boolean) -> Unit)? = null
 
     private var audio: AudioTrack? = null
+
+    /** Screenshots and recording (Capture.kt): the recording's start, and a line about the last one. */
+    var recordingSince by mutableStateOf<Long?>(null)
+        private set
+    var captureNote by mutableStateOf<String?>(null)
+        private set
+    val frameTap = FrameTap()
+    private var recorder: SessionRecorder? = null
+    private val clearNote = Runnable { captureNote = null }
+    private val recordLimit = Runnable { stopRecording(context.getString(R.string.rec_limit)) }
     private val meter = StatsMeter()
     private var ticking = false
     private val tick = object : Runnable {
@@ -146,6 +156,9 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
             }
         }
         ev.permissions = { permissions = it }
+        ev.recordingStopped = {
+            stopRecording(context.getString(if (session.status.isOver) R.string.rec_session_ended else R.string.rec_host_stopped))
+        }
         ev.displays = { d, current ->
             displays = d
             currentDisplay = current
@@ -180,6 +193,7 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
             main.postDelayed(tick, 2000)
         }
         if (st.isOver) {
+            stopRecording(context.getString(R.string.rec_session_ended))
             ticking = false
             main.removeCallbacks(tick)
         } else if (st == SessionStatus.Live && !app.guideSeen) {
@@ -258,6 +272,56 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
 
     fun hangUp() = session.hangUp()
 
+    // Screenshots and recording
+
+    /** A screenshot: the picture now, saved in Pictures › go-link Desk once the computer shows it. */
+    fun takeScreenshot() {
+        val shot = frameTap.snapshot() ?: return
+        session.askScreenshot { yes ->
+            if (!yes) return@askScreenshot note(context.getString(R.string.rec_refused))
+            val ok = MediaSaver.saveImage(context, shot, MediaSaver.name(hostName, "png"))
+            note(context.getString(if (ok) R.string.shot_saved else R.string.shot_failed))
+        }
+    }
+
+    fun toggleRecording() {
+        if (recordingSince != null) return stopRecording(context.getString(R.string.rec_saved))
+        session.startRecording { yes ->
+            if (!yes) return@startRecording note(context.getString(R.string.rec_refused))
+            val file = java.io.File(context.cacheDir, "go-link Desk ${System.nanoTime()}.mp4")
+            val r = SessionRecorder(file, permissions.audio)
+            recorder = r
+            frameTap.recorder = r
+            if (permissions.audio) audio?.addSink(r)
+            // The computer draws its pointer into the picture while it is recorded.
+            session.setCursorInVideo(true)
+            recordingSince = System.currentTimeMillis()
+            main.postDelayed(recordLimit, MAX_RECORDING_MS)
+        }
+    }
+
+    private fun stopRecording(said: String) {
+        val r = recorder ?: return
+        recorder = null
+        main.removeCallbacks(recordLimit)
+        recordingSince = null
+        frameTap.recorder = null
+        audio?.removeSink(r)
+        session.stopRecording()
+        if (!status.isOver) session.setCursorInVideo(false)
+        val name = MediaSaver.name(hostName, "mp4")
+        r.finish { ok ->
+            val saved = ok && MediaSaver.saveVideo(context, r.file, name)
+            main.post { note(if (saved) said else context.getString(R.string.rec_failed)) }
+        }
+    }
+
+    private fun note(text: String) {
+        captureNote = text
+        main.removeCallbacks(clearNote)
+        main.postDelayed(clearNote, 5000)
+    }
+
     /** Back to Home. */
     fun close() {
         session.hangUp()
@@ -302,7 +366,9 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
 
     override fun onVideo(track: VideoTrack) {
         Log.i(TAG, "video track")
+        video?.removeSink(frameTap)
         video = track
+        track.addSink(frameTap)
     }
 
     override fun onAudio(track: AudioTrack) {
@@ -316,6 +382,9 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
 
     override fun onMediaClosed() {
         main.post {
+            stopRecording(context.getString(R.string.rec_session_ended))
+            video?.removeSink(frameTap)
+            frameTap.clear()
             video = null
             audio = null
             files = null
@@ -326,5 +395,8 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
     companion object {
         /** The session's steps in the log (never a code or a name). */
         const val TAG = "go-link-desk"
+
+        /** A recording stops by itself after 2 hours, as everywhere else. */
+        const val MAX_RECORDING_MS = 2 * 60 * 60 * 1000L
     }
 }

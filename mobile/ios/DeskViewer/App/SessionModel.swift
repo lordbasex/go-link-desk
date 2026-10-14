@@ -53,6 +53,14 @@ final class SessionModel: ObservableObject, MediaListener {
     }
     @Published var toast: String?
     private var toastTimer: Timer?
+    /** Screenshots and recording (Capture.swift): the recording's start, and a line about the last one. */
+    @Published private(set) var recordingSince: Date?
+    @Published private(set) var captureNote: String?
+    let frameTap = FrameTap()
+    private var recorder: SessionRecorder?
+    private var recordLimit: Timer?
+    private var noteTimer: Timer?
+    static let maxRecording: TimeInterval = 2 * 60 * 60
     /** The person at the computer is writing a message. */
     @Published private(set) var hostTyping = false
     private var hostTypingTimer: Timer?
@@ -107,6 +115,12 @@ final class SessionModel: ObservableObject, MediaListener {
             }
         }
         ev.permissions = { [weak self] p in self?.permissions = p }
+        ev.recordingStopped = { [weak self] in
+            guard let self else { return }
+            self.stopRecording(self.session.status.isOver
+                ? String(localized: "The session ended; the recording is in Photos.")
+                : String(localized: "The person at the computer stopped the recording; what was recorded is in Photos."))
+        }
         ev.displays = { [weak self] d, current in
             self?.displays = d
             self?.currentDisplay = current
@@ -168,6 +182,7 @@ final class SessionModel: ObservableObject, MediaListener {
             break
         }
         if st.isOver {
+            stopRecording(String(localized: "The session ended; the recording is in Photos."))
             statsTimer?.invalidate()
             statsTimer = nil
             UIApplication.shared.isIdleTimerDisabled = false
@@ -257,6 +272,75 @@ final class SessionModel: ObservableObject, MediaListener {
         session.hangUp()
     }
 
+    // MARK: - Screenshots and recording
+
+    /** A screenshot: the picture now, saved to Photos once the computer shows it. */
+    func takeScreenshot() {
+        guard let image = frameTap.snapshot() else { return }
+        session.askScreenshot { [weak self] yes in
+            guard let self else { return }
+            guard yes else { return self.note(String(localized: "The computer did not allow it: the person there must tick “Take screenshots and record the screen”.")) }
+            PhotoSaver.save(image: image) { ok in
+                Task { @MainActor in
+                    self.note(ok ? String(localized: "Screenshot saved in Photos.") : String(localized: "The screenshot could not be saved: allow go-link Desk to add to Photos in Settings."))
+                }
+            }
+        }
+    }
+
+    func toggleRecording() {
+        if recordingSince != nil {
+            stopRecording(String(localized: "Recording saved in Photos."))
+            return
+        }
+        session.startRecording { [weak self] yes in
+            guard let self else { return }
+            guard yes else { return self.note(String(localized: "The computer did not allow it: the person there must tick “Take screenshots and record the screen”.")) }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("go-link Desk \(UUID().uuidString).mp4")
+            let r = SessionRecorder(url: url)
+            self.recorder = r
+            self.frameTap.record(into: r)
+            if self.permissions.audio { WebRtcEngine.shared.audioDevice.playoutTap = r }
+            // The computer draws its pointer into the picture while it is recorded.
+            self.session.setCursorInVideo(true)
+            self.recordingSince = Date()
+            self.recordLimit = Timer.scheduledTimer(withTimeInterval: Self.maxRecording, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.stopRecording(String(localized: "The recording reached its 2-hour limit and was saved in Photos.")) }
+            }
+        }
+    }
+
+    private func stopRecording(_ said: String) {
+        guard let r = recorder else { return }
+        recorder = nil
+        recordLimit?.invalidate()
+        recordLimit = nil
+        recordingSince = nil
+        frameTap.record(into: nil)
+        WebRtcEngine.shared.audioDevice.playoutTap = nil
+        session.stopRecording()
+        if !status.isOver { session.setCursorInVideo(false) }
+        r.finish { ok in
+            guard ok else {
+                Task { @MainActor in self.note(String(localized: "The recording could not be saved.")) }
+                return
+            }
+            PhotoSaver.save(video: r.url) { saved in
+                Task { @MainActor in
+                    self.note(saved ? said : String(localized: "The recording could not be saved: allow go-link Desk to add to Photos in Settings."))
+                }
+            }
+        }
+    }
+
+    private func note(_ text: String) {
+        captureNote = text
+        noteTimer?.invalidate()
+        noteTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.captureNote = nil }
+        }
+    }
+
     /** Back to Home. */
     func close() {
         session.hangUp()
@@ -298,7 +382,9 @@ final class SessionModel: ObservableObject, MediaListener {
 
     func onVideo(_ track: RTCVideoTrack) {
         SessionModel.log.info("video track")
+        video?.remove(frameTap)
         video = track
+        track.add(frameTap)
     }
 
     func onAudio(_ track: RTCAudioTrack) {
@@ -311,6 +397,8 @@ final class SessionModel: ObservableObject, MediaListener {
     }
 
     func onMediaClosed() {
+        stopRecording(String(localized: "The session ended; the recording is in Photos."))
+        video?.remove(frameTap)
         video = nil
         audio = nil
         files = nil

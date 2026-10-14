@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.security.MessageDigest
@@ -187,6 +188,9 @@ class SessionEvents {
 
     /** The password kept with the link was wrong (it changed there): forget it. */
     var passwordRejected: (() -> Unit)? = null
+
+    /** The computer stopped this viewer's recording (it took the permission away, or the session ended). */
+    var recordingStopped: (() -> Unit)? = null
 }
 
 /** Video presets (docs/protocol.md, "Video"). */
@@ -242,6 +246,13 @@ class DeskSession(
     private var early: Permissions? = null
     private var lastPassword = ""
     private var autoTried = false
+    private val asks = HashMap<Long, (Boolean) -> Unit>()
+    private val askTimers = HashMap<Long, Job>()
+    private var askSeq = 0L
+
+    /** The computer shows that this viewer records its screen. */
+    var recording = false
+        private set
 
     fun start() {
         removeListener = signal.addListener { handle(it) }
@@ -448,7 +459,28 @@ class DeskSession(
             }
             "permissions" -> {
                 permissions = Permissions.parse(m["permissions"])
+                if (!permissions.record && recording) {
+                    recording = false
+                    events.recordingStopped?.invoke()
+                }
                 events.permissions?.invoke(permissions)
+            }
+            "screenshot" -> answer(m["id"].num().coerceAtLeast(0.0).toLong(), m["ok"].isTrue())
+            "recording" -> {
+                // The answer to startRecording, or the computer stopping it (id 0).
+                val id = m["id"].num().coerceAtLeast(0.0).toLong()
+                val on = m["on"].isTrue() && permissions.record
+                if (on && id !in asks) {
+                    stopMessage() // a yes that came too late: nothing records here
+                } else {
+                    if (on) {
+                        recording = true
+                    } else if (recording) {
+                        recording = false
+                        if (id !in asks) events.recordingStopped?.invoke()
+                    }
+                    answer(id, on)
+                }
             }
             "notice" -> events.notice?.invoke(m["code"].str(40))
             "cursor" -> cursor(m)
@@ -598,6 +630,56 @@ class DeskSession(
         },
     )
 
+    /** Asks the computer before saving a picture of its screen: yes once the person there is shown it. */
+    fun askScreenshot(done: (Boolean) -> Unit) {
+        if (!permissions.record) return done(false)
+        ask(buildJsonObject { put("type", "screenshot") }, done)
+    }
+
+    /** Asks the computer to show that this viewer records: yes once the person there sees it, and only then may it start. */
+    fun startRecording(done: (Boolean) -> Unit) {
+        if (!permissions.record) return done(false)
+        ask(
+            buildJsonObject {
+                put("type", "recording")
+                put("on", true)
+            },
+            done,
+        )
+    }
+
+    /** Tells the computer the recording stopped. */
+    fun stopRecording() {
+        if (!recording) return
+        recording = false
+        if (!status.isOver) stopMessage()
+    }
+
+    private fun stopMessage() = control(
+        buildJsonObject {
+            put("type", "recording")
+            put("id", 0)
+            put("on", false)
+        },
+    )
+
+    private fun ask(msg: JsonObject, done: (Boolean) -> Unit) {
+        if (status.isOver) return done(false)
+        askSeq = if (askSeq >= 0xffff_ffffL) 1 else askSeq + 1
+        val id = askSeq
+        asks[id] = done
+        askTimers[id] = scope.launch {
+            delay(ASK_TIMEOUT_MS)
+            answer(id, false)
+        }
+        control(JsonObject(msg + ("id" to JsonPrimitive(id))))
+    }
+
+    private fun answer(id: Long, yes: Boolean) {
+        askTimers.remove(id)?.cancel()
+        asks.remove(id)?.invoke(yes)
+    }
+
     /** true: the computer draws its pointer into the picture; false: it sends its image and position. */
     fun setCursorInVideo(on: Boolean) = control(
         buildJsonObject {
@@ -709,6 +791,11 @@ class DeskSession(
         if (status.isOver) return
         joinTimer?.cancel()
         status = s
+        for (id in asks.keys.toList()) answer(id, false)
+        if (recording) {
+            recording = false
+            events.recordingStopped?.invoke()
+        }
         removeListener?.invoke()
         removeListener = null
         stateJob?.cancel()
@@ -722,6 +809,9 @@ class DeskSession(
     companion object {
         val CODECS = listOf("h264-high", "h264", "vp8")
         const val JOIN_TIMEOUT_MS = 20_000L
+
+        /** How long the computer has to answer a screenshot or recording request. */
+        const val ASK_TIMEOUT_MS = 5_000L
         const val MAX_CHAT = 2000
         private val END_REASONS = setOf("host", "viewer", "network", "signal", "idle", "revoked")
 

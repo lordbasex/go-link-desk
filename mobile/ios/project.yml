@@ -52,6 +52,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # Linked computers open with Face ID (their keys are in the keychain behind it).
         NSFaceIDUsageDescription: go-link Desk uses Face ID to open the computers you linked, so nobody else can reach them from this device.
+        # Screenshots and recordings of a session go to Photos (add only).
+        NSPhotoLibraryAddUsageDescription: go-link Desk saves the screenshots and recordings you take of a session in Photos.
         # Downloads from the computer show in the Files app (On My iPhone › go-link Desk).
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true

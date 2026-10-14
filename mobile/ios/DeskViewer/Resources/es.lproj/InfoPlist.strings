@@ -2,3 +2,4 @@
 "NSCameraUsageDescription" = "go-link Desk no usa la cámara. La biblioteca WebRTC que incluye podría, para videollamadas, que esta versión no tiene.";
 "NSMicrophoneUsageDescription" = "go-link Desk no usa el micrófono. La biblioteca WebRTC que incluye podría, para llamadas, que esta versión no tiene.";
 "NSFaceIDUsageDescription" = "go-link Desk usa Face ID para abrir las computadoras que vinculaste, así nadie más puede entrar a ellas desde este equipo.";
+"NSPhotoLibraryAddUsageDescription" = "go-link Desk guarda en Fotos las capturas y grabaciones que sacás de una sesión.";

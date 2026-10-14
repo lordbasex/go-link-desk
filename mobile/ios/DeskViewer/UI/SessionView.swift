@@ -37,6 +37,34 @@ struct SessionView: View {
             if !model.status.isOver && model.status != .joining && model.status != .waiting {
                 if model.locked { lockBadge } else { toolbar }
             }
+            if let since = model.recordingSince, !model.status.isOver {
+                Button { model.toggleRecording() } label: {
+                    TimelineView(.periodic(from: since, by: 1)) { ctx in
+                        HStack(spacing: 6) {
+                            Circle().fill(.red).frame(width: 9, height: 9)
+                            Text(verbatim: Self.clock(ctx.date.timeIntervalSince(since))).monospacedDigit()
+                        }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(.red.opacity(0.35), in: Capsule())
+                }
+                .accessibilityLabel(Text("Stop recording"))
+                .padding(.top, 56)
+            }
+            if let note = model.captureNote {
+                Text(verbatim: note)
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.75), in: Capsule())
+                    .padding(.top, 96)
+                    .padding(.horizontal, 16)
+            }
             if model.showStats, model.status == .live {
                 StatsPanel(stats: model.stats, sent: nil)
                     .padding(.top, 64)
@@ -147,6 +175,9 @@ struct SessionView: View {
                     Button { model.showFiles = true } label: { Image(systemName: "folder") }
                         .accessibilityLabel(Text("Files"))
                 }
+                if model.permissions.record {
+                    captureMenu
+                }
                 screenMenu
                 if !narrow {
                     Button { withAnimation { model.locked = true } } label: { Image(systemName: "lock") }
@@ -202,6 +233,30 @@ struct SessionView: View {
             Image(systemName: "command")
         }
         .accessibilityLabel(Text("Special keys"))
+    }
+
+    private var captureMenu: some View {
+        Menu {
+            Button { model.takeScreenshot() } label: { Label("Take a screenshot", systemImage: "camera") }
+            Button { model.toggleRecording() } label: {
+                if model.recordingSince != nil {
+                    Label("Stop recording", systemImage: "stop.circle")
+                } else {
+                    Label("Record the screen", systemImage: "record.circle")
+                }
+            }
+            Section { Text("The person at the computer sees when you take a screenshot or record.") }
+        } label: {
+            Image(systemName: model.recordingSince != nil ? "record.circle.fill" : "record.circle")
+                .foregroundStyle(model.recordingSince != nil ? Color.red : Color.primary)
+        }
+        .accessibilityLabel(Text("Screenshot and recording"))
+    }
+
+    /** A recording's length: "4:05", "1:02:09". */
+    static func clock(_ t: TimeInterval) -> String {
+        let s = max(0, Int(t))
+        return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }
 
     private var screenMenu: some View {

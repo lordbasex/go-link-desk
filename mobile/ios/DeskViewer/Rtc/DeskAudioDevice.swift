@@ -2,6 +2,7 @@
 
 import AVFoundation
 import AudioToolbox
+import os
 @preconcurrency import WebRTC
 
 /**
@@ -56,6 +57,13 @@ final class DeskAudioDevice: NSObject, RTCAudioDevice {
     }
 
     private var micOn = false
+
+    /** A recording of the session takes what is played (SessionRecorder). */
+    private let tapLock = OSAllocatedUnfairLock<SessionRecorder?>(initialState: nil)
+    var playoutTap: SessionRecorder? {
+        get { tapLock.withLock { $0 } }
+        set { tapLock.withLock { $0 = newValue } }
+    }
 
     /** Called on the main queue when the play-and-record session starts or stops. */
     var onSessionChange: ((_ recording: Bool) -> Void)?
@@ -273,7 +281,11 @@ final class DeskAudioDevice: NSObject, RTCAudioDevice {
         let buffers = UnsafeMutableAudioBufferListPointer(data)
         if isPlaying, let d = delegate {
             let status = d.getPlayoutData(flags, timestamp, Int(bus), frames, data)
-            if status != noErr { zero(buffers) }
+            if status != noErr {
+                zero(buffers)
+            } else if let tap = playoutTap, let b = buffers.first, let p = b.mData?.assumingMemoryBound(to: Int16.self) {
+                tap.appendPCM(p, frames: Int(frames), channels: Int(b.mNumberChannels))
+            }
         } else {
             zero(buffers)
         }

@@ -93,6 +93,13 @@
     <string name="sound_on">Ativar o som</string>
     <string name="mute">Silenciar o som</string>
     <string name="show_details">Mostrar os detalhes</string>
+    <string name="capture">Captura e gravação</string>
+    <string name="take_screenshot">Tirar uma captura</string>
+    <string name="record_screen">Gravar a tela</string>
+    <string name="stop_recording">Parar a gravação</string>
+    <string name="capture_shown">A pessoa no computador vê quando você tira uma captura ou grava.</string>
+    <string name="rec_refused">O computador não permitiu: a pessoa lá precisa marcar “Tirar capturas e gravar a tela”.</string>
+    <string name="rec_failed">Não foi possível salvar a gravação.</string>
     <string name="hide_details">Ocultar os detalhes</string>
     <string name="copy">Copiar</string>
     <string name="paste">Colar</string>
@@ -171,6 +178,12 @@
     <string name="link_keystore">O armazenamento de chaves do aparelho recusou.</string>
     <string name="saved_in_downloads">Salvo em Downloads › go-link Desk:</string>
     <string name="share">Compartilhar</string>
+    <string name="shot_saved">Captura salva em Imagens › go-link Desk.</string>
+    <string name="shot_failed">Não foi possível salvar a captura.</string>
+    <string name="rec_saved">Gravação salva em Filmes › go-link Desk.</string>
+    <string name="rec_limit">A gravação chegou ao limite de 2 horas e foi salva em Filmes › go-link Desk.</string>
+    <string name="rec_host_stopped">A pessoa no computador parou a gravação; o que foi gravado está em Filmes › go-link Desk.</string>
+    <string name="rec_session_ended">A sessão terminou; a gravação está em Filmes › go-link Desk.</string>
     <string name="g_kb_hw">Um teclado conectado a este aparelho</string>
     <string name="g_mouse_title">Um mouse ou trackpad</string>
 </resources>

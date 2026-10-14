@@ -55,6 +55,9 @@ import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.KeyboardHide
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Monitor
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.RadioButtonChecked
+import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
@@ -192,6 +195,31 @@ fun SessionScreen(model: SessionModel, unlockName: String) {
                         Toolbar(model, narrow, barHidden) { barHidden = it }
                     }
                 }
+                model.recordingSince?.let { since ->
+                    if (!status.isOver) {
+                        val stopLabel = stringResource(R.string.stop_recording)
+                        var now by remember { mutableStateOf(System.currentTimeMillis()) }
+                        LaunchedEffect(since) {
+                            while (true) {
+                                now = System.currentTimeMillis()
+                                delay(1000)
+                            }
+                        }
+                        Row(
+                            Modifier.padding(top = 56.dp).background(Color.Red.copy(alpha = 0.35f), CircleShape)
+                                .clickable { model.toggleRecording() }.padding(horizontal = 12.dp, vertical = 7.dp)
+                                .semantics { contentDescription = stopLabel },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(Modifier.size(9.dp).background(Color.Red, CircleShape))
+                            Spacer(Modifier.width(6.dp))
+                            Text(clock(now - since), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+                model.captureNote?.let { note ->
+                    Pill(Icons.Outlined.RadioButtonChecked, note, Modifier.padding(top = 96.dp))
+                }
                 if (model.showStats && status == SessionStatus.Live) {
                     StatsPanel(model.stats, Modifier.align(Alignment.TopStart).padding(top = 64.dp, start = 12.dp))
                 }
@@ -293,6 +321,7 @@ private fun Toolbar(model: SessionModel, narrow: Boolean, hidden: Boolean, setHi
         if (model.permissions.files && model.files != null) {
             BarButton(Icons.Outlined.Folder, stringResource(R.string.files)) { model.showFiles = true }
         }
+        if (model.permissions.record) CaptureMenu(model)
         ScreenMenu(model, narrow)
         if (!narrow) {
             BarButton(Icons.Outlined.Lock, stringResource(R.string.lock)) { model.lock(true) }
@@ -352,6 +381,46 @@ private fun KeysMenu(model: SessionModel) {
             }
         }
     }
+}
+
+@Composable
+private fun CaptureMenu(model: SessionModel) {
+    var open by remember { mutableStateOf(false) }
+    val recording = model.recordingSince != null
+    Box {
+        BarButton(Icons.Outlined.RadioButtonChecked, stringResource(R.string.capture), tint = if (recording) Color.Red else Color.White) { open = true }
+        DropdownMenu(open, { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.take_screenshot)) },
+                leadingIcon = { Icon(Icons.Outlined.PhotoCamera, null) },
+                onClick = {
+                    open = false
+                    model.takeScreenshot()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(if (recording) R.string.stop_recording else R.string.record_screen)) },
+                leadingIcon = { Icon(if (recording) Icons.Outlined.StopCircle else Icons.Outlined.RadioButtonChecked, null) },
+                onClick = {
+                    open = false
+                    model.toggleRecording()
+                },
+            )
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.capture_shown),
+                fontSize = 12.sp,
+                color = colors.secondary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).widthIn(max = 260.dp),
+            )
+        }
+    }
+}
+
+/** A recording's length: "4:05", "1:02:09". */
+fun clock(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }
 
 @Composable

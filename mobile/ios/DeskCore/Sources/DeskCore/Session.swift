@@ -162,6 +162,8 @@ public final class SessionEvents {
     public var passwordAccepted: ((String) -> Void)?
     /** The password kept with the link was wrong (it changed there): forget it. */
     public var passwordRejected: (() -> Void)?
+    /** The computer stopped this viewer's recording (it took the permission away, or the session ended). */
+    public var recordingStopped: (() -> Void)?
 
     public init() {}
 }
@@ -174,6 +176,8 @@ public final class DeskSession: RtcPeerEvents {
     public static let codecs = ["h264-high", "h264", "vp8"]
     static let joinTimeoutMs = 20_000
     static let maxChat = 2000
+    /** How long the computer has to answer a screenshot or recording request. */
+    static let askTimeoutMs = 5000
 
     public let events = SessionEvents()
     public private(set) var status: SessionStatus = .joining
@@ -212,6 +216,11 @@ public final class DeskSession: RtcPeerEvents {
     private var early: Permissions?
     private var lastPassword = ""
     private var autoTried = false
+    private var asks: [UInt32: (Bool) -> Void] = [:]
+    private var askTimers: [UInt32: CancelHandle] = [:]
+    private var askSeq: UInt32 = 0
+    /** The computer shows that this viewer records its screen. */
+    public private(set) var recording = false
 
     /** The unattended password kept with the link: sent by itself when the computer asks for it. */
     public var savedPassword: String?
@@ -422,7 +431,26 @@ public final class DeskSession: RtcPeerEvents {
             events.displays?(displays, currentDisplay)
         case "permissions":
             permissions = Permissions.parse(m["permissions"])
+            if !permissions.record && recording {
+                recording = false
+                events.recordingStopped?()
+            }
             events.permissions?(permissions)
+        case "screenshot":
+            answer(UInt32(max(0, o["id"].num)), o["ok"].isTrue)
+        case "recording":
+            // The answer to startRecording, or the computer stopping it (id 0).
+            let id = UInt32(max(0, o["id"].num))
+            let on = o["on"].isTrue && permissions.record
+            if on && asks[id] == nil {
+                control(.obj(("type", "recording"), ("id", .number(0)), ("on", .bool(false)))) // a yes that came too late
+                return
+            }
+            if on { recording = true } else if recording {
+                recording = false
+                if asks[id] == nil { events.recordingStopped?() }
+            }
+            answer(id, on)
         case "notice":
             events.notice?(o["code"].str(40))
         case "cursor":
@@ -572,6 +600,40 @@ public final class DeskSession: RtcPeerEvents {
     }
 
     /** true: the computer draws its pointer into the picture; false: it sends its image and position. */
+    /** Asks the computer before saving a picture of its screen: yes once the person there is shown it. */
+    public func askScreenshot(_ done: @escaping (Bool) -> Void) {
+        guard permissions.record else { return done(false) }
+        ask(.obj(("type", "screenshot")), done)
+    }
+
+    /** Asks the computer to show that this viewer records: yes once the person there sees it, and only then may it start. */
+    public func startRecording(_ done: @escaping (Bool) -> Void) {
+        guard permissions.record else { return done(false) }
+        ask(.obj(("type", "recording"), ("on", .bool(true))), done)
+    }
+
+    /** Tells the computer the recording stopped. */
+    public func stopRecording() {
+        guard recording else { return }
+        recording = false
+        if !status.isOver { control(.obj(("type", "recording"), ("id", .number(0)), ("on", .bool(false)))) }
+    }
+
+    private func ask(_ msg: JSON, _ done: @escaping (Bool) -> Void) {
+        guard !status.isOver, case var .object(o) = msg else { return done(false) }
+        askSeq = askSeq == UInt32.max ? 1 : askSeq + 1
+        let id = askSeq
+        asks[id] = done
+        askTimers[id] = scheduler.after(ms: DeskSession.askTimeoutMs) { [weak self] in self?.answer(id, false) }
+        o["id"] = .number(Double(id))
+        control(.object(o))
+    }
+
+    private func answer(_ id: UInt32, _ yes: Bool) {
+        askTimers.removeValue(forKey: id)?.cancel()
+        asks.removeValue(forKey: id)?(yes)
+    }
+
     public func setCursorInVideo(_ on: Bool) {
         control(.obj(("type", "cursor_mode"), ("in_video", .bool(on))))
     }
@@ -660,6 +722,11 @@ public final class DeskSession: RtcPeerEvents {
         guard !status.isOver else { return }
         joinTimer?.cancel()
         status = s
+        for id in Array(asks.keys) { answer(id, false) }
+        if recording {
+            recording = false
+            events.recordingStopped?()
+        }
         listener?.cancel()
         stateListener?.cancel()
         let p = peer
