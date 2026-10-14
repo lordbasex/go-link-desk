@@ -334,3 +334,4 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .term-tab-edit { width: 14ch; margin: 3px 0; padding: 3px 8px; border: 1px solid #58a6ff; border-radius: 4px; background: #0d1117; color: #e6edf3; font: inherit; }
 .stage-banner-ok { background: var(--tint-ok-bg); border-bottom-color: var(--tint-ok-border); }
 .stage-terminal .terminal-box { padding-top: 56px; } /* under the floating toolbar */
+.bar-menu-key { display: inline-block; min-width: 2.2em; font-weight: 600; font-variant-numeric: tabular-nums; }

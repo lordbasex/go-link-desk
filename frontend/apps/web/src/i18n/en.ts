@@ -161,6 +161,8 @@ export const en = {
     failed: "The recording could not be saved.",
   },
   terminal: {
+    fontSize: "Text size: {n}",
+    fontReset: "Normal size",
     menu: "Terminals",
     newTab: "New terminal",
     rename: "Rename “{name}”",

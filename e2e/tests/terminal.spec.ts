@@ -96,6 +96,17 @@ test("go-link-desk-terminal: linked in its own terminal, terminals with names in
     expect(devices).toHaveLength(1);
     expect(devices[0]!.terminal).toBe(true);
 
+    // The text size, in the monitor's menu, as a screen's settings: it stays open.
+    await page.getByRole("button", { name: "Screen", exact: true }).click();
+    await expect(page.getByText("Text size: 14")).toBeVisible();
+    await page.getByRole("menuitem", { name: /Bigger text/ }).click();
+    await page.getByRole("menuitem", { name: /Bigger text/ }).click();
+    await expect(page.getByText("Text size: 18")).toBeVisible();
+    await page.screenshot({ path: "test-results/terminal-text-size.png" });
+    await page.getByRole("menuitem", { name: "Normal size" }).click();
+    await expect(page.getByText("Text size: 14")).toBeVisible();
+    await page.keyboard.press("Escape");
+
     // A second terminal; exit closes only it.
     await page.getByRole("button", { name: "New terminal" }).click();
     await expect(page.getByRole("tab", { name: /shell 2/ })).toHaveAttribute("aria-selected", "true");

@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **A terminal's text size is in the monitor button**, like a screen's settings: A+, A− and Normal size, with the size shown and the menu kept open while you adjust (it was in the Terminals menu).
+
 ## [1.5.0] - 2026-10-14
 
 go-link-desk-terminal's terminals in the usual session screen, with tabs and names, kept running like screen, recorded as video or .cast, and files like a desktop. Received files land in Downloads/go-link-desk.
