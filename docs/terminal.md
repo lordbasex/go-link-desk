@@ -10,6 +10,20 @@ A remote terminal for a computer without a desktop (a Raspberry Pi, a server, a 
 - **Password from a script:** `go-link-desk-terminal password --stdin` reads one line, for a setup script.
 - **No picture, sound, clipboard or files:** a session's connection carries the `control` channel and a `terminal` channel only (`StreamConfig.DataOnly`).
 
+## Installing it
+
+As the user whose shell the sessions get:
+
+```sh
+curl -fsSL https://desk.go-link.org/install.sh | sh -s -- --terminal
+```
+
+It takes the release's package for the system (`go-link-desk-terminal_<version>_<amd64|arm64|armhf>.deb`, `.rpm`, the Arch package) or, with `--user` or without a package manager, the `.tar.gz` (`go-link-desk-terminal-v<version>-linux-<amd64|arm64|armv7>.tar.gz`, whose `install.sh` puts it in `~/.local/bin`), checks it against `SHA256SUMS`, and starts the systemd user service (`/usr/lib/systemd/user/go-link-desk-terminal.service`, or `~/.config/systemd/user/` for the user install) with `loginctl enable-linger`, so it runs from boot without a login. `--uninstall` removes it. The packages depend on nothing; their post-install script only says how to enable the service, since a package cannot know whose shell it should be.
+
+The unit leaves `NoNewPrivileges` and the like out on purpose: they would follow into the sessions' shells and break `sudo` there.
+
+Building them: `make terminal-packages-<amd64|arm64|arm>` (pure Go, no Docker; nFPM for the packages). The release carries all twelve, listed in `SHA256SUMS`. It does not update itself: running the installer again installs the latest release.
+
 ## Using it
 
 ```sh

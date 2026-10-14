@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# go-link-desk-terminal as .deb, .rpm and Arch packages (nFPM). The Makefile
+# fills @VERSION@, @ARCH@ (nFPM's: amd64, arm64, arm7) and @DIR@ (the
+# unpacked terminal-package folder):
+#
+#   make terminal-packages-arm64
+name: go-link-desk-terminal
+version: "@VERSION@"
+arch: "@ARCH@"
+platform: linux
+section: net
+priority: optional
+maintainer: Federico Pereira <lord.basex@gmail.com>
+vendor: go-link
+homepage: https://desk.go-link.org
+license: MIT
+description: |-
+  A remote terminal from the browser, peer to peer.
+  For a computer without a desktop (a Raspberry Pi, a server): each session
+  is a shell of its own on a new pseudo-terminal, in the browser at
+  desk.go-link.org, encrypted end to end. Nothing listens on a port; only
+  browsers linked here, with a password, come in.
+
+contents:
+  - src: "@DIR@/go-link-desk-terminal"
+    dst: /usr/bin/go-link-desk-terminal
+    file_info: { mode: 0755 }
+  - src: "@DIR@/go-link-desk-terminal.system.service"
+    dst: /usr/lib/systemd/user/go-link-desk-terminal.service
+    file_info: { mode: 0644 }
+  - src: "@DIR@/README.txt"
+    dst: /usr/share/doc/go-link-desk-terminal/README.txt
+    file_info: { mode: 0644 }
+  - src: "@DIR@/LICENSE"
+    dst: /usr/share/doc/go-link-desk-terminal/LICENSE
+    file_info: { mode: 0644 }
+  - src: "@DIR@/THIRD_PARTY_NOTICES.md"
+    dst: /usr/share/doc/go-link-desk-terminal/THIRD_PARTY_NOTICES.md
+    file_info: { mode: 0644 }
+
+scripts:
+  postinstall: "@DIR@/postinstall.sh"
