@@ -87,8 +87,8 @@ func main() {
 }
 
 type serveFlags struct {
-	config, signal, name, shell string
-	debug, allowRoot            bool
+	config, signal, name, shell, user string
+	debug, allowRoot                  bool
 }
 
 var sf serveFlags
@@ -100,6 +100,7 @@ func flags(out io.Writer) *flag.FlagSet {
 	fs.StringVar(&sf.signal, "server-signaling", "", "the signaling server (default: device.json's, else go-link Desk's)")
 	fs.StringVar(&sf.name, "name", "", "the name viewers see (default: the host name)")
 	fs.StringVar(&sf.shell, "shell", "", "the shell sessions get (default: the user's login shell)")
+	fs.StringVar(&sf.user, "user", "", "commands run as root: the user whose service to use (when several run it)")
 	fs.BoolVar(&sf.debug, "debug", false, "log more")
 	fs.BoolVar(&sf.allowRoot, "allow-root", false, "let it run as root: every session would be a root shell")
 	return fs
@@ -206,7 +207,7 @@ func serve(args []string) error {
 		Path: socketPath(path), Log: logger,
 		Status: func() terminal.Status {
 			st := status.Snapshot()
-			out := terminal.Status{Version: version, DeviceID: cfg.DeviceID, Signal: st.Signal.State, Name: meta.Name, Unattended: settings.UnattendedOn()}
+			out := terminal.Status{Version: version, DeviceID: cfg.DeviceID, Signal: st.Signal.State, Name: meta.Name, User: shell.User, Unattended: settings.UnattendedOn()}
 			if st.Session != nil && st.Session.Active != nil {
 				out.Session = st.Session.Active.Name
 			}

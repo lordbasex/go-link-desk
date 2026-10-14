@@ -33,7 +33,7 @@ go-link-desk-terminal status     # the service, and the browsers linked
 go-link-desk-terminal unlink ID  # forget a browser
 ```
 
-`go-link-desk-terminal` (or `serve`) runs the service; systemd starts it as the user whose shell the sessions get. The commands talk to it over a Unix socket next to `device.json` (`control.sock`, mode 0600 in a 0700 folder; on Linux the caller's user is checked with `SO_PEERCRED`). The log goes to standard error, so the journal keeps it.
+`go-link-desk-terminal` (or `serve`) runs the service; systemd starts it as the user whose shell the sessions get. The commands talk to it over a Unix socket next to `device.json` (`control.sock`, mode 0600 in a 0700 folder; on Linux the caller's user is checked with `SO_PEERCRED`). The log goes to standard error, so the journal keeps it. Root may run the commands too (`sudo go-link-desk-terminal link`): they find the service of the user who runs it (`--user NAME` when several do).
 
 ## Who can come in
 

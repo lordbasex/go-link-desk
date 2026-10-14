@@ -23,7 +23,8 @@ import (
 // (go-link-desk-terminal status, password, link, unlink): a Unix socket
 // next to device.json that only this user can open (the folder is 0700,
 // the socket 0600, and on Linux the caller's user is checked too). Nothing
-// on it ever reaches the network.
+// on it ever reaches the network. Root may use it too: root can do
+// anything on the computer already.
 //
 // It is also the service's Consent: a computer without a screen has
 // nobody to accept a viewer, except the person who runs
@@ -49,6 +50,7 @@ type Status struct {
 	DeviceID   string     `json:"device_id"`
 	Signal     string     `json:"signal"`
 	Name       string     `json:"name"`
+	User       string     `json:"user"`       // whose shell sessions get
 	Unattended bool       `json:"unattended"` // a password is set
 	Session    string     `json:"session,omitempty"`
 	Links      []LinkInfo `json:"links"`

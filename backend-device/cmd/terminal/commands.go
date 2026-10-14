@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,10 +29,16 @@ func command(cmd string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	path, err := configPath(sf.config)
+	path, err := servicePath()
 	if err != nil {
 		return err
 	}
+	// The service first: nothing is asked of the person if it is not there.
+	conn, err := terminal.Dial(socketPath(path))
+	if err != nil {
+		return notRunning()
+	}
+	defer conn.Close()
 	req := terminal.Request{Cmd: cmd}
 	switch cmd {
 	case "unlink":
@@ -50,17 +57,12 @@ func command(cmd string, args []string) error {
 			return err
 		}
 	}
-	conn, err := terminal.Dial(socketPath(path))
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return err
 	}
 	r := bufio.NewReader(conn)
 	if cmd == "link" {
-		return link(conn, r)
+		return link(conn, r, shellUser(path))
 	}
 	var rep terminal.Reply
 	if err := readReply(r, &rep); err != nil {
@@ -117,7 +119,7 @@ func askPassword() (string, error) {
 }
 
 // link shows the pairing code until a browser uses it, and asks here.
-func link(conn net.Conn, r *bufio.Reader) error {
+func link(conn net.Conn, r *bufio.Reader, shellUser string) error {
 	in := bufio.NewReader(os.Stdin)
 	intro := false
 	for {
@@ -137,7 +139,7 @@ func link(conn net.Conn, r *bufio.Reader) error {
 			if rep.Ask.Name != "" {
 				who = fmt.Sprintf("%s (%s)", rep.Ask.Name, rep.Ask.Browser)
 			}
-			fmt.Printf("%s wants to be linked: it will open a shell as %s whenever it comes back with the password.\n", who, os.Getenv("USER"))
+			fmt.Printf("%s wants to be linked: it will open a shell as %s whenever it comes back with the password.\n", who, shellUser)
 			fmt.Print("Name and browser are what it says; accept only if it is you. Accept? [y/N] ")
 			line, _ := in.ReadString('\n')
 			yes := strings.EqualFold(strings.TrimSpace(line), "y") || strings.EqualFold(strings.TrimSpace(line), "yes") ||
@@ -158,6 +160,9 @@ func link(conn net.Conn, r *bufio.Reader) error {
 func printStatus(st terminal.Status) {
 	fmt.Printf("go-link-desk-terminal %s on %s\n", st.Version, st.Name)
 	fmt.Printf("  signaling: %s\n", st.Signal)
+	if st.User != "" {
+		fmt.Printf("  sessions:  a shell as %s\n", st.User)
+	}
 	if st.Unattended {
 		fmt.Println("  password:  set")
 	} else {
@@ -174,4 +179,60 @@ func printStatus(st terminal.Status) {
 	for _, l := range st.Links {
 		fmt.Printf("    %s  %s  (linked %s, last %s)\n", l.ID, l.Name, l.Created.Local().Format("2006-01-02"), l.LastSeen.Local().Format(time.DateTime))
 	}
+}
+
+// servicePath is the device.json of the service to talk to: --config, this
+// user's, or, run as root, the one user's whose service is running (so
+// "sudo go-link-desk-terminal link" just works).
+func servicePath() (string, error) {
+	if sf.config != "" || os.Geteuid() != 0 {
+		return configPath(sf.config)
+	}
+	socks, _ := filepath.Glob("/home/*/.config/" + folder + "/control.sock")
+	var found []string
+	for _, s := range socks {
+		if conn, err := terminal.Dial(s); err == nil {
+			conn.Close()
+			found = append(found, s)
+		}
+	}
+	if sf.user != "" {
+		for _, s := range found {
+			if strings.Split(s, "/")[2] == sf.user {
+				return filepath.Join(filepath.Dir(s), "device.json"), nil
+			}
+		}
+		return "", fmt.Errorf("go-link-desk-terminal is not running for %s", sf.user)
+	}
+	switch len(found) {
+	case 0:
+		return "", errors.New("go-link-desk-terminal runs as a user, never root, and it is not running for anyone here: as the user whose shell sessions get, run: systemctl --user enable --now go-link-desk-terminal")
+	case 1:
+		return filepath.Join(filepath.Dir(found[0]), "device.json"), nil
+	}
+	var users []string
+	for _, s := range found {
+		users = append(users, strings.Split(s, "/")[2])
+	}
+	return "", fmt.Errorf("it runs for %s: choose one with --user", strings.Join(users, ", "))
+}
+
+// shellUser is whose shell sessions get, as the service says.
+func shellUser(path string) string {
+	conn, err := terminal.Dial(socketPath(path))
+	if err == nil {
+		defer conn.Close()
+		var rep terminal.Reply
+		if json.NewEncoder(conn).Encode(terminal.Request{Cmd: "status"}) == nil && readReply(bufio.NewReader(conn), &rep) == nil && rep.Status != nil && rep.Status.User != "" {
+			return rep.Status.User
+		}
+	}
+	return os.Getenv("USER")
+}
+
+func notRunning() error {
+	if os.Geteuid() == 0 {
+		return errors.New("go-link-desk-terminal runs as a user, never root: run this as that user (su - USER)")
+	}
+	return errors.New("go-link-desk-terminal is not running: systemctl --user enable --now go-link-desk-terminal")
 }
