@@ -434,7 +434,9 @@ func (u *ui) setupTray() {
 		u.trayMenu.Items = append(u.trayMenu.Items, fyne.NewMenuItem(L("Settings…"), u.showSettings))
 	}
 	u.upd.trayItem = fyne.NewMenuItem(u.upd.trayLabel(), u.upd.ask)
-	u.trayMenu.Items = append(u.trayMenu.Items, u.upd.trayItem, fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
+	u.trayMenu.Items = append(u.trayMenu.Items, u.upd.trayItem,
+		fyne.NewMenuItem(L("Test My Connection…"), func() { go u.testConnection() }),
+		fyne.NewMenuItem(L("About go-link Desk"), u.showAbout))
 	desk.SetSystemTrayMenu(u.trayMenu)
 	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", u.trayPNG()))
 	u.win.SetCloseIntercept(u.win.Hide)

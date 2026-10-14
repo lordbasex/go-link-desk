@@ -2645,3 +2645,7 @@ THE SOFTWARE.
 ## Lucide (icons, Windows' main window)
 
 `backend-device/pkg/fyneview/assets/icons/*.svg` (all but `gear.svg`): Lucide 1.55.0 (https://lucide.dev). ISC License, Copyright (c) Lucide Icons and Contributors; the full text is in `backend-device/pkg/fyneview/assets/Lucide-LICENSE.txt`.
+
+## Natural Earth (map, desk.go-link.org/network)
+
+`frontend/apps/web/src/network/americas.gen.ts`: the countries of the Americas from Natural Earth's 1:50m Admin 0 – Countries (https://www.naturalearthdata.com), in the public domain, as the world-atlas 2.0.2 package publishes them in TopoJSON (ISC License, Copyright 2013-2019 Michael Bostock), projected and simplified by `scripts/relay-map.py`.

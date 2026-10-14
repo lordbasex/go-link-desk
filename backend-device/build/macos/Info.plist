@@ -29,6 +29,8 @@
 	<string>go-link Desk shows your camera to the person you are in a video call with, only during a call you accept.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>go-link Desk sends your voice to the person you are in a video call with, only during a call you accept.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Test My Connection asks your router for its outside address, to find routers in cascade. Nothing is changed on the router.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
