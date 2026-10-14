@@ -123,7 +123,7 @@ export const pt: Messages = {
     dropHint: "Solte arquivos aqui, ou em qualquer parte da tela.",
     dropHere: "Solte para enviar ao outro computador",
     choose: "Escolher arquivos",
-    whereHint: "Ficam em Downloads › go-link-desk, sem sobrescrever nenhum arquivo existente.",
+    whereHint: "Ficam em Downloads, sem sobrescrever nenhum arquivo existente.",
     home: "Início",
     empty: "Esta pasta está vazia.",
     download: "Baixar",

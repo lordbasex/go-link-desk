@@ -47,7 +47,7 @@ func newFiles(t *testing.T) (*FilesService, string, *filesWire) {
 	t.Helper()
 	home := t.TempDir()
 	w := &filesWire{}
-	f := NewFilesService(home, filepath.Join(home, "Downloads", ReceivedFolder), w.send, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	f := NewFilesService(home, filepath.Join(home, "Downloads"), w.send, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	f.Allow("P", true)
 	return f, home, w
 }
@@ -66,7 +66,7 @@ func sendFile(f *FilesService, id, name string, content []byte) {
 
 func TestUploadsLandWithoutOverwriting(t *testing.T) {
 	f, home, w := newFiles(t)
-	dir := filepath.Join(home, "Downloads", ReceivedFolder)
+	dir := filepath.Join(home, "Downloads")
 	data := bytes.Repeat([]byte("ñandú "), 10000)
 	sendFile(f, "u1", "../../informe.pdf", data) // a folder in the name is dropped
 	if r := w.last(); r["type"] != "upload_result" || r["ok"] != true || r["name"] != "informe.pdf" {

@@ -8,6 +8,7 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
@@ -311,15 +312,14 @@ class SessionRecorder(val file: File, private val withAudio: Boolean) : AudioTra
     }
 }
 
-/** The gallery: Pictures and Movies › go-link-desk, with no permission (MediaStore). */
+/** The gallery: Pictures and Movies, with no permission (MediaStore). */
 object MediaSaver {
-    private const val FOLDER = "go-link-desk"
 
     fun saveImage(context: Context, bitmap: Bitmap, name: String): Boolean = runCatching {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, name)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/$FOLDER")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
         }
         val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
         context.contentResolver.openOutputStream(uri)?.use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } ?: return false
@@ -330,17 +330,17 @@ object MediaSaver {
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, name)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/$FOLDER")
+            put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES)
         }
         val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return false
         context.contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: return false
         true
     }.getOrDefault(false).also { file.delete() }
 
-    /** "go-link Desk - Office Mac - 2026-10-14 15.04.05.png" */
+    /** Without spaces: "go-link-desk-office-mac-2026-10-14-150405.png" */
     fun name(host: String, ext: String): String {
-        val clean = host.map { if (it in "/\\:*?\"<>|" || it.isISOControl()) ' ' else it }.joinToString("").trim().split(Regex("\\s+")).joinToString(" ").take(40).trim()
-        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH.mm.ss", java.util.Locale.ROOT).format(java.util.Date())
-        return "go-link Desk - " + (if (clean.isEmpty()) "" else "$clean - ") + "$stamp.$ext"
+        val clean = host.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "-").take(40).trim('-')
+        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", java.util.Locale.ROOT).format(java.util.Date())
+        return "go-link-desk-" + (if (clean.isEmpty()) "" else "$clean-") + "$stamp.$ext"
     }
 }

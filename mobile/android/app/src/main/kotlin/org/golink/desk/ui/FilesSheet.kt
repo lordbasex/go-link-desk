@@ -64,9 +64,9 @@ import org.golink.desk.core.FilesResult
 
 /**
  * The computer's files, as on the Mac app: its home folder to browse, a
- * tap on a file downloads it (into Downloads › go-link-desk), and Send
+ * tap on a file downloads it (into Downloads), and Send
  * takes a file from the Files app or a photo to the computer's
- * Downloads/go-link-desk.
+ * Downloads.
  */
 @Composable
 fun FilesSheet(model: FilesModel, onDismiss: () -> Unit) {

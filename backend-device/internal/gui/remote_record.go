@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 )
 
@@ -28,34 +27,35 @@ type recState struct {
 	limit *time.Timer
 }
 
-// captureDir is where screenshots and recordings land: next to the files
-// received from computers (Downloads › go-link-desk).
+// captureDir is where screenshots and recordings land: Downloads.
 func captureDir() (string, error) {
-	dir := filepath.Join(downloadsDir(), services.ReceivedFolder)
+	dir := downloadsDir()
 	return dir, os.MkdirAll(dir, 0o755)
 }
 
-// captureName names a file after the computer and the time:
-// "go-link Desk - Office Mac - 2026-10-14 15.04.05.png".
+// captureName names a file after the computer and the time, without
+// spaces: "go-link-desk-office-mac-2026-10-14-150405.png".
 func captureName(host string, at time.Time, ext string) string {
 	var b strings.Builder
-	for _, r := range host {
-		switch {
-		case strings.ContainsRune(`/\:*?"<>|`, r), unicode.IsControl(r), unicode.Is(unicode.Cf, r):
-			b.WriteRune(' ')
-		default:
+	dash := false
+	for _, r := range strings.ToLower(host) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			b.WriteRune(r)
+			dash = false
+		} else if !dash {
+			b.WriteRune('-')
+			dash = true
 		}
 	}
-	clean := strings.Join(strings.Fields(b.String()), " ")
-	if r := []rune(clean); len(r) > 40 {
-		clean = strings.TrimSpace(string(r[:40]))
+	clean := []rune(b.String())
+	if len(clean) > 40 {
+		clean = clean[:40]
 	}
-	name := "go-link Desk - "
-	if clean != "" {
-		name += clean + " - "
+	name := "go-link-desk-"
+	if c := strings.Trim(string(clean), "-"); c != "" {
+		name += c + "-"
 	}
-	return name + at.Format("2006-01-02 15.04.05") + "." + ext
+	return name + at.Format("2006-01-02-150405") + "." + ext
 }
 
 // recordMenu is the toolbar's Screenshot and recording menu.
@@ -91,7 +91,7 @@ func (r *remote) chooseRecord(id string) {
 	case "rec:start":
 		go r.startRecording()
 	case "rec:stop":
-		go r.stopRecording(L("Recording saved in Downloads › go-link-desk."))
+		go r.stopRecording(L("Recording saved in Downloads."))
 	case "rec:folder":
 		if dir, err := captureDir(); err == nil {
 			_ = exec.Command("open", dir).Start()
@@ -153,7 +153,7 @@ func (r *remote) startRecording() {
 	r.s.RequestKeyframe()
 	r.view.ToolState("record", true, true)
 	rec.limit = time.AfterFunc(maxRecording, func() {
-		r.stopRecording(L("The recording reached its 2-hour limit and was saved in Downloads › go-link-desk."))
+		r.stopRecording(L("The recording reached its 2-hour limit and was saved in Downloads."))
 	})
 }
 
@@ -192,7 +192,7 @@ func (r *remote) recording() bool {
 func (r *remote) captured(kind, why string) {
 	switch {
 	case kind == "screenshot" && why == "":
-		r.flash(L("Screenshot saved in Downloads › go-link-desk."))
+		r.flash(L("Screenshot saved in Downloads."))
 	case kind == "screenshot":
 		r.notify(L("The screenshot could not be saved.") + " (" + why + ")")
 	case why == "":

@@ -22,7 +22,7 @@ test("a viewer allowed to record saves a screenshot and a recording, and the hos
   const shot = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "Take a screenshot" }).click();
   const png = await shot;
-  expect(png.suggestedFilename()).toMatch(/^go-link Desk - .+\.png$/);
+  expect(png.suggestedFilename()).toMatch(/^go-link-desk-[^ ]+\.png$/);
   expect(readFileSync((await png.path())!).subarray(1, 4).toString()).toBe("PNG");
   await expect.poll(() => hostLogged(/msg="the viewer saved a screenshot"/, "control")).toBe(true);
 
@@ -35,7 +35,7 @@ test("a viewer allowed to record saves a screenshot and a recording, and the hos
   const rec = page.waitForEvent("download");
   await pill.click();
   const webm = await rec;
-  expect(webm.suggestedFilename()).toMatch(/^go-link Desk - .+\.webm$/);
+  expect(webm.suggestedFilename()).toMatch(/^go-link-desk-[^ ]+\.webm$/);
   const bytes = readFileSync((await webm.path())!);
   expect(bytes.subarray(0, 4).toString("hex")).toBe("1a45dfa3"); // EBML: a WebM file
   expect(bytes.length).toBeGreaterThan(10_000);

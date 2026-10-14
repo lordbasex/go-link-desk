@@ -308,7 +308,7 @@ func (f *remoteFiles) next() {
 			if err != nil {
 				f.status.SetText(Lf("%s was not sent: %s", name, err))
 			} else {
-				f.status.SetText(Lf("Sent: it is in Downloads/go-link-desk/%s on the other computer", saved))
+				f.status.SetText(Lf("Sent: it is in Downloads/%s on the other computer", saved))
 				if strings.HasPrefix(f.path, "Downloads") {
 					f.open(f.path)
 				}

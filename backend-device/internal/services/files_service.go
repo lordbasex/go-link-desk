@@ -29,8 +29,6 @@ const (
 	maxListing = 5000
 	// fileIdle closes a transfer nobody moves any more.
 	fileIdle = 2 * time.Minute
-	// ReceivedFolder is where a viewer's files land, inside Downloads.
-	ReceivedFolder = "go-link-desk"
 )
 
 // Transfer is a file going one way, for the window.
@@ -45,7 +43,7 @@ type Transfer struct {
 
 // FilesService moves files between the viewer allowed to (Permissions
 // .Files) and the host, on the "files" DataChannel. Uploads land in the
-// host's Downloads/go-link-desk folder, written to a temporary file and
+// host's Downloads folder, written to a temporary file and
 // renamed when complete, never over an existing file. Downloads come from
 // the host's home folder, which a viewer can browse but never leave; the
 // browser pulls them piece by piece, so it sets the pace. Every file that

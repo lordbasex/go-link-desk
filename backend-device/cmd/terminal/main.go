@@ -269,8 +269,8 @@ func serve(args []string) error {
 	stream.OnChannel(term.Channel)
 	record := services.NewRecordService(stream.SendControl, status, logger)
 	// Files, as on a desktop: its user's home to browse and take from,
-	// what comes in to ~/Downloads/go-link-desk.
-	files := services.NewFilesService(shell.Home, filepath.Join(shell.Home, "Downloads", services.ReceivedFolder), stream.SendFiles, logger)
+	// what comes in to ~/Downloads.
+	files := services.NewFilesService(shell.Home, filepath.Join(shell.Home, "Downloads"), stream.SendFiles, logger)
 	stream.OnFiles(files.Handle)
 	session.OnPermissions(func(peer string, p models.Permissions) {
 		if p.View {
