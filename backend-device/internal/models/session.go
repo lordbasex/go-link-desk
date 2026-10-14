@@ -17,6 +17,9 @@ type Permissions struct {
 	Audio     bool `json:"audio"`
 	Clipboard bool `json:"clipboard"`
 	Files     bool `json:"files"`
+	// Record: the viewer may save pictures of the screen and record it
+	// (never by default). The viewer asks before each; the host shows it.
+	Record bool `json:"record"`
 }
 
 // ViewOnly is the default grant: the viewer sees the screen and nothing
@@ -110,6 +113,12 @@ type ActiveSession struct {
 	Permissions Permissions `json:"permissions"`
 	// Unattended: a linked browser that came in without anyone accepting.
 	Unattended bool `json:"unattended,omitempty"`
+	// RecordingSince: the viewer records the screen since then (zero:
+	// it does not).
+	RecordingSince time.Time `json:"recording_since,omitzero"`
+	// Screenshots the viewer saved, and when the last one.
+	Screenshots    int       `json:"screenshots,omitempty"`
+	LastScreenshot time.Time `json:"last_screenshot,omitzero"`
 }
 
 // MaxChat bounds a chat message, in characters.

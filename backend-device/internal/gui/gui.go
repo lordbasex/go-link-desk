@@ -375,6 +375,9 @@ func (u *ui) render(st models.Status) {
 			name = L("Someone")
 		}
 		u.state.SetText(Lf("In session with %s", name))
+		if !active.RecordingSince.IsZero() {
+			u.state.SetText(Lf("In session with %s, who is recording your screen", name))
+		}
 	case st.Signal.State == models.SignalConnected:
 		u.state.SetText(L("Connected"))
 	case st.Signal.State == models.SignalDisconnected:
@@ -399,6 +402,12 @@ func (u *ui) renderTray(active *models.ActiveSession) {
 	u.trayEnd.Label = L("Disconnect")
 	if live && active.Name != "" {
 		u.trayEnd.Label = Lf("Disconnect %s", active.Name)
+	}
+	if live && !active.RecordingSince.IsZero() {
+		u.trayEnd.Label = L("Disconnect (recording your screen)")
+		if active.Name != "" {
+			u.trayEnd.Label = Lf("Disconnect %s (recording your screen)", active.Name)
+		}
 	}
 	u.trayMenu.Refresh()
 	if live == u.trayLive {

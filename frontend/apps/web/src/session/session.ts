@@ -114,6 +114,8 @@ export const TYPING_PAUSE_MS = 4000;
 
 /** The chat lines a session keeps. */
 const MAX_CHAT_LINES = 200;
+/** How long the host has to answer a screenshot or recording request. */
+export const ASK_TIMEOUT_MS = 5000;
 
 /** Where a session is, from the knock to its end. */
 export type SessionStatus =
@@ -159,6 +161,8 @@ export interface SessionView {
   display: number;
   /** Something about the host's picture ("no_screen_permission", "capture_failed"). */
   notice: string | null;
+  /** The host shows that this viewer records its screen (it said yes). */
+  recording: boolean;
 }
 
 export interface SessionOptions {
@@ -190,7 +194,7 @@ export function isOver(s: SessionStatus): boolean {
  */
 export class Session {
   private view: SessionView = {
-    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null,
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null, recording: false,
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
@@ -426,6 +430,59 @@ export class Session {
     if (this.view.hostTyping !== on) this.set({ hostTyping: on });
   }
 
+  private asks = new Map<number, (yes: boolean) => void>();
+  private askSeq = 0;
+
+  /** Sends a question the host answers with the same id; no answer in time is a no. */
+  private ask(message: Record<string, unknown>): Promise<boolean> {
+    if (!this.stream || isOver(this.view.status)) return Promise.resolve(false);
+    const id = (this.askSeq = (this.askSeq % 0xffff_ffff) + 1);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => this.answer(id, false), ASK_TIMEOUT_MS);
+      this.asks.set(id, (yes) => {
+        clearTimeout(timer);
+        resolve(yes);
+      });
+      this.stream?.sendControl({ ...message, id });
+    });
+  }
+
+  private answer(id: number, yes: boolean): void {
+    const done = this.asks.get(id);
+    this.asks.delete(id);
+    done?.(yes);
+  }
+
+  /**
+   * Asks the host before saving a picture of its screen: true once the
+   * person there is shown it (only with the record permission).
+   */
+  askScreenshot(): Promise<boolean> {
+    if (!this.view.permissions?.record) return Promise.resolve(false);
+    return this.ask({ type: "screenshot" });
+  }
+
+  /**
+   * Asks the host to show that this viewer records its screen: true once
+   * the person there sees it, and only then may the recording start.
+   */
+  async startRecording(): Promise<boolean> {
+    if (!this.view.permissions?.record) return false;
+    const yes = await this.ask({ type: "recording", on: true });
+    if (yes && !this.view.permissions?.record) {
+      this.stopRecording(); // taken away while asking
+      return false;
+    }
+    return yes;
+  }
+
+  /** Tells the host the recording stopped. */
+  stopRecording(): void {
+    if (!this.view.recording) return;
+    this.set({ recording: false });
+    if (!isOver(this.view.status)) this.stream?.sendControl({ type: "recording", id: 0, on: false });
+  }
+
   /** Flips the latency beacon: odd turns it white, even black. */
   flipBeacon(seq: number): void {
     this.stream?.sendControl({ type: "beacon", seq: seq & 0xffff });
@@ -453,9 +510,25 @@ export class Session {
         break;
       case "permissions": {
         const d = parseDecision({ kind: "accepted", permissions: m.permissions });
-        if (d?.kind === "accepted") this.set({ permissions: d.permissions });
+        if (d?.kind === "accepted") this.set({ permissions: d.permissions, recording: this.view.recording && d.permissions.record });
         break;
       }
+      case "recording": {
+        // The answer to startRecording, or the host stopping it (id 0).
+        const id = n("id");
+        const on = m.on === true && this.view.permissions?.record === true;
+        if (on && !this.asks.has(id)) {
+          // A yes that came too late: nothing records here.
+          this.stream?.sendControl({ type: "recording", id: 0, on: false });
+          break;
+        }
+        if (on || this.view.recording) this.set({ recording: on });
+        this.answer(id, on);
+        break;
+      }
+      case "screenshot":
+        this.answer(n("id"), m.ok === true);
+        break;
       case "notice":
         this.set({ notice: String(m.code ?? "").slice(0, 40) || null });
         break;
@@ -571,7 +644,8 @@ export class Session {
     this.offLeft = null;
     this.stream?.close();
     this.opts.client.close();
-    this.set({ status, video: null, audio: null, callVideo: null, callAudio: null, call: { state: "idle", hostVideo: false, hostAudio: false } });
+    this.set({ status, video: null, audio: null, callVideo: null, callAudio: null, call: { state: "idle", hostVideo: false, hostAudio: false }, recording: false });
+    for (const id of [...this.asks.keys()]) this.answer(id, false);
   }
 }
 

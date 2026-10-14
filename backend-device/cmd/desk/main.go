@@ -369,6 +369,7 @@ func run(args []string) error {
 	logger.Info("clipboard", "board", fmt.Sprintf("%T", board))
 	clip := services.NewClipboardService(board, stream.SendControl, input.Paste, logger)
 	chat := services.NewChatService(stream.SendControl, logger)
+	record := services.NewRecordService(stream.SendControl, status, logger)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -433,6 +434,7 @@ func run(args []string) error {
 		stream.SetAudio(peer, p.Audio)
 		clip.Allow(peer, p.Clipboard && shareClipboard)
 		files.Allow(peer, p.Files)
+		record.Allow(peer, p.View, p.Record)
 		if p.View {
 			chat.SetPeer(peer)
 			name := ""
@@ -459,6 +461,8 @@ func run(args []string) error {
 		chat.Handle(peer, data)
 	})
 	control.Handle("typing", chat.HandleTyping)
+	control.Handle("recording", record.Handle)
+	control.Handle("screenshot", record.HandleScreenshot)
 	for _, kind := range []string{"auth", "auth_challenge", "unlink"} {
 		control.Handle(kind, unattended.HandleControl)
 	}

@@ -44,7 +44,7 @@ export const docsEn: Docs = {
         { t: "h2", id: "consent", text: "The person at the computer decides" },
         {
           t: "p",
-          text: "No session starts until the person at the computer accepts it, and they choose what you may do: use the mouse and keyboard, hear the sound, share the clipboard, send and receive files. A panel stays on their screen while you are connected, and one click ends the session.",
+          text: "No session starts until the person at the computer accepts it, and they choose what you may do: use the mouse and keyboard, hear the sound, share the clipboard, send and receive files, take screenshots and record. A panel stays on their screen while you are connected, and one click ends the session.",
         },
         { t: "note", tone: "warn", text: "**Did someone call you and ask you to install this?** Hang up. Your bank, the police or a support line never call to ask for access to your computer." },
         { t: "h2", id: "next", text: "Where to start" },
@@ -223,6 +223,7 @@ export const docsEn: Docs = {
             ["Hear your computer's sound", "Hear what your speakers play."],
             ["Share the clipboard", "Copy on one side and paste on the other, both ways."],
             ["Send and receive files", "Browse your home folder, download files, and send you files (they land in Downloads › go-link Desk)."],
+            ["Take screenshots and record the screen", "Save pictures and recordings of your screen on their side. Never ticked unless you tick it; while they record, the session panel says so in red."],
           ],
         },
         { t: "p", text: "In Settings, **A request starts with** chooses whether requests come with every permission ticked (Full control) or none (Only the screen)." },
@@ -331,6 +332,8 @@ export const docsEn: Docs = {
         { t: "list", items: ["Text copied on their computer arrives on yours (keep the session's tab in front, so the browser may write it).", "Paste in the session (Cmd+V or Ctrl+V) and your text goes to their clipboard and is pasted where their cursor is.", "It needs the **Share the clipboard** permission."] },
         { t: "h2", id: "files", text: "Files" },
         { t: "list", items: ["**Files** shows their home folder: open folders and download what you need.", "Send a file: it lands in **Downloads › go-link Desk** on their computer, never over a file already there.", "Up to 1 GB per file, with progress and Cancel. It needs the **Send and receive files** permission."] },
+        { t: "h2", id: "recording", text: "Screenshots and recordings" },
+        { t: "list", items: ["The **●** menu in the session's toolbar takes a screenshot (a PNG, with their pointer) or records the screen, with their computer's sound if you may hear it.", "In Chrome and Edge you choose where the recording goes when it starts; elsewhere it downloads when it stops (WebM, or MP4 in Safari). A red pill with the time stops it; it stops by itself after 2 hours.", "It needs the **Take screenshots and record the screen** permission, never ticked unless the person ticks it. Your browser asks their computer first, and saves or starts only once their session panel shows it."] },
       ],
     },
     {

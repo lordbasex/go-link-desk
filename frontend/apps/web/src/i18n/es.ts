@@ -142,6 +142,22 @@ export const es: Messages = {
     soundOn: "Activar el sonido de los mensajes",
     soundOff: "Silenciar el sonido de los mensajes",
   },
+  capture: {
+    menu: "Captura y grabación",
+    screenshot: "Sacar una captura",
+    record: "Grabar la pantalla",
+    stop: "Detener la grabación",
+    recording: "Grabando {time}, clic para detener",
+    shown: "La persona en la computadora ve cuando sacás una captura o grabás.",
+    refused: "La computadora no lo permitió: la persona ahí tiene que marcar “Sacar capturas y grabar la pantalla”.",
+    unsupported: "Este navegador no puede grabar la pantalla.",
+    saved: "Guardado: {name}.",
+    stoppedHost: "La persona en la computadora detuvo la grabación; lo grabado quedó guardado.",
+    stoppedTime: "La grabación llegó a su límite de 2 horas y quedó guardada.",
+    stoppedSize: "La grabación llegó a 1 GB (este navegador la guarda en memoria) y quedó guardada.",
+    stoppedEnded: "La sesión terminó; la grabación quedó guardada.",
+    failed: "No se pudo guardar la grabación.",
+  },
   keys: {
     menu: "Teclas",
     items: {

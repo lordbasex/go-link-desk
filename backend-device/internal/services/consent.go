@@ -55,18 +55,18 @@ var AutoAccept = ConsentFunc(func(context.Context, ConsentRequest) (models.Permi
 })
 
 // AutoAcceptAll lets every viewer in with everything a session can give
-// (the mouse and keyboard, the sound, the clipboard, files): measurement builds
+// (the mouse and keyboard, the sound, the clipboard, files, recording): measurement builds
 // and the end-to-end tests that log the input instead of injecting it
 // (--test-input-log).
 var AutoAcceptAll = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
-	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}, nil
+	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true, Record: true}, nil
 })
 
 // AutoAcceptDemo lets every viewer of a public demonstration host in
 // (--test-code-file) with everything, none of it the computer's own: the
 // test card, the mouse and keyboard only logged (--test-input-log), a
 // clipboard kept in a file (--test-clipboard-file), and files in a folder
-// of their own (--test-files-folder).
+// of their own (--test-files-folder); nothing private to record either.
 var AutoAcceptDemo = ConsentFunc(func(context.Context, ConsentRequest) (models.Permissions, error) {
-	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true}, nil
+	return models.Permissions{View: true, Control: true, Audio: true, Clipboard: true, Files: true, Record: true}, nil
 })

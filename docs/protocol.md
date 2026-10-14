@@ -28,7 +28,7 @@ All of these travel in signalhub's opaque `signal.payload`, with the same patter
 
 ```
 viewer → host   {"kind":"knock","name":"Ana","ua":"Chrome 141 on macOS","codecs":["h264-high","h264","vp8"]}
-host   → viewer {"kind":"accepted","permissions":{"view":true,"control":false,"audio":false,"clipboard":false,"files":false}}
+host   → viewer {"kind":"accepted","permissions":{"view":true,"control":false,"audio":false,"clipboard":false,"files":false,"record":false}}
 host   → viewer {"kind":"rejected","reason":"declined"|"timeout"|"busy"|"unavailable"|"off"}
 host   → viewer {"kind":"offer","sdp":"…"}                    (only after accepted; again for an ICE restart)
 viewer → host   {"kind":"answer","sdp":"…"}
@@ -42,7 +42,7 @@ both            {"kind":"candidate","candidate":{…}}           (trickle ICE)
 - The viewer may be a browser or go-link Desk itself: the app sends `ua` as `go-link Desk 1.2 on macOS` and `codecs` `["h264-high","h264"]` (it draws H.264 with the system's decoder), and does not take a video call yet (it leaves the call's lines without a track).
 - `name` (up to 40 characters) and `ua` (up to 60) are what the viewer declares. The host keeps printable characters only, without line breaks or control and format characters, and shows them as declared, never as verified.
 - `codecs` are the video codecs the browser decodes (`RTCRtpReceiver.getCapabilities`): `h264-high` (Constrained High, profile `640c`), `h264` (Constrained Baseline) and `vp8`. The host sends H.264 from the system's encoder when it has one and the browser takes it, High when it can; otherwise VP8. Without the field, VP8.
-- `view` is always granted; the other permissions are part of the message from the start and are granted in the phases that use them.
+- `view` is always granted; the other permissions are part of the message from the start and are granted in the phases that use them. `record` (screenshots and recordings, made by the viewer) is never ticked by default: the person at the host gives it on purpose.
 - The host leaving signalhub (`peer_left` from the host) ends the session for the viewer. The viewer leaving signalhub (`peer_left` to the host) ends it for the host.
 - **ICE restart.** When the connection is `disconnected` for 3 seconds, or `failed`, the host offers again with new ICE credentials over signalhub, up to 3 times in a row; after that the session ends with `network`. The viewer answers every offer on the same connection, applying signals strictly in order (a new candidate must never pass its offer).
 
@@ -111,7 +111,7 @@ The host creates them, as in go-link.
 | `cursor_pos` | host → viewer | `{x, y, visible}`: where the pointer is, 0..1 over the display shown; up to 60 a second, only when it moves. |
 | `beacon` | viewer → host | `{seq}`: the latency beacon, white for an odd `seq`, black for an even one. See *Latency* below. |
 | `notice` | host → viewer | `{code}`: `no_screen_permission` (the host may not record its screen: the viewer sees the test card), `capture_failed`, `no_accessibility` (the viewer may control, but the host has no Accessibility permission, so nothing it sends reaches the computer), `wayland_session` (a Linux Wayland desktop without the remote desktop portal or PipeWire: the test card), `share_denied` (the person at a Wayland desktop did not allow sharing: the test card), or `no_remote_input` (they shared the screen but not the mouse and keyboard: the viewer can only watch). |
-| `permissions` | host → viewer | `{view, control, audio, clipboard, files}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
+| `permissions` | host → viewer | `{view, control, audio, clipboard, files, record}`: what the viewer may do now. Sent when the person at the computer changes it during the session; the session starts with the `accepted` message's. |
 | `clipboard` | both | `{id, part, parts, text, paste?}`: one piece of a clipboard's text, at most 16 KiB of UTF-8, never splitting a character; a text is at most 1 MiB. Only with `permissions.clipboard`. Host → viewer: something new was copied on the host. Viewer → host: the viewer pasted (Cmd+V or Ctrl+V); `paste` on the last piece asks the host to paste it (Cmd+V) where its cursor is, for a viewer that may control. A piece out of order drops the text. |
 | `chat` | both | `{text}`: a chat message, at most 2000 characters. The host keeps printable text and line breaks (at most 20 lines) and drops control and format characters. |
 | `typing` | both | `{on}`: this side is writing a chat message. Sent again every 3 s while it writes, and `on: false` after a 4-second pause, when the line is emptied or when the message goes. The other side shows "… is typing" until it hears `false`, a message comes, or 6 s pass without news. |
@@ -119,6 +119,8 @@ The host creates them, as in go-link.
 | `call_state` | host → viewer | `{state, host_video, host_audio}`: `ringing`, `active`, `declined` or `ended`, and whether the host's camera and microphone are on. |
 | `call_media` | viewer → host | `{video, audio}`: the viewer turned its camera or microphone on or off. |
 | `call_end` | viewer → host | hangs up. |
+| `screenshot` | both | Viewer → host `{id}`: it is about to save a picture of the screen. Host → viewer `{id, ok}`: `ok` only with `permissions.record`, once the session panel shows it ("Took a screenshot at 15:04"); the viewer saves the picture only then. No answer in 5 s is a no. |
+| `recording` | both | Viewer → host `{id, on}`: it asks to start recording the screen (`on: true`), or says it stopped (`id` 0, `on: false`). Host → viewer `{id, on}`: the answer, `on` only with `permissions.record` once the panel, the main window and the tray say "Recording your screen"; the viewer starts only then, and a yes after 5 s is turned down. The host also sends `{id: 0, on: false}` unasked when the person at the computer takes the permission away; the viewer stops and saves what it has. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
 A message type nobody handles is dropped. A message is at most 64 KiB.

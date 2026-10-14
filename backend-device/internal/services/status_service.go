@@ -131,6 +131,19 @@ func (s *StatusService) SetActive(a *models.ActiveSession) {
 	})
 }
 
+// SetRecording records what the viewer in session (peerID) saves of the
+// screen: recording since (zero: not), and its screenshots.
+func (s *StatusService) SetRecording(peerID string, since time.Time, shots int, last time.Time) {
+	s.update(func(st *models.Status) {
+		if st.Session == nil || st.Session.Active == nil || st.Session.Active.PeerID != peerID {
+			return
+		}
+		a := *st.Session.Active
+		a.RecordingSince, a.Screenshots, a.LastScreenshot = since, shots, last
+		st.Session.Active = &a
+	})
+}
+
 // SetSystem records hardware and usage.
 func (s *StatusService) SetSystem(sys models.SystemStatus) {
 	s.update(func(st *models.Status) { st.System = &sys })

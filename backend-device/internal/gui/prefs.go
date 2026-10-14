@@ -204,6 +204,7 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 				perm("audio", L("Hear your computer's sound"), p.Audio),
 				perm("clipboard", L("Share the clipboard (copy and paste)"), p.Clipboard),
 				perm("files", L("Send and receive files"), p.Files),
+				perm("record", L("Take screenshots and record the screen"), p.Record),
 				{ID: "revoke:" + l.ID, Kind: "button", Label: L("Revoke this device"), Button: L("Revoke"), Tint: "danger",
 					Confirm: &remoteview.PrefConfirm{Title: L("Revoke this device?"), Text: Lf("%s will not be able to come in again until it is linked with a new code.", name), OK: L("Revoke"), Cancel: L("Cancel")}},
 			}})
@@ -399,6 +400,8 @@ func (u *ui) setting(arg string) {
 					l.Permissions.Clipboard = on
 				case "files":
 					l.Permissions.Files = on
+				case "record":
+					l.Permissions.Record = on
 				}
 			})
 			fyne.Do(u.refreshPrefs)

@@ -144,6 +144,22 @@ export const en = {
     soundOn: "Turn the message sound on",
     soundOff: "Turn the message sound off",
   },
+  capture: {
+    menu: "Screenshot and recording",
+    screenshot: "Take a screenshot",
+    record: "Record the screen",
+    stop: "Stop recording",
+    recording: "Recording {time}, click to stop",
+    shown: "The person at the computer sees when you take a screenshot or record.",
+    refused: "The computer did not allow it: the person there must tick “Take screenshots and record the screen”.",
+    unsupported: "This browser cannot record the screen.",
+    saved: "Saved {name}.",
+    stoppedHost: "The person at the computer stopped the recording; what was recorded is saved.",
+    stoppedTime: "The recording reached its 2-hour limit and was saved.",
+    stoppedSize: "The recording reached 1 GB (this browser keeps it in memory) and was saved.",
+    stoppedEnded: "The session ended; the recording was saved.",
+    failed: "The recording could not be saved.",
+  },
   keys: {
     menu: "Keys",
     items: {

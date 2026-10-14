@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FilesError, memorySink, type DownloadSink, type FileEntry, type FilesClient } from "@go-link-desk/shared";
+import { FilesError, type FileEntry, type FilesClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
+import { sinkFor } from "./save";
 
 /** A file moving, as the panel lists it. */
 interface Job {
@@ -25,27 +26,6 @@ export function formatBytes(n: number): string {
     i++;
   }
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
-}
-
-/** Where a download goes: a file the person picks (Chromium), else memory, saved at the end. */
-async function sinkFor(name: string): Promise<DownloadSink | null> {
-  const picker = (window as unknown as { showSaveFilePicker?: (o: unknown) => Promise<{ createWritable(): Promise<{ write(c: Uint8Array): Promise<void>; close(): Promise<void>; abort(): Promise<void> }> }> }).showSaveFilePicker;
-  if (picker) {
-    try {
-      const handle = await picker({ suggestedName: name });
-      const w = await handle.createWritable();
-      return { write: (c) => w.write(c), close: () => w.close(), abort: () => w.abort() };
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return null; // the person cancelled
-    }
-  }
-  return memorySink((blob) => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-  });
 }
 
 let jobKeys = 0;

@@ -8,7 +8,7 @@ describe("parseDecision", () => {
   it("reads an acceptance with its permissions", () => {
     expect(parseDecision({ kind: "accepted", permissions: { view: true, control: "yes" } })).toEqual({
       kind: "accepted",
-      permissions: { view: true, control: false, audio: false, clipboard: false, files: false },
+      permissions: { view: true, control: false, audio: false, clipboard: false, files: false, record: false },
     });
   });
   it("reads a rejection, and an unknown reason as declined", () => {
