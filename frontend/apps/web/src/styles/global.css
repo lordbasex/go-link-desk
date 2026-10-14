@@ -312,3 +312,12 @@ code, kbd, .mono { font-family: var(--font-mono); }
   .demo { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; padding-top: 8px; }
   .demo-open { align-self: flex-start; }
 }
+
+/* ---------- terminal (go-link-desk-terminal) ---------- */
+.terminal-stage { display: flex; flex-direction: column; background: #0d1117; }
+.terminal-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: rgb(28 28 30 / 0.95); color: #fff; }
+.terminal-bar-spacer { flex: 1; }
+.terminal-zoom { font: 600 13px/1 var(--font-text); }
+.terminal-box { flex: 1; min-height: 0; padding: 8px 6px 6px 10px; }
+.terminal-box .xterm { height: 100%; }
+.terminal-box .xterm-viewport { background-color: #0d1117; }

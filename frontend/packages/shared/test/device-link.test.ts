@@ -41,6 +41,15 @@ describe("linked computers", () => {
     expect(loadDevices(s)).toEqual([]);
   });
 
+  it("remember a terminal computer (go-link-desk-terminal), and only a real true", () => {
+    const s = memoryStorage();
+    saveDevice(s, device);
+    updateDevice(s, device.deviceId, device.signalUrl, { terminal: true });
+    expect(findDevice(s, device.deviceId, device.signalUrl)?.terminal).toBe(true);
+    updateDevice(s, device.deviceId, device.signalUrl, { terminal: "yes" as unknown as boolean });
+    expect(findDevice(s, device.deviceId, device.signalUrl)?.terminal).toBeUndefined();
+  });
+
   it("list favorites first, then the latest used, and a new link replaces the old", () => {
     const s = memoryStorage();
     const b = { ...device, deviceId: "11111111-1111-4111-8111-111111111111", lastUsed: 5 };

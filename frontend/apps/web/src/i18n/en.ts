@@ -160,6 +160,14 @@ export const en = {
     stoppedEnded: "The session ended; the recording was saved.",
     failed: "The recording could not be saved.",
   },
+  terminal: {
+    title: "Terminal of {name}",
+    bigger: "Bigger text",
+    smaller: "Smaller text",
+    readOnly: "You can watch this terminal, but not type: the computer lets you only see.",
+    exited: "The shell ended (exit code {code}).",
+    exitedOk: "The shell ended.",
+  },
   keys: {
     menu: "Keys",
     items: {

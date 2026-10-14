@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { MAX_NAME, type SignalClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
@@ -8,6 +8,9 @@ import { isOver, type CursorState, type Door, type HostInfo, type NewLink, type 
 import { useSession } from "../session/useSession";
 
 const NAME_KEY = "go-link-desk.name";
+
+// xterm.js comes only with a computer that offers a terminal.
+const TerminalSession = lazy(() => import("../session/TerminalSession"));
 
 export function savedName(): string {
   try {
@@ -87,6 +90,13 @@ export function SessionRunner({ door, title, waitingText, back, autoStart, onLin
   }
   if (s.kind === "password") return <PasswordForm title={title} view={view} session={session} />;
   if (isOver(s)) return <Over view={view} onRetry={start} back={back} />;
+  if (view.host?.terminal) {
+    return (
+      <Suspense fallback={<p className="notice">{t.session.connecting}</p>}>
+        <TerminalSession view={view} session={session} />
+      </Suspense>
+    );
+  }
   return <LiveSession view={view} session={session} registerCursor={registerCursor} onSnapshot={onSnapshot} />;
 }
 
@@ -198,6 +208,7 @@ function Over({ view, onRetry, back }: { view: SessionView; onRetry: () => void;
       break;
     case "ended":
       text = t.session.ended[s.reason];
+      if (view.terminalExit !== null) text = view.terminalExit === 0 ? t.terminal.exitedOk : t.terminal.exited.replace("{code}", String(view.terminalExit));
       break;
     case "notFound":
       text = t.session.notFound;

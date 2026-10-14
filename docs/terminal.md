@@ -7,6 +7,7 @@ A remote terminal for a computer without a desktop (a Raspberry Pi, a server, a 
 - **One small binary, pure Go:** `go build -tags headless ./cmd/terminal` with `CGO_ENABLED=0`, so it needs no libvpx, libopus, X11 or GL, and runs on any Linux (glibc or musl) on x86-64, ARM64 and ARMv7. About 12 MB.
 - **The same pieces as the app:** signalhub v1 with `app: "go-link-desk"`, the pairing code, linked browsers with their token and proof, the unattended password (argon2id), WebRTC with TURN as a fallback, the fixed UDP port (`udp_port`, `map_udp_port` in `device.json`) and the idle timeout (`idle_minutes`).
 - **Its own identity:** `~/.config/go-link-desk-terminal/device.json`, apart from the desktop app's, so both can run on one computer.
+- **Password from a script:** `go-link-desk-terminal password --stdin` reads one line, for a setup script.
 - **No picture, sound, clipboard or files:** a session's connection carries the `control` channel and a `terminal` channel only (`StreamConfig.DataOnly`).
 
 ## Using it
@@ -37,6 +38,14 @@ A link lets the browser see the terminal and type (`view`, `control`).
 - A flood of output (`cat` of a big file) waits while the channel's buffer is over 4 MiB, so memory stays bounded.
 - The shell ending (`exit`) sends `terminal_exit {code}` and ends the session. The session ending (Disconnect, idle, the service stopping) hangs the shell up: `SIGHUP` to its whole session, `SIGKILL` two seconds later to what is left.
 - One session at a time, as in the app.
+
+## In the browser
+
+- The web knows a terminal from its `welcome` (`source: "terminal"`) and shows the shell instead of the screen, in xterm.js (`@xterm/xterm`, `@xterm/addon-fit`, MIT), loaded only then (its own chunk, about 85 KB compressed). It keeps the shell's first output until the terminal is on the page.
+- Typing goes on the `terminal` channel as UTF-8; the size follows the window (`terminal_size`); A− and A+ change the text size (kept in this browser), and full screen works as for a screen.
+- A viewer without `control` watches only, and the page says so.
+- **Content Security Policy:** the site allows no inline styles, and xterm.js writes its colors and sizes into `<style>` elements, which the browser refuses. The page copies their rules into a stylesheet built in script (`adoptedStyleSheets`), which the policy allows. The browser's console still notes the refused elements.
+- My computers shows a terminal icon for a linked terminal (`terminal` in the saved link).
 
 ## Not root
 

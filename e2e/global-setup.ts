@@ -39,6 +39,12 @@ export default async function globalSetup() {
     cwd: join(root, "backend-device"),
     stdio: "inherit",
   });
+  // go-link-desk-terminal: pure Go on Linux, as it ships (a Mac builds it with cgo).
+  execFileSync("go", ["build", "-tags", "headless", "-o", join(bin, "terminal"), "./cmd/terminal"], {
+    cwd: join(root, "backend-device"),
+    stdio: "inherit",
+    env: process.platform === "linux" ? { ...process.env, CGO_ENABLED: "0" } : process.env,
+  });
 
   const signalLog = openSync(join(state, "signal.log"), "a");
   const signal = spawn(join(bin, "signal"), [], {

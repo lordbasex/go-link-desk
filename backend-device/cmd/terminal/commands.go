@@ -24,6 +24,7 @@ import (
 // command talks to the running service over its socket.
 func command(cmd string, args []string) error {
 	fs := flags(io.Discard)
+	stdin := fs.Bool("stdin", false, "password: read it from the standard input (one line), for a setup script")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -39,7 +40,13 @@ func command(cmd string, args []string) error {
 		}
 		req.ID = fs.Arg(0)
 	case "password":
-		if req.Password, err = askPassword(); err != nil {
+		if *stdin {
+			line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+			if err != nil && line == "" {
+				return errors.New("no password on the standard input")
+			}
+			req.Password = strings.TrimRight(line, "\r\n")
+		} else if req.Password, err = askPassword(); err != nil {
 			return err
 		}
 	}
