@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-14
+
+A direct connection through a router you set up: with a fixed UDP port, the computer app opens it in the router by itself (UPnP or NAT-PMP, off by default) or tells you the exact rule to add, and a port forwarded by hand finally works.
+
 ### Added
 
 - **The computer app opens its fixed UDP port in the router by itself** (macOS, Windows, Linux): a new **Open it in the router by itself** box in Settings › Direct connection (advanced), off by default. With a UDP port chosen, it asks the router with NAT-PMP, then UPnP, for this computer only, keeps the lease (an hour, asked again at half), and removes it on quitting; Settings says what the router answered. See [docs/network.md](docs/network.md#one-port-for-every-connection).
