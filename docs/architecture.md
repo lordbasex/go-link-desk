@@ -22,6 +22,7 @@ go-link Desk is a remote desktop that follows go-link's design: the computer bei
 |---|---|
 | `backend-device/` | The host (Go module `github.com/lordbasex/go-link-desk/backend-device`). |
 | `backend-device/cmd/desk` | The entry point: flags, logging, configuration and the wiring of the services. |
+| `backend-device/cmd/terminal`, `internal/terminal` | go-link-desk-terminal: a remote shell for a computer without a desktop, pure Go, with the same signaling, links and stream (data only). See [terminal.md](terminal.md). |
 | `backend-device/internal/models` | Domain types: configuration, status, sessions (knock, permissions, reasons). |
 | `backend-device/internal/services` | Signaling handlers (pairing, room opener, session and consent), the WebRTC stream, linked browsers, PIN gate, status, metrics, updates. |
 | `backend-device/internal/controllers` | The routing of viewers' control-channel messages by type, which go-link keeps in one big `switch` in its `main.go`. |
