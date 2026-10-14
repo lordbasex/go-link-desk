@@ -84,7 +84,6 @@ func (u *ui) openMain() {
 	})
 	if u.opts.Settings != nil {
 		cfg := u.opts.Settings.Get()
-		u.prefs.start, u.prefs.startSet = cfg, true
 		mainSetIcon(appIcon(cfg.AppIcon))
 		mainSetTheme(themeOf(cfg.Theme))
 	}

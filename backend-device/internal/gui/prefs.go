@@ -17,6 +17,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/netprobe"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
@@ -288,30 +289,24 @@ func (u *ui) setting(arg string) {
 		u.prefs.serverErr = ""
 		update(func(c *models.Config) { c.WebURL = v })
 	case id == "udp_port":
-		v := strings.TrimSpace(value)
-		port := 0
-		if v != "" {
-			p, err := strconv.Atoi(v)
-			if err != nil || (p != 0 && (p < 1024 || p > 65535)) {
-				u.prefs.netErr = L("The port is a number from 1024 to 65535 (0 or empty: a random one).")
-				u.prefs.last = ""
-				u.refreshPrefs()
-				return
-			}
-			port = p
+		port, msg := parseUDPPort(value)
+		if msg != "" {
+			u.prefs.netErr = msg
+			u.prefs.last = ""
+			u.refreshPrefs()
+			return
 		}
 		u.prefs.netErr = ""
 		update(func(c *models.Config) { c.UDPPort = port })
+	case id == "map_udp_port":
+		update(func(c *models.Config) { c.MapUDPPort = on })
 	case id == "announce_ips":
-		var ips []string
-		for _, f := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
-			if net.ParseIP(f) == nil {
-				u.prefs.netErr = Lf("%s is not an IP address.", f)
-				u.prefs.last = ""
-				u.refreshPrefs()
-				return
-			}
-			ips = append(ips, f)
+		ips, msg := parseAnnounce(value)
+		if msg != "" {
+			u.prefs.netErr = msg
+			u.prefs.last = ""
+			u.refreshPrefs()
+			return
 		}
 		u.prefs.netErr = ""
 		update(func(c *models.Config) { c.AnnounceIPs = ips })
@@ -466,46 +461,52 @@ func (u *ui) serverSection(cfg models.Config) remoteview.PrefSection {
 // router that forwards it (a computer behind a second router, which
 // browsers on the first one cannot reach on their own).
 func (u *ui) directSection(cfg models.Config) remoteview.PrefSection {
-	local := localIPs()
+	local := localIP()
 	port := ""
 	if cfg.UDPPort > 0 {
 		port = strconv.Itoa(cfg.UDPPort)
 	}
 	rows := []remoteview.PrefRow{
-		{Kind: "info", Label: L("This computer's address"), Value: strings.Join(local, ", ")},
+		{Kind: "info", Label: L("This computer's address"), Value: local},
 		{ID: "udp_port", Kind: "text", Label: L("UDP port"), Value: port, Placeholder: L("Random"),
 			Detail: L("Every connection on one port, to open it in a router.")},
+		{ID: "map_udp_port", Kind: "toggle", Label: L("Open it in the router by itself"), On: cfg.MapUDPPort,
+			Detail: L("With UPnP or NAT-PMP, while go-link Desk is open. Off: forward it in the router by hand.")},
 		{ID: "announce_ips", Kind: "text", Label: L("Announced address"), Value: strings.Join(cfg.AnnounceIPs, ", "), Placeholder: Lf("For example: %s", "192.168.1.20"),
 			Detail: L("Where viewers reach that port through the router: its address on their network. Several, with commas.")},
 	}
 	if u.prefs.netErr != "" {
 		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: u.prefs.netErr, Tint: "danger"})
 	}
-	if cfg.UDPPort > 0 && len(local) > 0 {
-		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: Lf("In the router, forward UDP port %d to %s.", cfg.UDPPort, local[0])})
+	if text, tint := u.portStatus(cfg); text != "" {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: text, Tint: tint})
 	}
-	if u.prefs.startSet && (cfg.UDPPort != u.prefs.start.UDPPort || strings.Join(cfg.AnnounceIPs, ",") != strings.Join(u.prefs.start.AnnounceIPs, ",")) {
+	if cfg.UDPPort > 0 && !cfg.MapUDPPort && local != "" {
+		rows = append(rows, remoteview.PrefRow{Kind: "note", Label: Lf("In the router, forward UDP port %d to %s.", cfg.UDPPort, local)})
+	}
+	if u.directChanged(cfg) {
 		rows = append(rows, remoteview.PrefRow{ID: "relaunch", Kind: "button", Label: L("The port and address are used when go-link Desk opens again."), Button: L("Open again now")})
 	}
 	return remoteview.PrefSection{Title: L("Direct connection (advanced)"),
 		Footer: L("For a computer behind a second router: without it, viewers on the other network go through a relay, which adds delay."), Rows: rows}
 }
 
-// localIPs are this computer's IPv4 addresses on its networks.
-func localIPs() []string {
-	var out []string
+// localIP is the address this computer leaves its network with: the one
+// a router forwards to (not a virtual machine's or a VPN's network).
+func localIP() string {
+	if a := netprobe.LocalIP(); a.IsValid() {
+		return a.String()
+	}
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		return nil
+		return ""
 	}
 	for _, a := range addrs {
-		n, ok := a.(*net.IPNet)
-		if !ok || n.IP.IsLoopback() || n.IP.To4() == nil || n.IP.IsLinkLocalUnicast() {
-			continue
+		if n, ok := a.(*net.IPNet); ok && !n.IP.IsLoopback() && n.IP.To4() != nil && !n.IP.IsLinkLocalUnicast() {
+			return n.IP.String()
 		}
-		out = append(out, n.IP.String())
 	}
-	return out
+	return ""
 }
 
 // The icons' rows in each system's words: the Mac's Dock and menu bar,
