@@ -318,7 +318,7 @@ export const docsEs: Docs = {
       title: "La app de Mac",
       lead: "El mismo go-link Desk que comparte tu Mac también se conecta a otras computadoras, una pestaña por sesión.",
       blocks: [
-        { t: "list", items: ["Escribí un código en **Conectar a otra computadora**: la sesión abre en una pestaña de la ventana de la app (o en su propia ventana, en Ajustes › Abrir las sesiones en pestañas).", "La imagen la decodifica el hardware de la Mac (H.264), y tu teclado va por posición.", "Tu nombre, que ve la computadora a la que te conectás, está en Ajustes › Tu nombre."] },
+        { t: "list", items: ["Escribí un código en **Conectar a otra computadora**: la sesión abre en una pestaña de la ventana de la app (o en su propia ventana, en Ajustes › Abrir las sesiones en pestañas).", "La imagen la decodifica el hardware de la Mac (H.264), y tu teclado va por posición.", "Tu nombre, que ve la computadora a la que te conectás, está en Ajustes › Tu nombre.", "El botón **●** saca una captura (PNG) o graba la sesión (MPEG-4: H.264 y AAC, con el sonido si podés escucharlo) en **Descargas › go-link Desk**, con el puntero de la computadora; necesita el permiso **Sacar capturas y grabar la pantalla** allá, y la computadora lo muestra primero."] },
         { t: "note", tone: "info", text: "En Linux la app solo comparte su pantalla; para conectarte a otras computadoras desde Linux, usá el navegador." },
       ],
     },

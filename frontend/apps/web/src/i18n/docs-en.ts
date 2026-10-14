@@ -319,7 +319,7 @@ export const docsEn: Docs = {
       title: "The Mac app",
       lead: "The same go-link Desk that shares your Mac also connects to other computers, one tab per session.",
       blocks: [
-        { t: "list", items: ["Type a code in **Connect to another computer**: the session opens in a tab of the app's window (or its own window, in Settings › Open sessions in tabs).", "The picture is decoded by the Mac's hardware (H.264), and your keyboard goes by position.", "Your name, shown to the computer you connect to, is in Settings › Your name."] },
+        { t: "list", items: ["Type a code in **Connect to another computer**: the session opens in a tab of the app's window (or its own window, in Settings › Open sessions in tabs).", "The picture is decoded by the Mac's hardware (H.264), and your keyboard goes by position.", "Your name, shown to the computer you connect to, is in Settings › Your name.", "The **●** button takes a screenshot (PNG) or records the session (MPEG-4: H.264 and AAC, with the sound if you may hear it) into **Downloads › go-link Desk**, with the computer's pointer; it needs the **Take screenshots and record the screen** permission there, and the computer shows it first."] },
         { t: "note", tone: "info", text: "On Linux the app only shares its screen; to connect to other computers from Linux, use the browser." },
       ],
     },
