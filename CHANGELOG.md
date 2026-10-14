@@ -4,14 +4,17 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Screenshots and recordings of the session, in the web viewer** (also Windows' and Linux' Connect, which open it): a new menu in the session's toolbar takes a screenshot (PNG, with the host's pointer) or records the screen and, when the viewer may hear it, the computer's sound (WebM in Chrome, Edge and Firefox, MP4 in Safari), into a file chosen at the start (Chrome, Edge) or downloaded at the end; a red pill with the time stops it. Everything happens in the browser, from the picture it already gets. A recording stops by itself after 2 hours, or at 1 GB when the browser keeps it in memory.
+- **A new permission, Take screenshots and record the screen**, in the connection request, the session panel and each linked device, never ticked by default (the request still ticks the rest). The viewer asks the computer before each screenshot and recording, and saves or starts only after it answered yes, which it does once the person there is shown it: the session panel says **● Recording your screen since 15:04** in red (or the screenshots taken), and so do the main window and the tray. Unticking it stops a recording. Older computers never give it, so the menu does not show. See [docs/security.md](docs/security.md#screenshots-and-recordings).
+
 ## [1.3.4] - 2026-10-14
 
 A direct connection through a router you set up: with a fixed UDP port, the computer app opens it in the router by itself (UPnP or NAT-PMP, off by default) or tells you the exact rule to add, and a port forwarded by hand finally works.
 
 ### Added
 
-- **Screenshots and recordings of the session, in the web viewer** (also Windows' and Linux' Connect, which open it): a new menu in the session's toolbar takes a screenshot (PNG, with the host's pointer) or records the screen and, when the viewer may hear it, the computer's sound (WebM in Chrome, Edge and Firefox, MP4 in Safari), into a file chosen at the start (Chrome, Edge) or downloaded at the end; a red pill with the time stops it. Everything happens in the browser, from the picture it already gets. A recording stops by itself after 2 hours, or at 1 GB when the browser keeps it in memory.
-- **A new permission, Take screenshots and record the screen**, in the connection request, the session panel and each linked device, never ticked by default (the request still ticks the rest). The viewer asks the computer before each screenshot and recording, and saves or starts only after it answered yes, which it does once the person there is shown it: the session panel says **● Recording your screen since 15:04** in red (or the screenshots taken), and so do the main window and the tray. Unticking it stops a recording. Older computers never give it, so the menu does not show. See [docs/security.md](docs/security.md#screenshots-and-recordings).
 - **The computer app opens its fixed UDP port in the router by itself** (macOS, Windows, Linux): a new **Open it in the router by itself** box in Settings › Direct connection (advanced), off by default. With a UDP port chosen, it asks the router with NAT-PMP, then UPnP, for this computer only, keeps the lease (an hour, asked again at half), and removes it on quitting; Settings says what the router answered. See [docs/network.md](docs/network.md#one-port-for-every-connection).
 - **Settings › Direct connection (advanced) on Windows and Linux**, as on the Mac: the UDP port, opening it in the router, and the announced addresses (before, only in `device.json`).
 - **The connection test gives the exact rules for the fixed port**: the app sends it (and whether the router opened it) with the rest, and the guide shows `UDP 40000 to: 172.17.0.5` for each router instead of the generic steps.
