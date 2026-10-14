@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **A computer left on for more than 12 hours could not be reached through the relay** (TURN): its relay credentials, given only when it connects to the signaling server, expired, and a viewer whose network needs the relay saw a black screen at "Connecting…". The app and go-link-desk-terminal now reconnect to the signaling server an hour before they expire, when nobody is in session, for new ones. (The public demo, relay only, stopped answering this way.)
+
 ### Changed
 
 - **Files sent to a computer land straight in Downloads**, on macOS, Windows, Linux and with go-link-desk-terminal (`~/Downloads`, created if missing), never over a file already there. The Mac app's screenshots and recordings go to Downloads too, and Android's to Downloads, Pictures and Movies, without a folder of their own.

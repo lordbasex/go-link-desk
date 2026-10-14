@@ -277,7 +277,9 @@ func (s *Session) Permissions() models.Permissions {
 func (s *Session) Dial(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	h := &dialHandler{s: s}
-	c := signalclient.New(signalclient.Config{URL: s.opts.SignalURL, Logger: s.log}, h)
+	// The connection is the session's own: it never reconnects for fresh TURN
+	// credentials, which would end the session.
+	c := signalclient.New(signalclient.Config{URL: s.opts.SignalURL, Logger: s.log, Renewable: func() bool { return false }}, h)
 	s.mu.Lock()
 	s.cancel = cancel
 	s.mu.Unlock()

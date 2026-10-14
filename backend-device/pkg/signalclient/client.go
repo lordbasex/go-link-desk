@@ -11,7 +11,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -46,6 +49,49 @@ type Config struct {
 	PingEvery time.Duration
 	WriteWait time.Duration
 	Logger    *slog.Logger
+	// Renewable says whether the connection may be made again now (nobody
+	// in session). The TURN credentials of hello last a while (12 h on
+	// signalhub) and come only with hello: before they expire the client
+	// reconnects for new ones, once Renewable says yes. Nil: any time.
+	Renewable func() bool
+	// now is the clock (tests).
+	now func() time.Time
+}
+
+// errRenew ends a connection on purpose, for fresh TURN credentials.
+var errRenew = errors.New("signalclient: renewing the TURN credentials")
+
+// renewMargin is how long before the TURN credentials expire the client
+// starts looking for a moment to reconnect.
+const renewMargin = time.Hour
+
+// renewRetry is how often the client asks Renewable again while someone is
+// in session.
+var renewRetry = time.Minute
+
+// renewAt is when to reconnect for fresh TURN credentials: renewMargin
+// before the first of them expires (its username is "expiry:peer", the
+// TURN REST format), or zero when none says.
+func renewAt(servers []ICEServer, now time.Time) time.Time {
+	var first time.Time
+	for _, s := range servers {
+		exp, _, ok := strings.Cut(s.Username, ":")
+		if !ok {
+			continue
+		}
+		n, err := strconv.ParseInt(exp, 10, 64)
+		if err != nil || n <= 0 {
+			continue
+		}
+		if t := time.Unix(n, 0); first.IsZero() || t.Before(first) {
+			first = t
+		}
+	}
+	if first.IsZero() {
+		return time.Time{}
+	}
+	margin := min(renewMargin, first.Sub(now)/4)
+	return first.Add(-max(margin, 0))
 }
 
 // Client keeps a signalhub connection alive.
@@ -77,6 +123,9 @@ func New(cfg Config, h Handler) *Client {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+	if cfg.now == nil {
+		cfg.now = time.Now
 	}
 	return &Client{cfg: cfg, h: h}
 }
@@ -148,6 +197,9 @@ func (c *Client) Run(ctx context.Context) error {
 			return ctx.Err()
 		}
 		c.h.OnDisconnect(err)
+		if errors.Is(err, errRenew) {
+			continue // straight back, with new credentials
+		}
 		if connected {
 			backoff = c.cfg.MinBackoff
 		}
@@ -221,13 +273,41 @@ func (c *Client) session(ctx context.Context, target string) (connected bool, er
 	}()
 
 	c.h.OnConnect(hello)
+	var renewing atomic.Bool
+	if at := renewAt(hello.ICEServers, c.cfg.now()); !at.IsZero() {
+		go c.renewWhenIdle(conn, at, pinging, &renewing)
+	}
 	for {
 		var env Envelope
 		if err := conn.ReadJSON(&env); err != nil {
+			if renewing.Load() {
+				return true, errRenew
+			}
 			return true, err
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(c.cfg.PongWait))
 		c.h.OnMessage(env)
+	}
+}
+
+// renewWhenIdle closes conn, for Run to make it again with fresh TURN
+// credentials, from at on, as soon as nobody is in session (checked each
+// minute). done ends it with the connection.
+func (c *Client) renewWhenIdle(conn *websocket.Conn, at time.Time, done <-chan struct{}, renewing *atomic.Bool) {
+	wait := max(at.Sub(c.cfg.now()), 0)
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(wait):
+		}
+		if c.cfg.Renewable == nil || c.cfg.Renewable() {
+			c.cfg.Logger.Info("reconnecting to the signaling server for fresh TURN credentials")
+			renewing.Store(true)
+			_ = conn.Close()
+			return
+		}
+		wait = renewRetry
 	}
 }
 

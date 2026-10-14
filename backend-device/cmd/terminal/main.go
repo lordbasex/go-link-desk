@@ -301,7 +301,7 @@ func serve(args []string) error {
 	stream.OnControl(control.Dispatch)
 	stream.OnClosed(session.StreamClosed)
 
-	client := signalclient.New(signalclient.Config{URL: target, Logger: logger}, services.Dispatcher{pairing, opener, session})
+	client := signalclient.New(signalclient.Config{URL: target, Logger: logger, Renewable: func() bool { p, _, _ := session.Active(); return p == "" }}, services.Dispatcher{pairing, opener, session})
 	pairing.SetSender(client)
 	opener.SetSender(client)
 	session.SetSender(client)
