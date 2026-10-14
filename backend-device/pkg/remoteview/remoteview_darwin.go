@@ -6,7 +6,7 @@ package remoteview
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc -fblocks -mmacosx-version-min=13.0
-#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore
+#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore -framework VideoToolbox -framework AudioToolbox
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -28,6 +28,10 @@ void rv_cursor_shape(void *ref, const uint8_t *png, int n, double hotX, double h
 void rv_cursor_pos(void *ref, double x, double y, int visible);
 void rv_control(void *ref, int on);
 void rv_menu(void *ref, const char *tool, const char *itemsJSON);
+void rv_screenshot(void *ref, const char *path);
+void rv_rec_start(void *ref, const char *path, int audio);
+void rv_rec_audio(void *ref, const int16_t *pcm, int n);
+void rv_rec_stop(void *ref);
 void rv_tool_state(void *ref, const char *tool, int on, int enabled);
 void rv_fullscreen(void *ref);
 void rv_open_panel(void *ref, const char *prompt);
@@ -273,6 +277,37 @@ func (v *View) ToolState(tool string, on, enabled bool) {
 		defer C.free(unsafe.Pointer(c))
 		C.rv_tool_state(ref, c, cbool(on), cbool(enabled))
 	})
+}
+
+// Screenshot saves the picture as shown, full size, as a PNG at path; the
+// Handler's Action("screenshot", why) says how it went ("" saved).
+func (v *View) Screenshot(path string) {
+	p := C.CString(path)
+	defer C.free(unsafe.Pointer(p))
+	v.with(func(ref unsafe.Pointer) { C.rv_screenshot(ref, p) })
+}
+
+// StartRecording writes the session's pictures, and with audio the sound
+// given to RecordAudio, to an MPEG-4 file at path, until StopRecording.
+func (v *View) StartRecording(path string, audio bool) {
+	p := C.CString(path)
+	defer C.free(unsafe.Pointer(p))
+	v.with(func(ref unsafe.Pointer) { C.rv_rec_start(ref, p, cbool(audio)) })
+}
+
+// RecordAudio hands the recording the computer's sound (16-bit mono, 48 kHz).
+func (v *View) RecordAudio(samples []int16) {
+	if len(samples) == 0 {
+		return
+	}
+	v.with(func(ref unsafe.Pointer) {
+		C.rv_rec_audio(ref, (*C.int16_t)(unsafe.Pointer(&samples[0])), C.int(len(samples)))
+	})
+}
+
+// StopRecording closes the file; Action("recorded", why) says how it went.
+func (v *View) StopRecording() {
+	v.with(func(ref unsafe.Pointer) { C.rv_rec_stop(ref) })
 }
 
 // ToggleFullScreen enters or leaves full screen.

@@ -10,6 +10,8 @@
 #include <stdint.h>
 #import <objc/runtime.h>
 
+#import "record_darwin.h"
+
 // Go callbacks (remoteview_darwin.go).
 extern void goRVMove(uintptr_t h, double x, double y, int inside);
 extern void goRVButton(uintptr_t h, int button, int down, double x, double y, int inside);
@@ -404,6 +406,8 @@ static RVMain *gMain;
 @property(nonatomic) CMVideoFormatDescriptionRef imageFormat; // on queue
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL shown; // its tab is the one shown (or it has its own window)
+@property(atomic, strong) RVRecorder *recorder; // while the session is recorded
+@property(nonatomic, copy) NSString *recordPath;
 @end
 
 @interface RVMain : NSObject <NSWindowDelegate>
@@ -752,6 +756,8 @@ static RVMain *gMain;
 	}
 	[layer enqueueSampleBuffer:sample];
 #pragma clang diagnostic pop
+	RVRecorder *rec = self.recorder;
+	if (rec) [rec appendH264:sample];
 	CFRelease(sample);
 }
 
@@ -783,6 +789,8 @@ static RVMain *gMain;
 	if (layer.status == AVQueuedSampleBufferRenderingStatusFailed) [layer flush];
 	[layer enqueueSampleBuffer:sample];
 #pragma clang diagnostic pop
+	RVRecorder *rec = self.recorder;
+	if (rec) [rec appendImage:pb];
 	CFRelease(sample);
 }
 
@@ -2163,6 +2171,70 @@ void rv_thumb(void *ref) {
 		NSData *jpeg = [rep representationUsingType:NSBitmapImageFileTypeJPEG properties:@{NSImageCompressionFactor : @0.6}];
 		if (jpeg) goRVThumb(s.handle, (void *)jpeg.bytes, (int)jpeg.length);
 	});
+}
+
+// rv_screenshot saves the picture as the window shows it (the computer's
+// pointer included), at its full size, as a PNG at path; the outcome comes
+// back as the "screenshot" action ("" on success, else why).
+void rv_screenshot(void *ref, const char *cpath) {
+	RVSession *s = S(ref);
+	NSString *path = [NSString stringWithUTF8String:cpath];
+	onMain(^{
+		NSWindow *w = s.host;
+		BOOL showing = s.window ? YES : gMain.selected == s;
+		if (s.closed || !showing || !w.isVisible || s.view.picture.width <= 0) {
+			action(s.handle, @"screenshot", @"the session is not on screen");
+			return;
+		}
+		NSRect r = [s.view convertRect:[s.view pictureRect] toView:nil];
+		r = [w convertRectToScreen:r];
+		CGFloat top = NSMaxY(NSScreen.screens.firstObject.frame);
+		CGRect cg = CGRectMake(r.origin.x, top - NSMaxY(r), r.size.width, r.size.height);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		CGImageRef img = CGWindowListCreateImage(cg, kCGWindowListOptionIncludingWindow, (CGWindowID)w.windowNumber, kCGWindowImageBestResolution | kCGWindowImageBoundsIgnoreFraming);
+#pragma clang diagnostic pop
+		if (!img) {
+			action(s.handle, @"screenshot", @"the system gave no picture");
+			return;
+		}
+		NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:img];
+		CGImageRelease(img);
+		NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+		NSError *err = nil;
+		if (!png || ![png writeToFile:path options:NSDataWritingAtomic error:&err]) {
+			action(s.handle, @"screenshot", err.localizedDescription ?: @"the file could not be written");
+			return;
+		}
+		action(s.handle, @"screenshot", @"");
+	});
+}
+
+// rv_rec_start starts recording the session's pictures (and, with audio,
+// the sound given to rv_rec_audio) to an MPEG-4 file at path.
+void rv_rec_start(void *ref, const char *cpath, int audio) {
+	RVSession *s = S(ref);
+	NSString *path = [NSString stringWithUTF8String:cpath];
+	s.recordPath = path;
+	s.recorder = [[RVRecorder alloc] initWithURL:[NSURL fileURLWithPath:path] audio:audio != 0];
+}
+
+void rv_rec_audio(void *ref, const int16_t *pcm, int n) {
+	RVRecorder *rec = S(ref).recorder;
+	if (rec) [rec appendPCM:pcm count:n];
+}
+
+// rv_rec_stop closes the file; the outcome comes back as the "recorded"
+// action ("" on success, else why).
+void rv_rec_stop(void *ref) {
+	RVSession *s = S(ref);
+	RVRecorder *rec = s.recorder;
+	s.recorder = nil;
+	if (!rec) return;
+	uintptr_t h = s.handle;
+	[rec finish:^(BOOL ok, NSString *err) {
+		action(h, @"recorded", ok ? @"" : err);
+	}];
 }
 
 void rv_focus(void *ref) {
