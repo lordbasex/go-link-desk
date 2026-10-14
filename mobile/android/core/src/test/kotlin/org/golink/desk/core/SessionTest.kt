@@ -195,4 +195,49 @@ class SessionTest {
         assertEquals(big, sent.joinToString("") { it["text"].str(1 shl 20) })
         assertFalse(s.sendChat("   "))
     }
+
+    @Test
+    fun screenshotsAndRecordingAskTheComputerFirst() = runTest {
+        val r = Rig(this)
+        val s = r.session
+        r.hello()
+        r.receive("""{"type":"joined","remote":"H"}""")
+        r.fromHost("""{"kind":"accepted","permissions":{"view":true}}""")
+        r.fromHost("""{"kind":"offer","sdp":"v=0"}""")
+        val peer = r.peer
+        peer.events.onControlOpen()
+        val answers = mutableListOf<Boolean>()
+        s.askScreenshot { answers += it }
+        assertEquals(listOf(false), answers) // no permission: nothing asked
+        assertTrue(peer.control.isEmpty())
+
+        r.control("""{"type":"permissions","permissions":{"view":true,"record":true}}""")
+        s.askScreenshot { answers += it }
+        assertEquals("""{"type":"screenshot","id":1}""", peer.control.last())
+        r.control("""{"type":"screenshot","id":1,"ok":true}""")
+        assertEquals(listOf(false, true), answers)
+
+        s.startRecording { answers += it }
+        assertEquals("""{"type":"recording","on":true,"id":2}""", peer.control.last())
+        assertFalse(s.recording)
+        r.control("""{"type":"recording","id":2,"on":true}""")
+        assertEquals(true, answers.last())
+        assertTrue(s.recording)
+
+        // The person at the computer unticks it: the recording stops here.
+        var stopped = 0
+        s.events.recordingStopped = { stopped++ }
+        r.control("""{"type":"permissions","permissions":{"view":true}}""")
+        assertFalse(s.recording)
+        assertEquals(1, stopped)
+
+        // No answer in time is a no, and a late yes is turned down.
+        r.control("""{"type":"permissions","permissions":{"view":true,"record":true}}""")
+        s.startRecording { answers += it }
+        advanceTimeBy(DeskSession.ASK_TIMEOUT_MS + 1)
+        assertEquals(false, answers.last())
+        r.control("""{"type":"recording","id":3,"on":true}""")
+        assertFalse(s.recording)
+        assertEquals("""{"type":"recording","id":0,"on":false}""", peer.control.last())
+    }
 }

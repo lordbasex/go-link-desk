@@ -305,6 +305,8 @@ export const docsPt: Docs = {
         },
         { t: "p", text: "No modo toque, o seu dedo é o ponteiro: toque onde quer clicar." },
         { t: "p", text: "O trackpad de um iPad, um mouse e um teclado físico funcionam como em um computador. O cadeado deixa a imagem parada para assistir sem tocar em nada." },
+        { t: "h2", id: "capture", text: "Capturas e gravações" },
+        { t: "p", text: "Com a permissão **Tirar capturas e gravar a tela**, o botão **●** tira uma captura ou grava a sessão, com o som do computador se você puder ouvir. Antes o computador é perguntado e mostra isso. No iPhone e iPad elas vão para **Fotos** (pede uma vez para adicionar); no Android para **Imagens** e **Filmes › go-link Desk**." },
         { t: "h2", id: "keys", text: "O teclado" },
         { t: "p", text: "O botão de teclado abre o teclado na tela com uma barra das teclas que faltam em um celular: Esc, Ctrl, ⌘ e F1 a F12. O menu Teclas envia atalhos como Ctrl+Alt+Del." },
         { t: "h2", id: "linked", text: "Seus computadores" },

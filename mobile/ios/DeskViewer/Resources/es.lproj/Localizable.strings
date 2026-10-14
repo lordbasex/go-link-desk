@@ -169,3 +169,19 @@
 "Connection" = "Conexión";
 "Test my connection" = "Probar mi conexión";
 "Is your connection direct or through the relay? The test shows the path through your routers and how to improve it." = "¿Tu conexión va directa o por relay? La prueba muestra el camino por tus routers y cómo mejorarlo.";
+
+/* Screenshots and recording */
+"Record the screen" = "Grabar la pantalla";
+"Recording saved in Photos." = "Grabación guardada en Fotos.";
+"Screenshot and recording" = "Captura y grabación";
+"Screenshot saved in Photos." = "Captura guardada en Fotos.";
+"Stop recording" = "Detener la grabación";
+"Take a screenshot" = "Sacar una captura";
+"The computer did not allow it: the person there must tick “Take screenshots and record the screen”." = "La computadora no lo permitió: la persona ahí tiene que marcar “Sacar capturas y grabar la pantalla”.";
+"The person at the computer sees when you take a screenshot or record." = "La persona en la computadora ve cuando sacás una captura o grabás.";
+"The person at the computer stopped the recording; what was recorded is in Photos." = "La persona en la computadora detuvo la grabación; lo grabado está en Fotos.";
+"The recording could not be saved." = "No se pudo guardar la grabación.";
+"The recording could not be saved: allow go-link Desk to add to Photos in Settings." = "No se pudo guardar la grabación: permití que go-link Desk agregue a Fotos en Ajustes.";
+"The recording reached its 2-hour limit and was saved in Photos." = "La grabación llegó a su límite de 2 horas y quedó guardada en Fotos.";
+"The screenshot could not be saved: allow go-link Desk to add to Photos in Settings." = "No se pudo guardar la captura: permití que go-link Desk agregue a Fotos en Ajustes.";
+"The session ended; the recording is in Photos." = "La sesión terminó; la grabación está en Fotos.";

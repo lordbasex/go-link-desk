@@ -26,17 +26,21 @@ public struct Permissions: Equatable, Sendable {
     public var audio = false
     public var clipboard = false
     public var files = false
+    /** Screenshots and recordings, each asked of the computer first. */
+    public var record = false
 
-    public init(control: Bool = false, audio: Bool = false, clipboard: Bool = false, files: Bool = false) {
+    public init(control: Bool = false, audio: Bool = false, clipboard: Bool = false, files: Bool = false, record: Bool = false) {
         self.control = control
         self.audio = audio
         self.clipboard = clipboard
         self.files = files
+        self.record = record
     }
 
     static func parse(_ v: JSON?) -> Permissions {
         let o = v.obj
-        return Permissions(control: o["control"].isTrue, audio: o["audio"].isTrue, clipboard: o["clipboard"].isTrue, files: o["files"].isTrue)
+        return Permissions(control: o["control"].isTrue, audio: o["audio"].isTrue, clipboard: o["clipboard"].isTrue, files: o["files"].isTrue,
+                           record: o["record"].isTrue)
     }
 }
 

@@ -93,6 +93,13 @@
     <string name="sound_on">Activar el sonido</string>
     <string name="mute">Silenciar el sonido</string>
     <string name="show_details">Mostrar los detalles</string>
+    <string name="capture">Captura y grabación</string>
+    <string name="take_screenshot">Sacar una captura</string>
+    <string name="record_screen">Grabar la pantalla</string>
+    <string name="stop_recording">Detener la grabación</string>
+    <string name="capture_shown">La persona en la computadora ve cuando sacás una captura o grabás.</string>
+    <string name="rec_refused">La computadora no lo permitió: la persona ahí tiene que marcar “Sacar capturas y grabar la pantalla”.</string>
+    <string name="rec_failed">No se pudo guardar la grabación.</string>
     <string name="hide_details">Ocultar los detalles</string>
     <string name="copy">Copiar</string>
     <string name="paste">Pegar</string>
@@ -171,6 +178,12 @@
     <string name="link_keystore">El almacén de claves del equipo lo rechazó.</string>
     <string name="saved_in_downloads">Guardado en Descargas › go-link Desk:</string>
     <string name="share">Compartir</string>
+    <string name="shot_saved">Captura guardada en Imágenes › go-link Desk.</string>
+    <string name="shot_failed">No se pudo guardar la captura.</string>
+    <string name="rec_saved">Grabación guardada en Películas › go-link Desk.</string>
+    <string name="rec_limit">La grabación llegó a su límite de 2 horas y quedó guardada en Películas › go-link Desk.</string>
+    <string name="rec_host_stopped">La persona en la computadora detuvo la grabación; lo grabado está en Películas › go-link Desk.</string>
+    <string name="rec_session_ended">La sesión terminó; la grabación está en Películas › go-link Desk.</string>
     <string name="g_kb_hw">Un teclado conectado a este equipo</string>
     <string name="g_mouse_title">Un mouse o trackpad</string>
 </resources>

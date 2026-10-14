@@ -306,6 +306,8 @@ export const docsEn: Docs = {
         },
         { t: "p", text: "In touch mode your finger is the pointer: tap where you want to click." },
         { t: "p", text: "An iPad's trackpad, a mouse and a hardware keyboard work as on a computer. The lock button keeps the picture still so you can watch without touching anything." },
+        { t: "h2", id: "capture", text: "Screenshots and recordings" },
+        { t: "p", text: "With the **Take screenshots and record the screen** permission, the **●** button takes a screenshot or records the session, with the computer's sound if you may hear it. The computer is asked first and shows it. On iPhone and iPad they go to **Photos** (it asks once to add to them); on Android to **Pictures** and **Movies › go-link Desk**." },
         { t: "h2", id: "keys", text: "The keyboard" },
         { t: "p", text: "The keyboard button opens the on-screen keyboard with a bar of keys a phone lacks: Esc, Ctrl, ⌘ and F1 to F12. The Keys menu sends shortcuts like Ctrl+Alt+Del." },
         { t: "h2", id: "linked", text: "Your computers" },

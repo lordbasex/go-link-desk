@@ -164,6 +164,49 @@ final class SessionTests: XCTestCase {
         let joined = sent.map { $0["text"].str(1 << 20) }.joined()
         XCTAssertEqual(joined, big)
     }
+
+    func testScreenshotsAndRecordingAskTheComputerFirst() {
+        let s = session()
+        hello()
+        sockets.last.receive(#"{"type":"joined","remote":"H"}"#)
+        fromHost(#"{"kind":"accepted","permissions":{"view":true}}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        var answers: [Bool] = []
+        s.askScreenshot { answers.append($0) }
+        XCTAssertEqual(answers, [false]) // no permission: nothing asked
+        XCTAssertTrue(peer.control.isEmpty)
+
+        peer.events.onControlMessage(#"{"type":"permissions","permissions":{"view":true,"record":true}}"#)
+        s.askScreenshot { answers.append($0) }
+        XCTAssertEqual(peer.control.last, #"{"type":"screenshot","id":1}"#)
+        peer.events.onControlMessage(#"{"type":"screenshot","id":1,"ok":true}"#)
+        XCTAssertEqual(answers, [false, true])
+
+        s.startRecording { answers.append($0) }
+        XCTAssertEqual(peer.control.last, #"{"type":"recording","on":true,"id":2}"#)
+        XCTAssertFalse(s.recording)
+        peer.events.onControlMessage(#"{"type":"recording","id":2,"on":true}"#)
+        XCTAssertEqual(answers.last, true)
+        XCTAssertTrue(s.recording)
+
+        // The person at the computer unticks it: the recording stops here.
+        var stopped = 0
+        s.events.recordingStopped = { stopped += 1 }
+        peer.events.onControlMessage(#"{"type":"permissions","permissions":{"view":true}}"#)
+        XCTAssertFalse(s.recording)
+        XCTAssertEqual(stopped, 1)
+
+        // No answer in time is a no, and a late yes is turned down.
+        peer.events.onControlMessage(#"{"type":"permissions","permissions":{"view":true,"record":true}}"#)
+        s.startRecording { answers.append($0) }
+        clock.advance(by: 5000)
+        XCTAssertEqual(answers.last, false)
+        peer.events.onControlMessage(#"{"type":"recording","id":3,"on":true}"#)
+        XCTAssertFalse(s.recording)
+        XCTAssertEqual(peer.control.last, #"{"type":"recording","id":0,"on":false}"#)
+    }
 }
 
 final class RecentsTests: XCTestCase {
