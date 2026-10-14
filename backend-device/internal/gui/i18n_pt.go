@@ -66,7 +66,7 @@ func init() {
 		"Disconnect (recording your screen)":               "Desconectar (gravando sua tela)",
 		"Disconnect %s (recording your screen)":            "Desconectar %s (gravando sua tela)",
 		"%s: stopped":                                      "%s: interrompido",
-		"Received %s, in Downloads › go-link Desk":         "Recebido %s, em Downloads › go-link Desk",
+		"Received %s, in Downloads › go-link-desk":         "Recebido %s, em Downloads › go-link-desk",
 		"Sent %s":                              "Enviado %s",
 		"Receiving %s… %d%%":                   "Recebendo %s… %d%%",
 		"Sending %s… %d%%":                     "Enviando %s… %d%%",

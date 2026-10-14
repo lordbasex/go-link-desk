@@ -151,7 +151,7 @@ func (p *sessionPanel) showTransfer(t services.Transfer) {
 	case t.Over && t.Err != nil:
 		p.transfer.SetText(Lf("%s: stopped", t.Name))
 	case t.Over && t.Upload:
-		p.transfer.SetText(Lf("Received %s, in Downloads › go-link Desk", t.Name))
+		p.transfer.SetText(Lf("Received %s, in Downloads › go-link-desk", t.Name))
 	case t.Over:
 		p.transfer.SetText(Lf("Sent %s", t.Name))
 	case t.Upload:

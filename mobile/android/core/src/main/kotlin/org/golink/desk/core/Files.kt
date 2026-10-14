@@ -249,7 +249,7 @@ class FilesClient(private val channel: FilesChannel, private val scope: Coroutin
 
     // Uploads
 
-    /** Sends a file: done gets the name the computer saved it as (in Downloads/go-link Desk). */
+    /** Sends a file: done gets the name the computer saved it as (in Downloads/go-link-desk). */
     fun upload(
         name: String,
         size: Long,

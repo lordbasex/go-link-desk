@@ -72,7 +72,7 @@ Dependencies are Swift packages only: [stasel/WebRTC](https://github.com/stasel/
 - Files (with the files permission):
   - browse the computer's home folder;
   - tap a file to download it into the Files app (On My iPhone or iPad › go-link Desk);
-  - Send takes a file from the Files app, or a photo or video, to the computer's Downloads/go-link Desk.
+  - Send takes a file from the Files app, or a photo or video, to the computer's Downloads/go-link-desk.
 - Chat with the person at the computer. A number counts the messages not read, and a short notice shows one that comes in while the chat is closed.
 - Lock, to watch without touching anything. Nothing is sent and the view stays still; hold the lock for a second to unlock.
 - ? opens the guide to the gestures, keys and toolbar. It also opens by itself the first time a session starts.

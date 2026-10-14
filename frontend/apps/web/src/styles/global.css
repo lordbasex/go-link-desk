@@ -319,7 +319,8 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .terminal-box { display: flex; overflow: hidden; }
 .terminal-host { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .terminal-box .xterm { height: 100%; }
-.terminal-box .xterm-viewport { background-color: #0d1117; }
+/* xterm.js 6 scrolls in its own element: the viewport's scrollbars only showed as a black strip under the last row */
+.terminal-box .xterm-viewport { background-color: #0d1117 !important; overflow: hidden !important; }
 
 /* the terminals' strip, like tmux's status line */
 .term-tabs { display: flex; gap: 2px; align-items: stretch; overflow-x: auto; padding: 0 6px; background: #161b22; border-top: 1px solid #30363d; font: 12px/1 var(--font-mono, ui-monospace, Menlo, monospace); scrollbar-width: none; }

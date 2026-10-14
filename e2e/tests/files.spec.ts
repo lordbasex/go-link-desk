@@ -58,7 +58,7 @@ test("a big file goes to the host while the session keeps moving, and never over
   // The test card sends 30 fps: no gap of a second or more while the file moved.
   expect(worstGap.worst).toBeLessThan(1000);
 
-  const saved = join(hostHome("control"), "Downloads", "go-link Desk", `go-link-desk-e2e-${SIZE_MB}mb.bin`);
+  const saved = join(hostHome("control"), "Downloads", "go-link-desk", `go-link-desk-e2e-${SIZE_MB}mb.bin`);
   expect(statSync(saved).size).toBe(SIZE_MB << 20);
   expect(await sha256(saved)).toBe(await sha256(src));
   await expect.poll(() => hostLogged(/msg="file received from the viewer"/, "control")).toBe(true);

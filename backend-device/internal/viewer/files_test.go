@@ -63,7 +63,7 @@ func TestFilesGoBothWays(t *testing.T) {
 	f, home := newWire(t)
 	local := t.TempDir()
 
-	// Upload: the computer keeps it in Downloads/go-link Desk.
+	// Upload: the computer keeps it in Downloads/go-link-desk.
 	data := make([]byte, 300<<10+123)
 	_, _ = rand.Read(data)
 	src := filepath.Join(local, "report.pdf")

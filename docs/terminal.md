@@ -47,7 +47,7 @@ A computer without a screen has nobody to accept a viewer, so **only linked brow
 2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org/web, in the same box as a session code (a 9-digit code that is no session's is tried as a linking code), or opens the `/link/<code>` address it prints, is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
 3. From then on the browser comes back from its list of computers (reach): its token, the computer's proof, then the password, as in the app's unattended access.
 
-A link lets the browser see the terminals and type, copy and paste, and save screenshots and recordings (`view`, `control`, `clipboard`, `record`); links made before 1.5 are upgraded when the service starts.
+A link lets the browser see the terminals and type, copy and paste, send and take files, and save screenshots and recordings (`view`, `control`, `clipboard`, `files`, `record`); links made before 1.5 are upgraded when the service starts.
 
 ## The session
 
@@ -65,7 +65,7 @@ The terminals belong to the computer, like screen's: they outlive the viewer, an
 
 ## In the browser
 
-- The web knows a terminal from its `welcome` (`source: "terminal"`) and shows it where a session shows the screen, with the same toolbar: Keys (Esc, Tab, Ctrl+C…), Screenshot and recording, a **Terminals** menu in place of Screen (the terminals, new, rename, close, text size, copy what is shown, paste) and full screen. Chat, files, sound and the video call are not offered.
+- The web knows a terminal from its `welcome` (`source: "terminal"`) and shows it where a session shows the screen, with the same toolbar: Keys (Esc, Tab, Ctrl+C…), Screenshot and recording, a **Terminals** menu in place of Screen (the terminals, new, rename, close, text size, copy what is shown, paste) and full screen. Files works as for a desktop (the `files` channel, the same Files panel; a drop on the terminal sends): what is sent lands in `~/Downloads/go-link-desk`, and the computer's side browses its user's home. Chat, sound and the video call are not offered.
 - The terminal is xterm.js (`@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-webgl`, MIT), loaded only then. One xterm.js shows the chosen terminal; the page keeps each one's output (2 MiB), so switching is at once.
 - A strip at the bottom, like tmux's, lists the terminals: a click shows one, a double click renames it, ＋ opens one, and a dot marks new output in another. Alt+Shift+T opens one and Alt+Shift+← → move between them (the browser keeps Ctrl+Shift+T and Ctrl+Tab).
 - Coming back shows "Resumed" when the terminals were open before. If the connection is made again, the page drops what it kept and takes the histories again.
