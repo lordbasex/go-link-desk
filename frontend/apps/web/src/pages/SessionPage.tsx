@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { useMemo } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { addRecent, formatCode, parseInvite, type InviteTarget, type SignalClient } from "@go-link-desk/shared";
 import { t } from "../i18n";
 import type { Door, HostInfo } from "../session/session";
@@ -24,11 +24,16 @@ function JoinSession({ target, createClient }: { target: InviteTarget; createCli
   const shown = "code" in target ? formatCode(target.code) : target.invite;
   const key = "code" in target ? target.code : target.invite;
   const recent = useRecent(key, "");
+  const navigate = useNavigate();
   return (
     <SessionRunner
       door={door}
       title={t.session.nameTitle.replace("{code}", shown)}
       back={{ to: "/web", label: t.session.back }}
+      // A 9-digit code that is no session's may be a computer's linking
+      // code (go-link-desk-terminal link, Settings › Unattended access):
+      // one box for both, the link page asks the computer.
+      onNotFound={"code" in target ? () => navigate(`/link/${target.code}`, { replace: true, state: { auto: true } }) : undefined}
       onHost={recent.host}
       onLive={recent.live}
       onSnapshot={recent.snapshot}

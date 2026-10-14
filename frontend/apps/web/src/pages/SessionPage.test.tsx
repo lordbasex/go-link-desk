@@ -14,6 +14,7 @@ function renderSession(client: FakeClient) {
       <Routes>
         <Route path="/c/:target" element={<SessionPage createClient={create} />} />
         <Route path="/c" element={<p>form</p>} />
+        <Route path="/link/:code" element={<p>linking 915355636</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -56,13 +57,13 @@ describe("SessionPage", () => {
     await vi.waitFor(() => expect(client.closed).toBe(true));
   });
 
-  it("explains a code that leads nowhere", async () => {
+  it("tries a code that is no session's as a linking code (one box for both)", async () => {
     const user = userEvent.setup();
     const client = new FakeClient();
     client.joinReply = "invalid or expired code";
     renderSession(client);
     await user.click(screen.getByRole("button", { name: en.session.connect }));
-    expect(await screen.findByText(en.session.notFound)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: en.session.retry })).toBeNull();
+    expect(await screen.findByText("linking 915355636")).toBeInTheDocument();
+    expect(screen.queryByText(en.session.notFound)).toBeNull();
   });
 });

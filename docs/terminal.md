@@ -40,7 +40,7 @@ go-link-desk-terminal unlink ID  # forget a browser
 A computer without a screen has nobody to accept a viewer, so **only linked browsers come in, with the password**:
 
 1. `go-link-desk-terminal password` sets the unattended password. Until then nobody can come in, and `link` refuses.
-2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org (Link a computer) is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
+2. `go-link-desk-terminal link` shows the pairing code. A browser that types it at desk.go-link.org/web, in the same box as a session code (a 9-digit code that is no session's is tried as a linking code), or opens the `/link/<code>` address it prints, is **asked about in that terminal**: "Ana (Chrome 141 on macOS) wants to be linked… Accept? [y/N]". Yes links it, with its first session at once; no, or closing the command, turns it down. The session code (join) is never asked: such viewers are turned down (`unavailable`).
 3. From then on the browser comes back from its list of computers (reach): its token, the computer's proof, then the password, as in the app's unattended access.
 
 A link lets the browser see the terminal and type (`view`, `control`).

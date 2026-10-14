@@ -50,7 +50,8 @@ type Status struct {
 	DeviceID   string     `json:"device_id"`
 	Signal     string     `json:"signal"`
 	Name       string     `json:"name"`
-	User       string     `json:"user"`       // whose shell sessions get
+	User       string     `json:"user"` // whose shell sessions get
+	WebURL     string     `json:"web_url"`
 	Unattended bool       `json:"unattended"` // a password is set
 	Session    string     `json:"session,omitempty"`
 	Links      []LinkInfo `json:"links"`

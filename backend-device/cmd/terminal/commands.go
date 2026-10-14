@@ -62,7 +62,8 @@ func command(cmd string, args []string) error {
 	}
 	r := bufio.NewReader(conn)
 	if cmd == "link" {
-		return link(conn, r, shellUser(path))
+		st := serviceStatus(path)
+		return link(conn, r, st)
 	}
 	var rep terminal.Reply
 	if err := readReply(r, &rep); err != nil {
@@ -119,7 +120,15 @@ func askPassword() (string, error) {
 }
 
 // link shows the pairing code until a browser uses it, and asks here.
-func link(conn net.Conn, r *bufio.Reader, shellUser string) error {
+func link(conn net.Conn, r *bufio.Reader, st terminal.Status) error {
+	web := strings.TrimRight(st.WebURL, "/")
+	if web == "" {
+		web = "https://desk.go-link.org"
+	}
+	shellUser := st.User
+	if shellUser == "" {
+		shellUser = os.Getenv("USER")
+	}
 	in := bufio.NewReader(os.Stdin)
 	intro := false
 	for {
@@ -131,9 +140,9 @@ func link(conn net.Conn, r *bufio.Reader, shellUser string) error {
 		case rep.Code != "":
 			if !intro {
 				intro = true
-				fmt.Println("Open desk.go-link.org, choose Link a computer, and type this code (Ctrl+C to stop):")
+				fmt.Printf("In your browser, open %s/web and type this code in Connect to another computer (Ctrl+C to stop):\n", web)
 			}
-			fmt.Printf("\n  %s\n\n(it changes every few minutes)\n", services.FormatCode(rep.Code))
+			fmt.Printf("\n  %s\n\nor open %s/link/%s (it changes every few minutes)\n", services.FormatCode(rep.Code), web, rep.Code)
 		case rep.Ask != nil:
 			who := rep.Ask.Browser
 			if rep.Ask.Name != "" {
@@ -217,17 +226,18 @@ func servicePath() (string, error) {
 	return "", fmt.Errorf("it runs for %s: choose one with --user", strings.Join(users, ", "))
 }
 
-// shellUser is whose shell sessions get, as the service says.
-func shellUser(path string) string {
+// serviceStatus asks the service how it is (empty when it cannot say).
+func serviceStatus(path string) terminal.Status {
 	conn, err := terminal.Dial(socketPath(path))
-	if err == nil {
-		defer conn.Close()
-		var rep terminal.Reply
-		if json.NewEncoder(conn).Encode(terminal.Request{Cmd: "status"}) == nil && readReply(bufio.NewReader(conn), &rep) == nil && rep.Status != nil && rep.Status.User != "" {
-			return rep.Status.User
-		}
+	if err != nil {
+		return terminal.Status{}
 	}
-	return os.Getenv("USER")
+	defer conn.Close()
+	var rep terminal.Reply
+	if json.NewEncoder(conn).Encode(terminal.Request{Cmd: "status"}) != nil || readReply(bufio.NewReader(conn), &rep) != nil || rep.Status == nil {
+		return terminal.Status{}
+	}
+	return *rep.Status
 }
 
 func notRunning() error {

@@ -207,7 +207,7 @@ func serve(args []string) error {
 		Path: socketPath(path), Log: logger,
 		Status: func() terminal.Status {
 			st := status.Snapshot()
-			out := terminal.Status{Version: version, DeviceID: cfg.DeviceID, Signal: st.Signal.State, Name: meta.Name, User: shell.User, Unattended: settings.UnattendedOn()}
+			out := terminal.Status{Version: version, DeviceID: cfg.DeviceID, Signal: st.Signal.State, Name: meta.Name, User: shell.User, WebURL: cfg.EffectiveWebURL(), Unattended: settings.UnattendedOn()}
 			if st.Session != nil && st.Session.Active != nil {
 				out.Session = st.Session.Active.Name
 			}
