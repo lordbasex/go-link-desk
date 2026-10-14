@@ -106,9 +106,9 @@ type linkAsk struct {
 }
 
 // LinkPermissions are a terminal link's: the computer is its owner's, so
-// they see and type in its terminals, copy and paste, and may save
-// screenshots and recordings.
-var LinkPermissions = models.Permissions{View: true, Control: true, Clipboard: true, Record: true}
+// they see and type in its terminals, copy and paste, send and take files,
+// and may save screenshots and recordings.
+var LinkPermissions = models.Permissions{View: true, Control: true, Clipboard: true, Files: true, Record: true}
 
 // Serve listens until ctx ends.
 func (c *Control) Serve(ctx context.Context) error {

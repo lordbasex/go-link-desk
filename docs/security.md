@@ -49,7 +49,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 - Files move only with their permission; taking it back stops the transfers.
 - A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and never a hidden file or folder (`.ssh`, `.aws`…) or `~/Library` (keychains, cookies, mail): they are neither listed nor downloadable, also through a symbolic link with a plain name.
-- What a viewer sends lands only in Downloads/go-link Desk, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
+- What a viewer sends lands only in Downloads/go-link-desk, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
 - Every file sent or received is logged with the viewer's id, its name and size.
 
 ### The video call
@@ -65,7 +65,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### Screenshots and recordings
 
-- A viewer saves pictures and recordings of the screen on its own side (the browser, or the apps: the Mac app into Downloads › go-link Desk, iPhone and iPad into Photos, Android into its gallery, each encoded by the device), from the picture it already gets: nothing more is sent, and the files never pass through go-link Desk's servers or the host.
+- A viewer saves pictures and recordings of the screen on its own side (the browser, or the apps: the Mac app into Downloads › go-link-desk, iPhone and iPad into Photos, Android into its gallery, each encoded by the device), from the picture it already gets: nothing more is sent, and the files never pass through go-link Desk's servers or the host.
 - Only with the **Take screenshots and record the screen** permission, which is never ticked by default, not even when the connection request ticks everything else. A linked device keeps it only if it was ticked.
 - The viewer asks first (`screenshot`, `recording` on `control`), and saves or starts recording only after the host answered yes; the host answers once the session panel shows it, in red while recording, and the main window and the tray say so. Unticking the permission stops a recording at once. The host's log keeps when each started and stopped.
 - **What this does not stop:** a viewer's browser receives the picture, so a dishonest viewer can record it anyway (a screen recorder, another app, a modified page). The permission and the notice are for honest viewers, so the person at the computer always knows; whoever must not be recorded should not let that viewer see the screen.

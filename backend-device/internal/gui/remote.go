@@ -184,7 +184,7 @@ func (r *remote) events() viewer.Events {
 		Unlinked: r.onUnlinked,
 		Files:    r.onFiles,
 		Recording: func(bool) {
-			r.stopRecording(L("The person at the computer stopped the recording; what was recorded is in Downloads › go-link Desk."))
+			r.stopRecording(L("The person at the computer stopped the recording; what was recorded is in Downloads › go-link-desk."))
 		},
 	}
 }
@@ -574,7 +574,7 @@ func (r *remote) thumbs(ctx context.Context) {
 // ended: the session is over; the tab stays with the reason until it is
 // closed.
 func (r *remote) ended() {
-	r.stopRecording(L("The session ended; the recording is in Downloads › go-link Desk."))
+	r.stopRecording(L("The session ended; the recording is in Downloads › go-link-desk."))
 	r.input.Allow(false, false)
 	r.view.SetControl(false)
 	r.setAudio(false)
@@ -599,7 +599,7 @@ func (r *remote) close() {
 		r.resize.Stop()
 	}
 	r.mu.Unlock()
-	r.stopRecording(L("The session ended; the recording is in Downloads › go-link Desk."))
+	r.stopRecording(L("The session ended; the recording is in Downloads › go-link-desk."))
 	r.s.HangUp()
 	r.setAudio(false)
 	r.closeVP8()

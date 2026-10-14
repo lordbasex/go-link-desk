@@ -29,7 +29,7 @@ type recState struct {
 }
 
 // captureDir is where screenshots and recordings land: next to the files
-// received from computers (Downloads › go-link Desk).
+// received from computers (Downloads › go-link-desk).
 func captureDir() (string, error) {
 	dir := filepath.Join(downloadsDir(), services.ReceivedFolder)
 	return dir, os.MkdirAll(dir, 0o755)
@@ -91,7 +91,7 @@ func (r *remote) chooseRecord(id string) {
 	case "rec:start":
 		go r.startRecording()
 	case "rec:stop":
-		go r.stopRecording(L("Recording saved in Downloads › go-link Desk."))
+		go r.stopRecording(L("Recording saved in Downloads › go-link-desk."))
 	case "rec:folder":
 		if dir, err := captureDir(); err == nil {
 			_ = exec.Command("open", dir).Start()
@@ -153,7 +153,7 @@ func (r *remote) startRecording() {
 	r.s.RequestKeyframe()
 	r.view.ToolState("record", true, true)
 	rec.limit = time.AfterFunc(maxRecording, func() {
-		r.stopRecording(L("The recording reached its 2-hour limit and was saved in Downloads › go-link Desk."))
+		r.stopRecording(L("The recording reached its 2-hour limit and was saved in Downloads › go-link-desk."))
 	})
 }
 
@@ -192,7 +192,7 @@ func (r *remote) recording() bool {
 func (r *remote) captured(kind, why string) {
 	switch {
 	case kind == "screenshot" && why == "":
-		r.flash(L("Screenshot saved in Downloads › go-link Desk."))
+		r.flash(L("Screenshot saved in Downloads › go-link-desk."))
 	case kind == "screenshot":
 		r.notify(L("The screenshot could not be saved.") + " (" + why + ")")
 	case why == "":

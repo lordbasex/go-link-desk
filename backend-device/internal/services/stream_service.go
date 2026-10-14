@@ -75,6 +75,8 @@ type StreamConfig struct {
 	// files channel: the control channel and Channels only
 	// (go-link-desk-terminal). Run then only pings the viewers.
 	DataOnly bool
+	// Files offers the files channel with DataOnly too (go-link-desk-terminal).
+	Files bool
 	// Features are what this host does beyond the basics, told in the
 	// welcome ("terminal-tabs").
 	Features []string
@@ -970,6 +972,11 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 				fn(peerID, dc)
 			}
 		}
+		if s.cfg.Files {
+			if err := s.addFiles(v); err != nil {
+				return fail(err)
+			}
+		}
 		return s.offer(v)
 	}
 	if err := s.addInputAndFiles(v); err != nil {
@@ -1056,9 +1063,15 @@ func (s *StreamService) addInputAndFiles(v *viewer) error {
 			s.input(v.id, "input", msg.Data)
 		}
 	})
-	// Files: uploads and downloads (files_service.go), apart from control
-	// so a big transfer never holds a control message back.
-	filesDC, err := pc.CreateDataChannel("files", &webrtc.DataChannelInit{Ordered: &ordered})
+	return s.addFiles(v)
+}
+
+// addFiles adds the files channel: uploads and downloads
+// (files_service.go), apart from control so a big transfer never holds a
+// control message back.
+func (s *StreamService) addFiles(v *viewer) error {
+	ordered := true
+	filesDC, err := v.pc.CreateDataChannel("files", &webrtc.DataChannelInit{Ordered: &ordered})
 	if err != nil {
 		return err
 	}

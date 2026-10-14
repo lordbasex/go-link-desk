@@ -586,7 +586,7 @@ export function LiveSession({
     }
     if (opening.current && fresh.length > 0) {
       opening.current = false;
-      setActiveTab(fresh[fresh.length - 1]!);
+      showTab(fresh[fresh.length - 1]!);
     }
     knownTabs.current = ids;
     setActivity((a) => a.filter((id) => ids.includes(id)));
@@ -754,7 +754,7 @@ export function LiveSession({
                 {unread > 0 && <span className="badge">{unread}</span>}
               </button>
             )}
-            {mayFiles && !terminal && (
+            {mayFiles && (
               <button type="button" className={`bar-button${filesOpen ? " is-on" : ""}`} aria-pressed={filesOpen} aria-label={t.files.title} title={t.files.title} onClick={() => setFilesOpen(!filesOpen)}>
                 <FolderIcon size={18} />
               </button>
@@ -1004,7 +1004,25 @@ export function LiveSession({
         </p>
       )}
       {terminal && session ? (
-        <div className="stage-screen stage-terminal">
+        <div
+          className="stage-screen stage-terminal"
+          // Files dropped on the terminal go to the computer, as on a screen.
+          onDragOver={(e) => {
+            if (!mayFiles || !e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget === e.target) setDragging(false);
+          }}
+          onDrop={(e) => {
+            setDragging(false);
+            if (!mayFiles || !e.dataTransfer.files.length) return;
+            e.preventDefault();
+            setDropped([...e.dataTransfer.files]);
+            setFilesOpen(true);
+          }}
+        >
           <Suspense fallback={null}>
             <TerminalStage
               session={session}
@@ -1045,6 +1063,8 @@ export function LiveSession({
               onStartRename={setRenaming}
             />
           )}
+          {dragging && <div className="drop-overlay">{t.files.dropHere}</div>}
+          {filesOpen && session.files && <FilesPanel files={session.files} dropped={dropped} onClose={() => { setFilesOpen(false); termApi.current?.focus(); }} />}
           {notice && (
             <p className="stage-notice" role="status">
               {notice}

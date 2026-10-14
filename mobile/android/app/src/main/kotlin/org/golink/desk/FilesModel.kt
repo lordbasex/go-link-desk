@@ -24,7 +24,7 @@ import java.io.RandomAccessFile
 /**
  * The computer's files as the Files sheet shows them: a folder's entries,
  * the transfer running (at most one download and one upload), and what
- * came of the last one. Downloads go to Downloads › go-link Desk, where
+ * came of the last one. Downloads go to Downloads › go-link-desk, where
  * the Files app and every other app see them.
  */
 class FilesModel(private val context: Context, private val client: FilesClient) {
@@ -76,13 +76,13 @@ class FilesModel(private val context: Context, private val client: FilesClient) 
         )
     }
 
-    /** Copies a finished download into Downloads › go-link Desk (the system picks a free name). */
+    /** Copies a finished download into Downloads › go-link-desk (the system picks a free name). */
     private fun publish(tmp: File, name: String): Outcome {
         val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, mime)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/go-link Desk")
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/go-link-desk")
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val resolver = context.contentResolver

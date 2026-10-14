@@ -132,7 +132,7 @@
     <string name="from_files">Do app Arquivos</string>
     <string name="from_photos">Do app Fotos</string>
     <string name="file_unreadable">Não é possível ler esse arquivo.</string>
-    <string name="sent_to_downloads">Enviado para Downloads/go-link Desk do computador:</string>
+    <string name="sent_to_downloads">Enviado para Downloads/go-link-desk do computador:</string>
     <string name="guide_in_touch">Você está no modo toque: o ponteiro vai aonde você toca.</string>
     <string name="guide_in_trackpad">Você está no modo trackpad: a tela funciona como o trackpad de um notebook.</string>
     <string name="trackpad_mode">Modo trackpad</string>
@@ -176,14 +176,14 @@
     <string name="unlock_subtitle">Para que só você possa abrir os computadores que vinculou.</string>
     <string name="link_no_lock">Primeiro defina um bloqueio de tela neste aparelho: os computadores vinculados são protegidos com ele e com sua digital ou seu rosto.</string>
     <string name="link_keystore">O armazenamento de chaves do aparelho recusou.</string>
-    <string name="saved_in_downloads">Salvo em Downloads › go-link Desk:</string>
+    <string name="saved_in_downloads">Salvo em Downloads › go-link-desk:</string>
     <string name="share">Compartilhar</string>
-    <string name="shot_saved">Captura salva em Imagens › go-link Desk.</string>
+    <string name="shot_saved">Captura salva em Imagens › go-link-desk.</string>
     <string name="shot_failed">Não foi possível salvar a captura.</string>
-    <string name="rec_saved">Gravação salva em Filmes › go-link Desk.</string>
-    <string name="rec_limit">A gravação chegou ao limite de 2 horas e foi salva em Filmes › go-link Desk.</string>
-    <string name="rec_host_stopped">A pessoa no computador parou a gravação; o que foi gravado está em Filmes › go-link Desk.</string>
-    <string name="rec_session_ended">A sessão terminou; a gravação está em Filmes › go-link Desk.</string>
+    <string name="rec_saved">Gravação salva em Filmes › go-link-desk.</string>
+    <string name="rec_limit">A gravação chegou ao limite de 2 horas e foi salva em Filmes › go-link-desk.</string>
+    <string name="rec_host_stopped">A pessoa no computador parou a gravação; o que foi gravado está em Filmes › go-link-desk.</string>
+    <string name="rec_session_ended">A sessão terminou; a gravação está em Filmes › go-link-desk.</string>
     <string name="g_kb_hw">Um teclado conectado a este aparelho</string>
     <string name="g_mouse_title">Um mouse ou trackpad</string>
 </resources>

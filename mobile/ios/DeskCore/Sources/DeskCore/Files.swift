@@ -257,7 +257,7 @@ public final class FilesClient {
 
     // MARK: - Uploads
 
-    /** Sends a file: done gets the name the computer saved it as (in Downloads/go-link Desk). */
+    /** Sends a file: done gets the name the computer saved it as (in Downloads/go-link-desk). */
     @discardableResult
     public func upload(name: String, size: Int64, from source: UploadSource,
                        progress: @escaping (_ sent: Int64, _ size: Int64) -> Void,

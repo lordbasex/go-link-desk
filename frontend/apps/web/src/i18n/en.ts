@@ -125,7 +125,7 @@ export const en = {
     dropHint: "Drop files here, or anywhere on the screen.",
     dropHere: "Drop to send to the other computer",
     choose: "Choose files",
-    whereHint: "They land in Downloads › go-link Desk, never over a file already there.",
+    whereHint: "They land in Downloads › go-link-desk, never over a file already there.",
     home: "Home",
     empty: "This folder is empty.",
     download: "Download",

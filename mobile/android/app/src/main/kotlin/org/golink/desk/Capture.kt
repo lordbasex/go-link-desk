@@ -311,9 +311,9 @@ class SessionRecorder(val file: File, private val withAudio: Boolean) : AudioTra
     }
 }
 
-/** The gallery: Pictures and Movies › go-link Desk, with no permission (MediaStore). */
+/** The gallery: Pictures and Movies › go-link-desk, with no permission (MediaStore). */
 object MediaSaver {
-    private const val FOLDER = "go-link Desk"
+    private const val FOLDER = "go-link-desk"
 
     fun saveImage(context: Context, bitmap: Bitmap, name: String): Boolean = runCatching {
         val values = ContentValues().apply {

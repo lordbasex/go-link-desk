@@ -201,7 +201,7 @@ func serve(args []string) error {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, UDPPort: cfg.UDPPort, AnnounceIPs: cfg.AnnounceIPs, Outside: outside,
-		Welcome: meta, Source: "terminal", DataOnly: true, Channels: []string{terminal.Channel}, Features: []string{"terminal-tabs"}, Logger: logger,
+		Welcome: meta, Source: "terminal", DataOnly: true, Files: true, Channels: []string{terminal.Channel}, Features: []string{"terminal-tabs"}, Logger: logger,
 	}, ice)
 	if err != nil {
 		return err
@@ -268,6 +268,10 @@ func serve(args []string) error {
 	term.OnTyped(idle.Touch)
 	stream.OnChannel(term.Channel)
 	record := services.NewRecordService(stream.SendControl, status, logger)
+	// Files, as on a desktop: its user's home to browse and take from,
+	// what comes in to ~/Downloads/go-link-desk.
+	files := services.NewFilesService(shell.Home, filepath.Join(shell.Home, "Downloads", services.ReceivedFolder), stream.SendFiles, logger)
+	stream.OnFiles(files.Handle)
 	session.OnPermissions(func(peer string, p models.Permissions) {
 		if p.View {
 			idle.Session(peer)
@@ -276,6 +280,7 @@ func serve(args []string) error {
 		}
 		term.Allow(peer, p)
 		record.Allow(peer, p.View, p.Record)
+		files.Allow(peer, p.Files)
 	})
 	// Links made before 1.5 could only see and type.
 	for _, l := range links.Links() {

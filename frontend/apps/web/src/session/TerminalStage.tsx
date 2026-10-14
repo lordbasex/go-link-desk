@@ -130,6 +130,8 @@ export default function TerminalStage({
   const keyRef = useRef(onKey);
   keyRef.current = onKey;
   const decoder = useRef(new TextDecoder());
+  // What comes first is the computer's history of each terminal, not new output.
+  const quietUntil = useRef(0);
 
   // One terminal for the whole session.
   useEffect(() => {
@@ -170,13 +172,15 @@ export default function TerminalStage({
       term.write(b);
       castRef.current?.(decoder.current.decode(b, { stream: true }));
     };
+    quietUntil.current = performance.now() + 2000;
     const detach = session.attachTerminal((id, bytes) => {
       logs.current.add(id, bytes);
       if (id === activeRef.current) shown(bytes);
-      else activityRef.current(id);
+      else if (performance.now() > quietUntil.current) activityRef.current(id);
     }, () => {
       logs.current = new Logs();
       term.reset();
+      quietUntil.current = performance.now() + 2000;
     });
     // The browser keeps Ctrl+Shift+T and Ctrl+Tab for itself: these go with Alt+Shift.
     term.attachCustomKeyEventHandler((e) => {
@@ -196,7 +200,8 @@ export default function TerminalStage({
     ro?.observe(el);
     term.focus();
     onApi({
-      canvas: () => (webgl ? (el.querySelector(".xterm-screen canvas") as HTMLCanvasElement | null) : null),
+      // The text's canvas (WebGL); the link layer over it is transparent.
+      canvas: () => (webgl ? (el.querySelector(".xterm-screen canvas:not(.xterm-link-layer)") as HTMLCanvasElement | null) : null),
       type: (text) => session.sendTerminal(activeRef.current, enc.encode(text)),
       text: (selectionOnly) => {
         if (term.hasSelection()) return term.getSelection();

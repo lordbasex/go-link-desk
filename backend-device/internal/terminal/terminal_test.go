@@ -62,6 +62,7 @@ type browser struct {
 	control  []string
 	terminal *webrtc.DataChannel
 	tabOut   map[uint32]*bytes.Buffer
+	files    *webrtc.DataChannel
 }
 
 type relay struct{ b *browser }
@@ -122,6 +123,10 @@ func newBrowser(t *testing.T, id string, stream *services.StreamService) *browse
 	})
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		switch dc.Label() {
+		case "files":
+			b.mu.Lock()
+			b.files = dc
+			b.mu.Unlock()
 		case Channel:
 			b.mu.Lock()
 			b.terminal = dc
@@ -181,7 +186,7 @@ func TestTerminalsOutliveTheViewer(t *testing.T) {
 	}
 	stream, err := services.NewStreamService(services.StreamConfig{
 		API: api, IncludeLoopback: true, Logger: quiet, Source: "terminal", Features: []string{"terminal-tabs"},
-		DataOnly: true, Channels: []string{Channel}, Welcome: services.SessionMeta{Name: "pi", OS: "linux"},
+		DataOnly: true, Files: true, Channels: []string{Channel}, Welcome: services.SessionMeta{Name: "pi", OS: "linux"},
 	}, ice)
 	if err != nil {
 		t.Fatal(err)
@@ -228,6 +233,7 @@ func TestTerminalsOutliveTheViewer(t *testing.T) {
 	b := connect("V")
 	b.wait("the welcome with tabs", func() bool { return strings.Contains(strings.Join(b.control, " "), `"features":["terminal-tabs"]`) })
 	b.wait("a first terminal", func() bool { return strings.Contains(lastTabs(b), `"name":"shell"`) })
+	b.wait("the files channel, as on a desktop", func() bool { return b.files != nil })
 	if strings.Contains(strings.Join(b.control, " "), `"resumed"`) {
 		t.Fatal("a first terminal was taken as resumed")
 	}
