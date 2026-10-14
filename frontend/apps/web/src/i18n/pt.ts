@@ -159,6 +159,8 @@ export const pt: Messages = {
     failed: "Não foi possível salvar a gravação.",
   },
   terminal: {
+    fontSize: "Tamanho do texto: {n}",
+    fontReset: "Tamanho normal",
     menu: "Terminais",
     newTab: "Novo terminal",
     rename: "Renomear “{name}”",

@@ -600,9 +600,10 @@ export function LiveSession({
     opening.current = true;
     session?.openTerminal();
   };
+  // One size bigger or smaller; 0 is the normal size.
   const setFont = (step: number) => {
     const i = TERM_FONTS.indexOf(termFont);
-    const next = TERM_FONTS[Math.min(TERM_FONTS.length - 1, Math.max(0, (i < 0 ? 3 : i) + step))] ?? termFont;
+    const next = step === 0 ? 14 : (TERM_FONTS[Math.min(TERM_FONTS.length - 1, Math.max(0, (i < 0 ? 3 : i) + step))] ?? termFont);
     setTermFont(next);
     try {
       window.localStorage.setItem(TERM_FONT_KEY, String(next));
@@ -878,9 +879,6 @@ export function LiveSession({
                       </>
                     )}
                     <MenuSection title={t.terminal.textSection} />
-                    <MenuItem onSelect={() => setFont(-1)}>{t.terminal.smaller}</MenuItem>
-                    <MenuItem onSelect={() => setFont(1)}>{t.terminal.bigger}</MenuItem>
-                    <MenuSeparator />
                     <MenuItem
                       onSelect={() => {
                         close();
@@ -899,6 +897,25 @@ export function LiveSession({
                         {t.terminal.paste}
                       </MenuItem>
                     )}
+                  </>
+                )}
+              </BarMenu>
+            )}
+            {terminal && (
+              // The terminal's own screen: its text size, kept in this browser.
+              // The menu stays open, so a few clicks find the size.
+              <BarMenu label={t.session.screenMenu} icon={<MonitorIcon />} onOpen={onMenu}>
+                {() => (
+                  <>
+                    <MenuSection title={t.terminal.fontSize.replace("{n}", String(termFont))} />
+                    <MenuItem onSelect={() => setFont(1)}>
+                      <span className="bar-menu-key">A+</span> {t.terminal.bigger}
+                    </MenuItem>
+                    <MenuItem onSelect={() => setFont(-1)}>
+                      <span className="bar-menu-key">A−</span> {t.terminal.smaller}
+                    </MenuItem>
+                    <MenuSeparator />
+                    <MenuItem onSelect={() => setFont(0)}>{t.terminal.fontReset}</MenuItem>
                   </>
                 )}
               </BarMenu>
