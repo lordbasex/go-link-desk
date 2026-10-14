@@ -181,6 +181,9 @@ type Events struct {
 	Unlinked func()
 	// Files: the files channel is open (with the files permission).
 	Files func(*Files)
+	// Recording: the computer stopped this viewer's recording (it took the
+	// permission away), or the session ended while recording.
+	Recording func(on bool)
 }
 
 // Options configure a Session.
@@ -235,6 +238,10 @@ type Session struct {
 	// pendingControl waits for the peer and its control channel.
 	pendingControl [][]byte
 	isHidden       bool
+	// Screenshots and recording (record.go).
+	asks      map[uint32]chan bool
+	askSeq    uint32
+	recording bool
 }
 
 // New builds a session; Start (or Dial) runs it.
@@ -581,7 +588,14 @@ func (s *Session) finish(st Status) {
 	}
 	s.status = st
 	p, t := s.peer, s.transport
+	recording := s.recording
 	s.mu.Unlock()
+	s.failAsks()
+	if recording {
+		if fn := s.opts.Events.Recording; fn != nil {
+			fn(false)
+		}
+	}
 	if p != nil {
 		p.close()
 	}

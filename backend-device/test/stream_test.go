@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+//go:build cgo
+
 // Package test holds the host's integration tests: the real services
 // against a browser played by Pion.
 package test

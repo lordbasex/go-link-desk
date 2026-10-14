@@ -135,6 +135,7 @@ func (s *Session) onControl(data []byte) {
 		s.mu.Lock()
 		s.perms = p
 		s.mu.Unlock()
+		s.recordAllowed(p.Record)
 		if ev.Permissions != nil {
 			ev.Permissions(p)
 		}
@@ -167,6 +168,8 @@ func (s *Session) onControl(data []byte) {
 		if json.Unmarshal(data, &t) == nil && ev.Typing != nil {
 			ev.Typing(t.On)
 		}
+	case "screenshot", "recording":
+		s.answered(m.Type, data)
 	case "session_end":
 		s.finish(Status{Kind: StatusEnded, Reason: endReason(m.Reason)})
 	default:

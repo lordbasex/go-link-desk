@@ -68,6 +68,8 @@ type remote struct {
 	chat      *remoteChat
 	browse    *remoteFiles
 	closed    bool
+	rec       *recState // this session recorded here (remote_record.go)
+	recSaid   string    // what to say once the recording is written
 }
 
 // viewerName is the name the other side sees.
@@ -116,6 +118,7 @@ func (u *ui) connect(door viewer.Door) {
 		{ID: "keys", Label: L("Keys"), Symbol: "command"},
 		{ID: "chat", Label: L("Chat"), Symbol: "bubble.left.and.bubble.right"},
 		{ID: "files", Label: L("Files"), Symbol: "folder"},
+		{ID: "record", Label: L("Screenshot and recording"), Symbol: "record.circle"},
 		{ID: "sound", Label: L("Sound"), Symbol: "speaker.wave.2"},
 		{ID: "info", Label: L("Details"), Symbol: "info.circle"},
 		{ID: "fullscreen", Label: L("Full screen"), Symbol: "arrow.up.left.and.arrow.down.right"},
@@ -141,7 +144,7 @@ func (u *ui) connect(door viewer.Door) {
 	r.input = viewer.NewInput(r.s)
 	r.input.Clipboard = r.board.Text
 	view.Overlay(L("Connecting…"), false, "", true)
-	for _, t := range []string{"display", "quality", "keys", "files", "sound"} {
+	for _, t := range []string{"display", "quality", "keys", "files", "record", "sound"} {
 		view.ToolState(t, false, false)
 	}
 	u.remotesMu.Lock()
@@ -164,9 +167,12 @@ func (r *remote) events() viewer.Events {
 		Video:       r.onVideo,
 		Audio:       r.onAudio,
 		Cursor:      r.onCursor,
-		CursorPos:   func(x, y float64, visible bool) { r.view.CursorPos(x, y, visible) },
-		Clipboard:   func(text string) { r.board.SetText(text) },
-		Chat:        r.onChat,
+		CursorPos: func(x, y float64, visible bool) {
+			// While recording, the pointer is in the picture.
+			r.view.CursorPos(x, y, visible && !r.recording())
+		},
+		Clipboard: func(text string) { r.board.SetText(text) },
+		Chat:      r.onChat,
 		Typing: func(on bool) {
 			fyne.Do(func() {
 				if r.chat != nil {
@@ -177,6 +183,9 @@ func (r *remote) events() viewer.Events {
 		Linked:   r.onLinked,
 		Unlinked: r.onUnlinked,
 		Files:    r.onFiles,
+		Recording: func(bool) {
+			r.stopRecording(L("The person at the computer stopped the recording; what was recorded is in Downloads › go-link Desk."))
+		},
 	}
 }
 
@@ -307,6 +316,7 @@ func (r *remote) onPermissions(p models.Permissions) {
 	r.view.ToolState("quality", false, true)
 	r.view.ToolState("keys", false, p.Control)
 	r.view.ToolState("files", false, p.Files)
+	r.view.ToolState("record", r.recording(), p.Record)
 	r.view.ToolState("sound", !muted && p.Audio, p.Audio)
 	r.setAudio(p.Audio && !muted)
 }
@@ -432,7 +442,11 @@ func (r *remote) closeVP8() {
 func (r *remote) onAudio(samples []int16) {
 	r.mu.Lock()
 	e := r.audio
+	keep := r.rec != nil && r.perms.Audio
 	r.mu.Unlock()
+	if keep {
+		r.view.RecordAudio(samples)
+	}
 	if e != nil {
 		e.Play(samples)
 	}
@@ -560,11 +574,12 @@ func (r *remote) thumbs(ctx context.Context) {
 // ended: the session is over; the tab stays with the reason until it is
 // closed.
 func (r *remote) ended() {
+	r.stopRecording(L("The session ended; the recording is in Downloads › go-link Desk."))
 	r.input.Allow(false, false)
 	r.view.SetControl(false)
 	r.setAudio(false)
 	r.remember()
-	for _, t := range []string{"display", "quality", "keys", "files", "sound"} {
+	for _, t := range []string{"display", "quality", "keys", "files", "record", "sound"} {
 		r.view.ToolState(t, false, false)
 	}
 	if r.stop != nil {
@@ -584,6 +599,7 @@ func (r *remote) close() {
 		r.resize.Stop()
 	}
 	r.mu.Unlock()
+	r.stopRecording(L("The session ended; the recording is in Downloads › go-link Desk."))
 	r.s.HangUp()
 	r.setAudio(false)
 	r.closeVP8()
@@ -693,6 +709,10 @@ func (r *remote) Action(name, arg string) {
 		r.view.Menu("quality", r.qualityMenu())
 	case "keys":
 		r.view.Menu("keys", r.keysMenu())
+	case "record":
+		r.view.Menu("record", r.recordMenu())
+	case "screenshot", "recorded":
+		go r.captured(name, arg)
 	case "drop", "upload":
 		r.upload(strings.Split(arg, "\n"))
 	case "menu":
@@ -755,6 +775,8 @@ func (r *remote) keysMenu() []remoteview.MenuItem {
 
 func (r *remote) choose(id string) {
 	switch {
+	case strings.HasPrefix(id, "rec:"):
+		r.chooseRecord(id)
 	case strings.HasPrefix(id, "display:"):
 		var d int
 		if _, err := fmt.Sscanf(id, "display:%d", &d); err == nil {

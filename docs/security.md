@@ -65,7 +65,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### Screenshots and recordings
 
-- A viewer saves pictures and recordings of the screen on its own side (the browser, or the iPhone, iPad and Android apps into Photos or the gallery, encoded by the device), from the picture it already gets: nothing more is sent, and the files never pass through go-link Desk's servers or the host.
+- A viewer saves pictures and recordings of the screen on its own side (the browser, or the apps: the Mac app into Downloads › go-link Desk, iPhone and iPad into Photos, Android into its gallery, each encoded by the device), from the picture it already gets: nothing more is sent, and the files never pass through go-link Desk's servers or the host.
 - Only with the **Take screenshots and record the screen** permission, which is never ticked by default, not even when the connection request ticks everything else. A linked device keeps it only if it was ticked.
 - The viewer asks first (`screenshot`, `recording` on `control`), and saves or starts recording only after the host answered yes; the host answers once the session panel shows it, in red while recording, and the main window and the tray say so. Unticking the permission stops a recording at once. The host's log keeps when each started and stopped.
 - **What this does not stop:** a viewer's browser receives the picture, so a dishonest viewer can record it anyway (a screen recorder, another app, a modified page). The permission and the notice are for honest viewers, so the person at the computer always knows; whoever must not be recorded should not let that viewer see the screen.
@@ -95,6 +95,14 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - Files from the other computer land in Downloads under a name without folders, control characters or leading dots, never over an existing file; the other computer may only list its own home folder (its rules).
 - Connecting to this computer's own code is refused.
 - A signaling server chosen in Settings must be `wss://` outside this computer: Settings warns about `ws://`, which is not encrypted. The media and control stay end-to-end encrypted (DTLS) whatever the server.
+
+### A remote terminal (go-link-desk-terminal)
+
+- Nothing listens: like the app, it only connects out to signalhub and to its viewers; there is no SSH port to scan.
+- Only browsers linked by someone at the computer come in: `go-link-desk-terminal link` asks in the terminal that runs it, and nobody else is ever asked (a session code is turned down). Every later visit needs the link's token, the computer's proof and the password (argon2id, the PIN gate's limits), and `link` refuses until a password is set.
+- The commands' socket is the user's alone (0600, in a 0700 folder, and `SO_PEERCRED` on Linux); it never reaches the network.
+- It refuses to run as root unless told (`--allow-root`). A session is the service user's shell, with that user's rights: whoever is linked can do what that user can.
+- The shell's environment is rebuilt, not inherited from the service; the shell is hung up when the session ends.
 
 ### A port opened in the router
 

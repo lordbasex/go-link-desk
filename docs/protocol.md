@@ -93,12 +93,13 @@ The host creates them, as in go-link.
 | `pointer` | `ordered: false`, `maxRetransmits: 0`, binary | pointer moves only | implemented |
 | `input` | ordered, reliable, binary | buttons, wheel, keys, text, `release_all` | implemented |
 | `files` | ordered, reliable | uploads, browsing and downloads (section 6) | implemented |
+| `terminal` | ordered, reliable, binary | go-link-desk-terminal only, instead of the picture, sound, `pointer`, `input` and `files`: the shell's output to the viewer, what the viewer types to the shell (with `permissions.control`). See [terminal.md](terminal.md). | implemented |
 
 ### `control` messages
 
 | Message | Direction | Content |
 |---|---|---|
-| `welcome` | host → viewer | `{host: {name, os}, source}` when the channel opens; `source` is `test-pattern` or `screen`. |
+| `welcome` | host → viewer | `{host: {name, os}, source}` when the channel opens; `source` is `test-pattern`, `screen` or `terminal` (go-link-desk-terminal: no picture, a `terminal` channel). |
 | `displays` | host → viewer | `{displays: [{id, name, width, height, points_width, points_height, primary}], current}`: the host's screens (pixels, and points: the desktop's coordinates) and the one shown. Sent when the channel opens and after every `display_select`. Empty for the test card. |
 | `ping` / `pong` | host → viewer → host | `{id}` every 2 s; the round trip over the peer-to-peer path. |
 | `stream_stats` | host → viewer | Every 2 s: `{fps, width, height, kbps, codec, target_kbps, estimate_kbps}`: what the host sent this viewer in the last window (a still screen sends nothing, and says so), the bitrate its encoder aims at, and what the congestion control estimates the path carries. |
@@ -121,6 +122,8 @@ The host creates them, as in go-link.
 | `call_end` | viewer → host | hangs up. |
 | `screenshot` | both | Viewer → host `{id}`: it is about to save a picture of the screen. Host → viewer `{id, ok}`: `ok` only with `permissions.record`, once the session panel shows it ("Took a screenshot at 15:04"); the viewer saves the picture only then. No answer in 5 s is a no. |
 | `recording` | both | Viewer → host `{id, on}`: it asks to start recording the screen (`on: true`), or says it stopped (`id` 0, `on: false`). Host → viewer `{id, on}`: the answer, `on` only with `permissions.record` once the panel, the main window and the tray say "Recording your screen"; the viewer starts only then, and a yes after 5 s is turned down. The host also sends `{id: 0, on: false}` unasked when the person at the computer takes the permission away; the viewer stops and saves what it has. |
+| `terminal_size` | viewer → host | `{cols, rows}` (1 to 1000): the viewer's terminal size, at the start and on every change (go-link-desk-terminal). |
+| `terminal_exit` | host → viewer | `{code}`: the shell ended with that exit code; the session ends after it. |
 | `session_end` | both | `{reason}` (host → viewer, see the reasons above), or `{}` from a viewer that hangs up. The host closes the connection after sending it. |
 
 A message type nobody handles is dropped. A message is at most 64 KiB.

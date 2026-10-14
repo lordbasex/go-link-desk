@@ -47,6 +47,9 @@ func TestInputIsVisible(t *testing.T) {
 }
 
 func TestCardEncodes(t *testing.T) {
+	if !encoder.Codecs {
+		t.Skip("built without cgo: no libvpx or libopus")
+	}
 	p := New(640, 480)
 	enc, err := encoder.NewVP8(encoder.Config{Width: 640, Height: 480, FPS: 30, BitrateKbps: 1500})
 	if err != nil {

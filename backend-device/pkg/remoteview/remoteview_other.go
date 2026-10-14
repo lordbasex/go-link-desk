@@ -16,6 +16,10 @@ func Open(Config, Handler) (*View, error) { return nil, ErrUnsupported }
 func (v *View) SetTitle(string)                                        {}
 func (v *View) Overlay(string, bool, string, bool)                     {}
 func (v *View) HUD(string)                                             {}
+func (v *View) Screenshot(string)                                      {}
+func (v *View) StartRecording(string, bool)                            {}
+func (v *View) RecordAudio([]int16)                                    {}
+func (v *View) StopRecording()                                         {}
 func (v *View) Video([]byte)                                           {}
 func (v *View) Picture(int, int, []byte, []byte, []byte, int, int)     {}
 func (v *View) CursorShape([]byte, float64, float64, float64, float64) {}

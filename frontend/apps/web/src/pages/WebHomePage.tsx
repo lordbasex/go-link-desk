@@ -107,6 +107,7 @@ function Glyph({ d, size = 22 }: { d: string; size?: number }) {
 }
 
 const MONITOR = "M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z M9 20h6 M12 16v4";
+const TERMINAL = "M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z M7 9l3 3-3 3 M12.5 15h4.5";
 const LOCK = "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3";
 const CHEVRON = "M9 6l6 6-6 6";
 
@@ -179,12 +180,12 @@ function ConnectCard({ loadDemoCode = loadDemo }: { loadDemoCode?: () => Promise
   );
 }
 
-function Row({ to, label, title, detail, trailing, extra }: { to: string; label: string; title: string; detail: string; trailing: ReactNode; extra?: ReactNode }) {
+function Row({ to, label, title, detail, trailing, extra, glyph = MONITOR }: { to: string; label: string; title: string; detail: string; trailing: ReactNode; extra?: ReactNode; glyph?: string }) {
   return (
     <li className="ios-row">
       <Link to={to} className="ios-row-link" aria-label={label}>
         <span className="ios-row-icon">
-          <Glyph d={MONITOR} />
+          <Glyph d={glyph} />
         </span>
         <span className="ios-row-text">
           <span className="ios-row-title">{title}</span>
@@ -211,6 +212,7 @@ function ComputerRow({ device, onForget }: { device: SavedDevice; onForget: () =
     <>
       <Row
         to={`/d/${device.deviceId}`}
+        glyph={device.terminal ? TERMINAL : MONITOR}
         label={t.web.connectTo.replace("{name}", name)}
         title={device.favorite ? `★ ${name}` : name}
         detail={when(device.lastUsed)}

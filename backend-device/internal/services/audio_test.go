@@ -6,9 +6,14 @@ import (
 	"testing"
 
 	"github.com/pion/webrtc/v4"
+
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/encoder"
 )
 
 func TestAudioIsCutInto20msFramesOnlyForListeners(t *testing.T) {
+	if !encoder.Codecs {
+		t.Skip("built without cgo: no libvpx or libopus")
+	}
 	track, err := newAudioTrack()
 	if err != nil {
 		t.Fatal(err)

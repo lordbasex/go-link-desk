@@ -44,6 +44,8 @@ export type PasswordError = "wrong" | "blocked" | "locked";
 export interface HostInfo {
   name: string;
   os: string;
+  /** go-link-desk-terminal: a shell instead of the screen. */
+  terminal: boolean;
 }
 
 /** What the host says it sends (stream_stats). */
@@ -114,6 +116,8 @@ export const TYPING_PAUSE_MS = 4000;
 
 /** The chat lines a session keeps. */
 const MAX_CHAT_LINES = 200;
+/** The most of the shell's output kept before the page's terminal takes it. */
+const MAX_TERMINAL_QUEUE = 1 << 20;
 /** How long the host has to answer a screenshot or recording request. */
 export const ASK_TIMEOUT_MS = 5000;
 
@@ -163,6 +167,8 @@ export interface SessionView {
   notice: string | null;
   /** The host shows that this viewer records its screen (it said yes). */
   recording: boolean;
+  /** go-link-desk-terminal's shell ended with this code (the session ends after it). */
+  terminalExit: number | null;
 }
 
 export interface SessionOptions {
@@ -194,11 +200,16 @@ export function isOver(s: SessionStatus): boolean {
  */
 export class Session {
   private view: SessionView = {
-    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null, recording: false,
+    status: { kind: "joining" }, permissions: null, host: null, sent: null, video: null, audio: null, hostClipboard: null, chat: [], hostTyping: false, call: { state: "idle", hostVideo: false, hostAudio: false }, callVideo: null, callAudio: null, displays: [], display: 0, notice: null, recording: false, terminalExit: null,
   };
   private clipboardIn = new ClipboardAssembler();
   private clipboardSeq = 0;
   private filesClient: FilesClient | null = null;
+  private terminalCh: RTCDataChannel | null = null;
+  /** The shell's output until the terminal on the page takes it (its first prompt comes at once). */
+  private terminalQueue: Uint8Array[] = [];
+  private terminalQueued = 0;
+  private terminalSink: ((bytes: Uint8Array) => void) | null = null;
   private cursor: CursorState = { x: 0, y: 0, visible: false, shape: null };
   private shapes = new Map<string, CursorShape>();
   private stream: HostStream | null = null;
@@ -287,6 +298,18 @@ export class Session {
       onFilesChannel: (ch) => {
         this.filesClient?.close();
         this.filesClient = new FilesClient(ch as unknown as ConstructorParameters<typeof FilesClient>[0]);
+      },
+      onTerminalChannel: (ch) => {
+        this.terminalCh = ch;
+        ch.onmessage = (e) => {
+          if (typeof e.data === "string") return; // the shell's output is bytes
+          const bytes = new Uint8Array(e.data as ArrayBuffer);
+          if (this.terminalSink) this.terminalSink(bytes);
+          else if (this.terminalQueued + bytes.length <= MAX_TERMINAL_QUEUE) {
+            this.terminalQueue.push(bytes);
+            this.terminalQueued += bytes.length;
+          }
+        };
       },
       onCallTrack: (kind, stream) => this.set(kind === "video" ? { callVideo: stream } : { callAudio: stream }),
       onState: (s) => {
@@ -403,6 +426,32 @@ export class Session {
     return this.view.permissions?.files ? this.filesClient : null;
   }
 
+  /** Whether the host offered go-link-desk-terminal's shell. */
+  get hasTerminal(): boolean {
+    return this.terminalCh !== null;
+  }
+
+  /** Hands the shell's output to sink (what came before first); returns how to stop. */
+  attachTerminal(sink: (bytes: Uint8Array) => void): () => void {
+    this.terminalSink = sink;
+    for (const b of this.terminalQueue.splice(0)) sink(b);
+    this.terminalQueued = 0;
+    return () => {
+      if (this.terminalSink === sink) this.terminalSink = null;
+    };
+  }
+
+  /** Types into the shell (only with the control permission; the host checks too). */
+  sendTerminal(bytes: Uint8Array): void {
+    const ch = this.terminalCh;
+    if (ch?.readyState === "open" && this.view.permissions?.control) ch.send(bytes as Uint8Array<ArrayBuffer>);
+  }
+
+  /** Tells go-link-desk-terminal the terminal's size here. */
+  sendTerminalSize(cols: number, rows: number): void {
+    if (cols > 0 && rows > 0) this.stream?.sendControl({ type: "terminal_size", cols: Math.min(1000, Math.round(cols)), rows: Math.min(1000, Math.round(rows)) });
+  }
+
   /** Writes to the person at the host. */
   sendChat(text: string): void {
     const clean = text.trim().slice(0, MAX_CHAT);
@@ -494,7 +543,7 @@ export class Session {
     switch (m.type) {
       case "welcome": {
         const h = (typeof m.host === "object" && m.host !== null ? m.host : {}) as Record<string, unknown>;
-        this.set({ host: { name: String(h.name ?? "").slice(0, 64), os: String(h.os ?? "").slice(0, 16) } });
+        this.set({ host: { name: String(h.name ?? "").slice(0, 64), os: String(h.os ?? "").slice(0, 16), terminal: m.source === "terminal" } });
         break;
       }
       case "stream_stats":
@@ -528,6 +577,9 @@ export class Session {
       }
       case "screenshot":
         this.answer(n("id"), m.ok === true);
+        break;
+      case "terminal_exit":
+        this.set({ terminalExit: n("code") });
         break;
       case "notice":
         this.set({ notice: String(m.code ?? "").slice(0, 40) || null });

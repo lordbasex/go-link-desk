@@ -241,6 +241,42 @@ describe("Screenshots and recording", () => {
   });
 });
 
+describe("go-link-desk-terminal", () => {
+  it("knows a terminal from its welcome, keeps the shell's first output for the page, and says how the shell ended", async () => {
+    const client = new FakeClient();
+    const { s } = start(client);
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const inner = s as unknown as { onControl(m: unknown): void; stream: { sendControl(m: unknown): void; opts: { onTerminalChannel(ch: unknown): void } } };
+    const sent: unknown[] = [];
+    inner.stream.sendControl = (m) => sent.push(m);
+    inner.onControl({ type: "permissions", permissions: { view: true, control: true } });
+    inner.onControl({ type: "welcome", host: { name: "pi", os: "linux" }, source: "terminal" });
+    expect(s.current.host).toEqual({ name: "pi", os: "linux", terminal: true });
+
+    const typed: Uint8Array[] = [];
+    const ch = { readyState: "open", onmessage: null as ((e: { data: unknown }) => void) | null, send: (b: Uint8Array) => typed.push(b) };
+    inner.stream.opts.onTerminalChannel(ch);
+    expect(s.hasTerminal).toBe(true);
+    ch.onmessage?.({ data: new TextEncoder().encode("pi@pi:~$ ").buffer });
+    const seen: string[] = [];
+    const detach = s.attachTerminal((b) => seen.push(new TextDecoder().decode(b)));
+    ch.onmessage?.({ data: new TextEncoder().encode("ls\r\n").buffer });
+    expect(seen).toEqual(["pi@pi:~$ ", "ls\r\n"]);
+    detach();
+
+    s.sendTerminal(new TextEncoder().encode("exit\r"));
+    expect(typed).toHaveLength(1);
+    s.sendTerminalSize(120.4, 40);
+    expect(sent.at(-1)).toEqual({ type: "terminal_size", cols: 120, rows: 40 });
+    inner.onControl({ type: "permissions", permissions: { view: true } });
+    s.sendTerminal(new TextEncoder().encode("rm -rf ~\r"));
+    expect(typed).toHaveLength(1); // may only watch
+
+    inner.onControl({ type: "terminal_exit", code: 3 });
+    expect(s.current.terminalExit).toBe(3);
+  });
+});
+
 describe("Linked computers", () => {
   const device = {
     deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
