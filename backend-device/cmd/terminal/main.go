@@ -63,8 +63,11 @@ Flags (serve):
 func main() {
 	args := os.Args[1:]
 	cmd := "serve"
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		cmd, args = args[0], args[1:]
+	if len(args) > 0 {
+		switch a := args[0]; {
+		case !strings.HasPrefix(a, "-"), a == "-v", a == "-version", a == "--version", a == "-h", a == "--help":
+			cmd, args = a, args[1:]
+		}
 	}
 	var err error
 	switch cmd {
@@ -72,11 +75,11 @@ func main() {
 		err = serve(args)
 	case "password", "link", "status", "unlink":
 		err = command(cmd, args)
-	case "version":
+	case "version", "-v", "-version", "--version":
 		fmt.Println("go-link-desk-terminal", version)
 	case "help", "-h", "--help":
 		fmt.Print(usage)
-		flags(io.Discard).PrintDefaults()
+		flags(os.Stdout).PrintDefaults()
 	default:
 		err = fmt.Errorf("unknown command %q (go-link-desk-terminal help)", cmd)
 	}

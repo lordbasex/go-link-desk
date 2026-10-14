@@ -4,6 +4,14 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **go-link-desk-terminal's help page** (desk.go-link.org/docs/terminal) covers everything from installing to removing: how it works, what it needs, the installer's options and the packages by hand, the first steps, every command and option, the service, its files and the usual problems.
+
+### Fixed
+
+- **`go-link-desk-terminal -v`, `-version` and `--version`** said nothing useful (they started the service); they now print the version like `version`. `help` printed no options.
+
 ## [1.4.1] - 2026-10-14
 
 go-link-desk-terminal's first run, smoother: its code goes in the usual box at desk.go-link.org/web, and its commands work with sudo.
