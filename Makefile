@@ -234,6 +234,36 @@ linux-packages-%: linux-package-%
 	done
 	@echo "$(GREEN)✓ the $* packages are in $(DEVICE_OUT)$(NC)"
 
+# go-link-desk-terminal (docs/terminal.md): pure Go, so no Docker. Go's
+# architectures (amd64, arm64, arm: ARMv7) and their names in the release:
+# dist/desk/go-link-desk-terminal-<version>-linux-<amd64|arm64|armv7>.tar.gz,
+# and .deb, .rpm and Arch packages with terminal-packages-<arch>.
+term_name = $(if $(filter arm,$(1)),armv7,$(1))
+term_nfpm = $(if $(filter arm,$(1)),arm7,$(1))
+TERMINAL_PKG = go-link-desk-terminal-$(VERSION)-linux-$(call term_name,$*)
+terminal-bin-%:
+	cd $(DEVICE_DIR) && CGO_ENABLED=0 GOOS=linux GOARCH=$* GOARM=7 go build -trimpath -tags headless \
+		-ldflags "-s -w -X main.version=$(VERSION)" -o $(abspath $(DEVICE_OUT))/terminal-$*/go-link-desk-terminal ./cmd/terminal
+	@echo "$(GREEN)✓ $(DEVICE_OUT)/terminal-$*/go-link-desk-terminal$(NC)"
+
+terminal-package-%: terminal-bin-%
+	@rm -rf $(DEVICE_OUT)/$(TERMINAL_PKG) && mkdir -p $(DEVICE_OUT)/$(TERMINAL_PKG)
+	cp $(DEVICE_OUT)/terminal-$*/go-link-desk-terminal $(DEVICE_DIR)/build/terminal/install.sh $(DEVICE_DIR)/build/terminal/README.txt \
+		$(DEVICE_DIR)/build/terminal/go-link-desk-terminal.service LICENSE THIRD_PARTY_NOTICES.md $(DEVICE_OUT)/$(TERMINAL_PKG)/
+	COPYFILE_DISABLE=1 tar $(if $(filter darwin,$(HOST_OS)),--no-xattrs --no-mac-metadata) -C $(DEVICE_OUT) -czf $(DEVICE_OUT)/$(TERMINAL_PKG).tar.gz $(TERMINAL_PKG)
+	cd $(DEVICE_OUT) && shasum -a 256 $(TERMINAL_PKG).tar.gz > $(TERMINAL_PKG).tar.gz.sha256
+	@echo "$(GREEN)✓ $(DEVICE_OUT)/$(TERMINAL_PKG).tar.gz$(NC)"
+
+terminal-packages-%: terminal-package-%
+	sed 's|@BIN@|/usr/bin/go-link-desk-terminal|' $(DEVICE_DIR)/build/terminal/go-link-desk-terminal.service > $(DEVICE_OUT)/$(TERMINAL_PKG)/go-link-desk-terminal.system.service
+	cp $(DEVICE_DIR)/build/terminal/postinstall.sh $(DEVICE_OUT)/$(TERMINAL_PKG)/
+	sed -e 's|@VERSION@|$(SHORT_VERSION)|' -e 's|@ARCH@|$(call term_nfpm,$*)|' -e 's|@DIR@|$(abspath $(DEVICE_OUT))/$(TERMINAL_PKG)|' \
+		$(DEVICE_DIR)/build/terminal/nfpm.yaml > $(DEVICE_OUT)/nfpm-terminal-$*.yaml
+	@for p in deb rpm archlinux; do \
+		$(NFPM) package --config $(DEVICE_OUT)/nfpm-terminal-$*.yaml --packager $$p --target $(DEVICE_OUT)/ || exit 1; \
+	done
+	@echo "$(GREEN)✓ the terminal's $* packages are in $(DEVICE_OUT)$(NC)"
+
 # Windows builds in Docker too (llvm-mingw, for x86-64 or ARM64): one .exe
 # with libvpx, libopus and the C runtime inside, for Windows 10 and 11.
 win_arch = $(if $(filter arm64,$(1)),aarch64,x86_64)
@@ -276,7 +306,15 @@ RELEASE_FILES = go-link-desk-$(VERSION)-macos-universal.dmg \
 	go-link-desk-$(VERSION)-linux-amd64.tar.gz go-link-desk-$(VERSION)-linux-arm64.tar.gz \
 	go-link-desk_$(SHORT_VERSION)_amd64.deb go-link-desk_$(SHORT_VERSION)_arm64.deb \
 	go-link-desk-$(SHORT_VERSION)-1.x86_64.rpm go-link-desk-$(SHORT_VERSION)-1.aarch64.rpm \
-	go-link-desk-$(SHORT_VERSION)-1-x86_64.pkg.tar.zst go-link-desk-$(SHORT_VERSION)-1-aarch64.pkg.tar.zst
+	go-link-desk-$(SHORT_VERSION)-1-x86_64.pkg.tar.zst go-link-desk-$(SHORT_VERSION)-1-aarch64.pkg.tar.zst \
+	go-link-desk-terminal-$(VERSION)-linux-amd64.tar.gz go-link-desk-terminal-$(VERSION)-linux-arm64.tar.gz \
+	go-link-desk-terminal-$(VERSION)-linux-armv7.tar.gz \
+	go-link-desk-terminal_$(SHORT_VERSION)_amd64.deb go-link-desk-terminal_$(SHORT_VERSION)_arm64.deb \
+	go-link-desk-terminal_$(SHORT_VERSION)_armhf.deb \
+	go-link-desk-terminal-$(SHORT_VERSION)-1.x86_64.rpm go-link-desk-terminal-$(SHORT_VERSION)-1.aarch64.rpm \
+	go-link-desk-terminal-$(SHORT_VERSION)-1.armv7hl.rpm \
+	go-link-desk-terminal-$(SHORT_VERSION)-1-x86_64.pkg.tar.zst go-link-desk-terminal-$(SHORT_VERSION)-1-aarch64.pkg.tar.zst \
+	go-link-desk-terminal-$(SHORT_VERSION)-1-armv7h.pkg.tar.zst
 release-sums:
 	@test -f "$(UPDATE_KEY)" || { echo "$(RED)✗ no update key at $(UPDATE_KEY)$(NC)"; exit 1; }
 	cd $(DEVICE_OUT) && shasum -a 256 $(RELEASE_FILES) > SHA256SUMS
