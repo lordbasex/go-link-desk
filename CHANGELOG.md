@@ -8,6 +8,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 - **AI assistants use desktops and files:** new MCP tools `click` and `scroll` (at a point of the assistant's last screenshot), `type_text`, `key` (keys and shortcuts such as `ctrl+c`, `cmd+space`, `f5`), `clipboard_get` and `clipboard_set` for a desktop; `file_list`, `file_download` (into this computer's Downloads, with the text of a short text file) and `file_upload` (to the computer's Downloads) for any computer that allows files, a Raspberry Pi or a server too. Acting needs **Let them type and run commands** and the link's permission (mouse and keyboard, clipboard, files); looking and downloading only the link's. Docs in English, Spanish and Portuguese.
 
+### Changed
+
+- **The public demo computer:** a visit lasts 5 minutes at most, and after each one the computer starts over: a clean desktop, nothing left from the last visitor, and new codes on the demo page (deploy/demo/vm/session-guard.py).
+
 ### Fixed
 
 - **`scripts/third-party-notices.sh` keeps the hand-written notices** (Inter, Lucide, Natural Earth): it wrote the file again without them.

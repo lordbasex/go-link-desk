@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# A demo visit lasts a few minutes, and the computer starts over after each
+# one (session-guard.py, in /usr/local/lib/go-link-demo).
+[Unit]
+Description=go-link Desk demo: time limit and a fresh start after every visit
+After=go-link-desk-demo.service
+
+[Service]
+Environment=DEMO_MINUTES=5
+ExecStart=/usr/bin/python3 /usr/local/lib/go-link-demo/session-guard.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
