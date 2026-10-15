@@ -47,6 +47,8 @@ type Options struct {
 	Password func(deviceID string) (string, error)
 	Audit    *Audit
 	Logger   *slog.Logger
+	// Downloads is where file_download saves (default: ~/Downloads).
+	Downloads string
 
 	newSession func(viewer.Options) session
 }
@@ -76,7 +78,7 @@ func New(opts Options) *Server {
 
 const instructions = `go-link Desk connects you to the user's own computers linked in its My computers (desktops, Raspberry Pis and servers with go-link-desk-terminal), over an encrypted peer-to-peer connection.
 
-Start with list_computers. Tools that take a computer connect to it by themselves; the person at that computer sees you come in by name. On a terminal computer, terminal_run runs a command in a terminal of your own (named "assistant", beside the person's) and returns its output and exit code; terminal_read shows what a terminal printed. On a desktop, screenshot shows the screen (the computer must allow screenshots for this link). Disconnect when you are done.
+Start with list_computers. Tools that take a computer connect to it by themselves; the person at that computer sees you come in by name. On a terminal computer, terminal_run runs a command in a terminal of your own (named "assistant", beside the person's) and returns its output and exit code; terminal_read shows what a terminal printed. On a desktop, screenshot shows the screen (the computer must allow screenshots for this link); click and scroll at pixels of your last screenshot, type_text, key for Enter and shortcuts, clipboard_get and clipboard_set; take a new screenshot after acting to see the result. On any computer that allows files, file_list, file_download (into this computer's Downloads) and file_upload. Disconnect when you are done.
 
 The user decides in go-link Desk › Settings › Assistants which computers you may use, and whether you may type and run commands or only look.`
 
@@ -99,6 +101,7 @@ func (s *Server) MCP() *mcp.Server {
 		Annotations: &mcp.ToolAnnotations{Title: "Read a terminal", ReadOnlyHint: true, OpenWorldHint: &yes}}, s.terminalRead)
 	mcp.AddTool(srv, &mcp.Tool{Name: "screenshot", Description: "A picture of a desktop computer's screen (JPEG). The person at the computer is shown that a screenshot was taken.",
 		Annotations: &mcp.ToolAnnotations{Title: "Screenshot", ReadOnlyHint: true, OpenWorldHint: &yes}}, s.screenshot)
+	s.addDesktopTools(srv)
 	return srv
 }
 
@@ -356,27 +359,37 @@ func (s *Server) connect(ctx context.Context, req *mcp.CallToolRequest, in compu
 func (s *Server) describe(c *computer) string {
 	h := c.s.Host()
 	p := c.s.Permissions()
-	name := h.Name
+	name, sys := h.Name, h.OS
 	if name == "" {
 		name = title(c.device)
 	}
+	if sys == "" {
+		sys = c.device.OS
+	}
 	var b strings.Builder
 	if h.Terminal {
-		fmt.Fprintf(&b, "Connected to %s (%s), a terminal computer (go-link-desk-terminal).", name, osName(h.OS))
+		fmt.Fprintf(&b, "Connected to %s (%s), a terminal computer (go-link-desk-terminal).", name, osName(sys))
 		if tabs := c.tabsText(); tabs != "" {
 			fmt.Fprintf(&b, " Its terminals: %s.", tabs)
 		}
 		b.WriteString(" Use terminal_run, terminal_read and terminal_send.")
 	} else {
-		fmt.Fprintf(&b, "Connected to %s (%s), a desktop.", name, osName(h.OS))
+		fmt.Fprintf(&b, "Connected to %s (%s), a desktop.", name, osName(sys))
 		if p.Record {
-			b.WriteString(" Use screenshot to see its screen.")
+			b.WriteString(" Use screenshot to see its screen")
+			if p.Control {
+				b.WriteString(", then click, scroll, type_text and key to use it")
+			}
+			b.WriteString(".")
 		} else {
 			b.WriteString(" This link may not take screenshots (the computer's Settings › Unattended access can allow it).")
 		}
 	}
-	if set, err := s.settings(); err == nil && !set.Act && h.Terminal {
-		b.WriteString(" You may only look: typing and commands are off in go-link Desk › Settings › Assistants.")
+	if p.Files {
+		b.WriteString(" Its files: file_list, file_download, file_upload.")
+	}
+	if set, err := s.settings(); err == nil && !set.Act {
+		b.WriteString(" You may only look: typing, clicking and commands are off in go-link Desk › Settings › Assistants.")
 	}
 	return b.String()
 }

@@ -132,7 +132,7 @@ func (u *ui) assistantsPage(cfg models.Config) remoteview.PrefPage {
 	}
 	page.Sections = append(page.Sections, remoteview.PrefSection{Title: L("What they may do"), Rows: []remoteview.PrefRow{
 		{ID: "assistants_act", Kind: "toggle", Label: L("Let them type and run commands"), On: cfg.Assistants.Act,
-			Detail: L("Off: they only list your computers, look at screenshots and read terminals.")},
+			Detail: L("Off: they only look: your computers, screenshots, terminals, the clipboard, and files they copy here.")},
 	}})
 	var devs []remoteview.PrefRow
 	if u.opts.Remotes != nil {

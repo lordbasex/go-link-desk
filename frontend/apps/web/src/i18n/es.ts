@@ -414,7 +414,7 @@ export const es: Messages = {
         go: "Leer más →",
         cards: [
           { k: "go-link-desk-terminal", title: "Raspberry Pi y servidores", text: "Los shells de una computadora sin escritorio, en el navegador o en la app de Mac: terminales con nombre y pestañas que siguen corriendo cuando te vas, como screen, archivos en los dos sentidos y grabaciones en video o .cast. Sin SSH, sin abrir puertos, vinculada con contraseña.", to: "/docs/terminal" },
-          { k: "MCP · Claude · Cursor", title: "Asistentes de IA", text: "Dejá que Claude, Claude Code o Cursor usen tus computadoras vinculadas: que ejecuten comandos en una Raspberry Pi, lean sus terminales o miren la pantalla de un escritorio. Vos elegís las computadoras; las contraseñas quedan en tu llavero; solo miran salvo que permitas comandos; cada llamada queda registrada.", to: "/docs/assistants" },
+          { k: "MCP · Claude · Cursor", title: "Asistentes de IA", text: "Dejá que Claude, Claude Code o Cursor usen tus computadoras vinculadas: que ejecuten comandos en una Raspberry Pi, lean sus terminales, vean y usen un escritorio, muevan archivos. Vos elegís las computadoras; las contraseñas quedan en tu llavero; solo miran salvo que permitas comandos; cada llamada queda registrada.", to: "/docs/assistants" },
           { k: "PNG · MP4 · .cast", title: "Capturas y grabaciones", text: "Guardá una imagen de la pantalla o grabá la sesión, con su sonido, en Descargas. La computadora tiene que permitirlo y lo muestra cada vez.", to: "/docs/web" },
         ],
       },
