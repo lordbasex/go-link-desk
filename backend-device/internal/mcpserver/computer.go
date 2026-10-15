@@ -37,6 +37,9 @@ type session interface {
 	SetHidden(hidden bool)
 	RequestKeyframe()
 	AskScreenshot(ctx context.Context) bool
+	SendPointer(packet []byte)
+	SendInput(packet []byte)
+	SendClipboard(text string, paste bool) bool
 	HangUp()
 }
 
@@ -67,6 +70,13 @@ type computer struct {
 	shot     chan *decoder.I420
 	vp8      *decoder.VP8
 	run      sync.Mutex // one command at a time
+	shotW    int        // the last screenshot's size: click's x and y are on it
+	shotH    int
+	clip     string        // what the computer copied last
+	files    *viewer.Files // its files channel, once open
+	filesAt  time.Time     // when it opened
+	liveAt   time.Time     // when the computer let the assistant in
+	input    *viewer.Input
 	end      context.CancelFunc
 	lastSeen time.Time
 }
@@ -86,6 +96,9 @@ func (c *computer) events() viewer.Events {
 	return viewer.Events{
 		Status: func(st viewer.Status) {
 			c.mu.Lock()
+			if st.Kind == viewer.StatusLive && c.status.Kind != viewer.StatusLive {
+				c.liveAt = time.Now()
+			}
 			c.status = st
 			send := st.Kind == viewer.StatusPassword && !st.Checking && st.PasswordError == "" && !c.asked
 			if send {
@@ -134,6 +147,18 @@ func (c *computer) events() viewer.Events {
 			c.mu.Unlock()
 		},
 		Video: c.onVideo,
+		Clipboard: func(text string) {
+			c.mu.Lock()
+			c.clip = text
+			c.mu.Unlock()
+		},
+		Files: func(f *viewer.Files) {
+			c.mu.Lock()
+			c.files = f
+			c.filesAt = time.Now()
+			c.changeLocked()
+			c.mu.Unlock()
+		},
 	}
 }
 
@@ -456,7 +481,13 @@ func (c *computer) screenshot(ctx context.Context) ([]byte, int, int, error) {
 	defer cancel()
 	select {
 	case pic := <-ch:
-		return encodeShot(pic)
+		jpg, w, h, err := encodeShot(pic)
+		if err == nil {
+			c.mu.Lock()
+			c.shotW, c.shotH = w, h
+			c.mu.Unlock()
+		}
+		return jpg, w, h, err
 	case <-wctx.Done():
 		return nil, 0, 0, errors.New("no picture came from the computer in time")
 	}

@@ -3166,7 +3166,6 @@ THE SOFTWARE.
 
 ```
 
-
 ## Inter (fonts, Windows' main window)
 
 `backend-device/pkg/fyneview/assets/Inter-*.ttf`: Inter 4.1 by The Inter Project Authors (https://github.com/rsms/inter), its Latin letters only, with tabular figures by default. SIL Open Font License 1.1; the full text is in `backend-device/pkg/fyneview/assets/Inter-LICENSE.txt`.

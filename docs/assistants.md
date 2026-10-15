@@ -24,6 +24,11 @@ A wrong saved password is sent once; the computer's own lockout still applies.
 | `terminal_send` | Types raw text or keys (`\u0003`). | Same |
 | `terminal_read` | A terminal's last output (256 KiB kept per terminal). | A terminal computer |
 | `screenshot` | `screenshot` request to the computer (shown there), then the next VP8 keyframe, decoded, scaled to at most 1568 px wide, JPEG. | The link's Record permission |
+| `click`, `scroll` | Pointer at a point of the last screenshot (its pixels, scaled to 0..1 of the screen), then the button (left, right, middle; double) or the wheel in lines, through `viewer.Input` like the Mac app's. | **Act**; a desktop; the link's Control |
+| `type_text`, `key` | Text packets (any layout), or a key or shortcut (`ctrl+c`, `cmd+space`, `f5`, or a browser key code) pressed in order and let go in reverse. | Same |
+| `clipboard_get`, `clipboard_set` | The last text the computer copied (since connecting); or text sent to its clipboard, not pasted. | The link's Clipboard; setting it, **Act** |
+| `file_list`, `file_download` | The files channel: a folder of the computer's home, and a file copied into this computer's `~/Downloads` (never over a file; a short UTF-8 text is also returned). The first request waits a second after the link is in: the computer drops what comes before. | The link's Files |
+| `file_upload` | A local file (absolute path) to the computer's Downloads, never over a file there. | The link's Files; **Act** |
 
 Settings are read again on every call, so turning assistants or **Act** off counts at once (for the next call).
 

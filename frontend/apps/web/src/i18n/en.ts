@@ -416,7 +416,7 @@ export const en = {
         go: "Read more →",
         cards: [
           { k: "go-link-desk-terminal", title: "Raspberry Pi and servers", text: "The shells of a computer without a desktop, in the browser or the Mac app: terminals with names and tabs that keep running when you leave, like screen, files both ways, and recordings as video or .cast. No SSH, no open port, linked with a password.", to: "/docs/terminal" },
-          { k: "MCP · Claude · Cursor", title: "AI assistants", text: "Let Claude, Claude Code or Cursor use your linked computers: run commands on a Raspberry Pi, read its terminals, look at a desktop's screen. You pick the computers; passwords stay in your keychain; they only look unless you allow commands; every call is logged.", to: "/docs/assistants" },
+          { k: "MCP · Claude · Cursor", title: "AI assistants", text: "Let Claude, Claude Code or Cursor use your linked computers: run commands on a Raspberry Pi, read its terminals, see and use a desktop, move files. You pick the computers; passwords stay in your keychain; they only look unless you allow commands; every call is logged.", to: "/docs/assistants" },
           { k: "PNG · MP4 · .cast", title: "Screenshots and recordings", text: "Save a picture of the screen or record the session, with its sound, into Downloads. The computer has to allow it and is shown each time.", to: "/docs/web" },
         ],
       },

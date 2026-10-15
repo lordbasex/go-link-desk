@@ -28,17 +28,19 @@ type decoderI420 = decoder.I420
 // fakeHost is a linked computer as the assistant's session sees it: a
 // terminal computer whose shell answers what is typed, or a desktop.
 type fakeHost struct {
-	mu       sync.Mutex
-	opts     viewer.Options
-	host     viewer.HostInfo
-	perms    models.Permissions
-	password string // what the computer takes
-	tabs     []viewer.TerminalTab
-	typed    map[uint32]string
-	gotPass  []string
-	hidden   bool
-	asked    int
-	hungUp   bool
+	mu        sync.Mutex
+	opts      viewer.Options
+	host      viewer.HostInfo
+	perms     models.Permissions
+	password  string // what the computer takes
+	tabs      []viewer.TerminalTab
+	typed     map[uint32]string
+	gotPass   []string
+	hidden    bool
+	asked     int
+	hungUp    bool
+	packets   [][]byte
+	clipboard string
 }
 
 func (h *fakeHost) ev() viewer.Events { return h.opts.Events }
@@ -120,6 +122,19 @@ func (h *fakeHost) AskScreenshot(context.Context) bool {
 	defer h.mu.Unlock()
 	h.asked++
 	return h.perms.Record
+}
+
+func (h *fakeHost) SendPointer(b []byte) {
+	h.mu.Lock()
+	h.packets = append(h.packets, b)
+	h.mu.Unlock()
+}
+func (h *fakeHost) SendInput(b []byte) { h.mu.Lock(); h.packets = append(h.packets, b); h.mu.Unlock() }
+func (h *fakeHost) SendClipboard(text string, paste bool) bool {
+	h.mu.Lock()
+	h.clipboard = text
+	h.mu.Unlock()
+	return true
 }
 
 func (h *fakeHost) HangUp() { h.mu.Lock(); h.hungUp = true; h.mu.Unlock() }
