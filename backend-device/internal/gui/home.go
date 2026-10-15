@@ -263,7 +263,10 @@ func (u *ui) MainAction(name, arg string) {
 			}
 		})
 	case "forget":
-		go remotes.Forget(arg)
+		go func() {
+			remotes.Forget(arg)
+			u.forgetAssistantPassword(arg)
+		}()
 	case "clear":
 		go remotes.ClearRecents()
 	case "remove-recent":

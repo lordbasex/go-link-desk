@@ -62,6 +62,8 @@ type Options struct {
 	// has no Connect side), through SignalURL.
 	Remotes   *services.RemotesService
 	SignalURL string
+	// ConfigDir holds device.json and the assistants' activity log.
+	ConfigDir string
 	// Connect opens sessions to these session codes at start (separated
 	// by commas).
 	Connect string
@@ -85,6 +87,7 @@ type Options struct {
 
 type ui struct {
 	opts Options
+	asst assistantsState
 	app  fyne.App
 	win  fyne.Window
 
@@ -142,6 +145,7 @@ func Run(opts Options) {
 	}
 	u.setupTray()
 	u.render(opts.Status.Snapshot())
+	u.startAssistants()
 	u.upd.start()
 	if opts.Woken != nil {
 		go func() {

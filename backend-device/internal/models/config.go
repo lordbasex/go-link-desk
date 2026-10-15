@@ -65,6 +65,19 @@ type Config struct {
 	// screen: each box is ticked by hand). Set ahead, calmly, by whoever
 	// owns the computer, not in the middle of a call.
 	RequestTicks string `json:"request_ticks,omitempty"`
+	// Assistants: AI assistants (MCP clients such as Claude) may use the
+	// computers linked in My computers. Off by default.
+	Assistants Assistants `json:"assistants,omitzero"`
+}
+
+// Assistants is the AI assistants setting.
+type Assistants struct {
+	// Enabled adds go-link Desk to the assistants found on this computer
+	// (their MCP settings), and lets it answer them.
+	Enabled bool `json:"enabled,omitempty"`
+	// Act lets them type and run commands; off, they only look (the
+	// computers' list, screenshots, what a terminal shows).
+	Act bool `json:"act,omitempty"`
 }
 
 // Unattended is the unattended access setting.

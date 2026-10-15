@@ -104,6 +104,14 @@ It can see who connects to which room, and the session codes. It can drop or reo
 - It refuses to run as root unless told (`--allow-root`). A session is the service user's shell, with that user's rights: whoever is linked can do what that user can.
 - The shell's environment is rebuilt, not inherited from the service; the shell is hung up when the session ends.
 
+### AI assistants (MCP)
+
+- Off by default, and per computer: an assistant reaches only the linked computers whose unattended password the user saved in **Settings › Assistants**. The password lives in the system's keychain; the assistant, its model and its chat history never see it, and the activity log never records it.
+- On the computer it is an ordinary linked viewer: named after the assistant, with that link's permissions and notices, the screenshot request shown, and the computer's password lockout.
+- Assistants only look unless the user turns on **Let them type and run commands**; even then they type into a terminal of their own, named *assistant*, visible in the tab strip. The settings are read on every call.
+- A prompt injection (text on a screen or in a command's output that steers the assistant) can make an assistant with **Act** run commands as that user. The docs say so; the activity log (`assistant-activity.log`) records every call for review.
+- The app edits the assistants' own settings files only when turned on, only for assistants that are installed, keeping the rest of each file, atomically. Details: [assistants.md](assistants.md).
+
 ### A port opened in the router
 
 - The fixed UDP port and opening it in the router (Settings › Direct connection) are off by default, and opening it is a box of its own. Nothing else is ever asked of the router; the connection test only reads (its outside address).

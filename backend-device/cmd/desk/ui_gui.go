@@ -30,6 +30,7 @@ func runUI(o uiOptions) {
 		Links:          o.links,
 		Remotes:        o.remotes,
 		SignalURL:      o.signalURL,
+		ConfigDir:      o.configDir,
 		Connect:        o.connect,
 		AskCalls:       o.setConsent != nil,
 		SetConsent:     o.setConsent,

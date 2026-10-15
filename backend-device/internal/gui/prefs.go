@@ -211,6 +211,9 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 		}
 	}
 	pages = append(pages, un)
+	if u.opts.Remotes != nil {
+		pages = append(pages, u.assistantsPage(cfg))
+	}
 
 	// Permissions.
 	if p := u.perms; p != nil {
@@ -242,6 +245,9 @@ func (u *ui) setting(arg string) {
 	set := u.opts.Settings
 	update := func(fn func(*models.Config)) { go func() { _ = set.Update(fn); fyne.Do(u.refreshPrefs) }() }
 	on := value == "1"
+	if u.assistantSetting(id, value, update) {
+		return
+	}
 	switch {
 	case id == "app_icon":
 		if value != "dark" {
