@@ -14,6 +14,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 ### Changed
 
 - **The public demo computer:** a visit lasts 5 minutes at most, and after each one the computer starts over: a clean desktop, nothing left from the last visitor, and new codes on the demo page (deploy/demo/vm/session-guard.py).
+- **The public demo computer connects straight:** viewers reach it on UDP 50002, which the router forwards, instead of always going through the relay in Virginia; the relay stays as the fallback. The picture shows up sooner and moves more smoothly.
 
 ### Fixed
 

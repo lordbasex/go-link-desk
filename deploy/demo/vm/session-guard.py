@@ -49,7 +49,9 @@ def reset(why):
     run("pkill", "-KILL", "-u", "demo")
     # demo's home is a tmpfs: empty it, keep the mount.
     run("find", "/home/demo", "-mindepth", "1", "-delete")
-    run("find", "/home/golink/files/Received", "-mindepth", "1", "-delete")
+    # Received exists once a viewer has sent a file.
+    if os.path.isdir("/home/golink/files/Received"):
+        run("find", "/home/golink/files/Received", "-mindepth", "1", "-delete")
     run("truncate", "-s", "0", "/home/golink/.config/go-link-desk-demo/clipboard.txt")
     run("systemctl", "start", "lightdm.service")
     wait_for_x()

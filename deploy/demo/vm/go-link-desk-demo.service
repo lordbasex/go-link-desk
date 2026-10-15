@@ -2,9 +2,10 @@
 #
 # go-link Desk on the demonstration computer (deploy/demo/vm): shares the
 # desktop the user "demo" is logged into (X display :0, which demo's
-# session opens to golink with xhost), lets every viewer in, always
-# through the relay (the firewall lets this computer reach the signaling
-# server and the relay only). The codes go to /var/lib/go-link-demo/
+# session opens to golink with xhost), lets every viewer in, straight on
+# UDP 50002 (device.json: udp_port and announce_ips, the router forwards
+# the port) or through the relay when that fails. The codes go to
+# /var/lib/go-link-demo/
 # demo.json, which the Proxmox host reads and publishes; no credential is
 # kept here.
 [Unit]
@@ -19,7 +20,7 @@ EnvironmentFile=/etc/go-link-demo/demo.env
 ExecStartPre=/bin/sh -c 'until [ -S /tmp/.X11-unix/X0 ]; do sleep 2; done'
 ExecStart=/opt/go-link-desk-demo/go-link-desk --headless \
   --config /home/golink/.config/go-link-desk-demo/device.json \
-  --source screen --test-auto-accept --test-demo-screen --test-relay-only \
+  --source screen --test-auto-accept --test-demo-screen \
   --test-clipboard-file /home/golink/.config/go-link-desk-demo/clipboard.txt \
   --test-files-folder /home/golink/files \
   --test-unattended --test-unattended-password ${DEMO_PASSWORD} \
