@@ -322,10 +322,14 @@ RELEASE_FILES = go-link-desk-$(VERSION)-macos-universal.dmg \
 	go-link-desk-terminal-$(SHORT_VERSION)-1-armv7h.pkg.tar.zst
 # The Windows files of a release come signed from GitHub Actions
 # (.github/workflows/windows.yml, run by the tag): this puts them in
-# dist/desk, before make release-sums.
+# dist/desk, before make release-sums. Only a run started by pushing that
+# tag, on the tag's own commit, is taken: a pull request's run (even from
+# a branch named like the tag) never is.
 windows-from-ci:
-	@RUN=$$(gh run list --workflow windows.yml --branch $(VERSION) --status success --limit 1 --json databaseId -q '.[0].databaseId'); \
-	test -n "$$RUN" || { echo "$(RED)✗ no successful Windows workflow run for $(VERSION)$(NC)"; exit 1; }; \
+	@SHA=$$(git rev-parse "$(VERSION)^{commit}") || exit 1; \
+	RUN=$$(gh run list --workflow windows.yml --event push --commit "$$SHA" --status success --limit 20 \
+		--json databaseId,headBranch -q '[.[] | select(.headBranch == "$(VERSION)")][0].databaseId'); \
+	test -n "$$RUN" || { echo "$(RED)✗ no successful Windows workflow run for the tag $(VERSION) ($$SHA)$(NC)"; exit 1; }; \
 	mkdir -p $(DEVICE_OUT) && gh run download $$RUN --name go-link-desk-$(VERSION)-windows --dir $(DEVICE_OUT)
 	@echo "$(GREEN)✓ the signed Windows files of $(VERSION) are in $(DEVICE_OUT)$(NC)"
 
