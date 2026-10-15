@@ -36,7 +36,7 @@ func (u *Updater) plan() (plan, error) {
 
 func (p *macPlan) asset(tag string) string { return "go-link-desk-" + tag + "-macos-universal.dmg" }
 
-func (p *macPlan) install(ctx context.Context, dmg string) (func() error, error) {
+func (p *macPlan) install(ctx context.Context, dmg, _ string) (func() error, error) {
 	mnt, err := os.MkdirTemp("", "go-link-desk-dmg-")
 	if err != nil {
 		return nil, err

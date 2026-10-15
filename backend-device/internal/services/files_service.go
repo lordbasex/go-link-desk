@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -358,11 +359,26 @@ func (f *FilesService) abortUpload(peerID string, reason error) {
 // ---- browsing and downloads ----
 
 // privateFolders are folders of the home a viewer never sees, besides the
-// hidden ones: macOS keeps keychains, cookies, mail and app data there.
-// Lower case: macOS's disks ignore case, so "library" is the same folder.
-var privateFolders = map[string]bool{"library": true}
+// hidden ones: macOS keeps keychains, cookies, mail and app data in
+// Library, Windows keeps the browsers' passwords and cookies, the DPAPI
+// keys and the apps' tokens in AppData ("Application Data" and "Local
+// Settings" are old links into it). Lower case: macOS's and Windows's
+// disks ignore case, so "library" is the same folder.
+var privateFolders = map[string]bool{"library": true, "appdata": true, "application data": true, "local settings": true}
 
-func isPrivateFolder(name string) bool { return privateFolders[strings.ToLower(name)] }
+// windowsPaths turns on Windows's name rules; a variable so tests on other
+// systems can check them.
+var windowsPaths = runtime.GOOS == "windows"
+
+func isPrivateFolder(name string) bool {
+	name = strings.ToLower(name)
+	if windowsPaths {
+		// Windows drops trailing dots and spaces: "AppData. " opens AppData.
+		name = strings.TrimRight(name, ". ")
+	}
+	// NTUSER.DAT and its logs hold the user's registry.
+	return privateFolders[name] || strings.HasPrefix(name, "ntuser.")
+}
 
 // private reports whether a path relative to home goes through a hidden
 // file or folder, or a private folder.
@@ -370,6 +386,11 @@ func private(rel string) bool {
 	segs := strings.Split(filepath.ToSlash(rel), "/")
 	for _, seg := range segs {
 		if strings.HasPrefix(seg, ".") && seg != "." {
+			return true
+		}
+		// A colon names a stream on Windows ("AppData::$INDEX_ALLOCATION"
+		// is AppData itself) and is not allowed in a file name there.
+		if windowsPaths && strings.ContainsRune(seg, ':') {
 			return true
 		}
 	}
@@ -405,8 +426,22 @@ func (f *FilesService) resolve(rel string) (string, error) {
 	if real != home && !strings.HasPrefix(real, home+string(filepath.Separator)) {
 		return "", errors.New("not a path in the home folder")
 	}
-	if inside, err := filepath.Rel(home, real); err != nil || private(inside) {
+	inside, err := filepath.Rel(home, real)
+	if err != nil || private(inside) {
 		return "", errors.New("not found") // a link into a hidden or private folder
+	}
+	// Windows hides AppData and the like with an attribute, not a dot, and
+	// a short name ("APPDAT~1") gets past the names above: no folder on
+	// the way may be hidden.
+	at := home
+	for _, seg := range strings.Split(inside, string(filepath.Separator)) {
+		if seg == "." || seg == "" {
+			continue
+		}
+		at = filepath.Join(at, seg)
+		if hiddenOnDisk(at) {
+			return "", errors.New("not found")
+		}
 	}
 	return real, nil
 }
@@ -432,7 +467,7 @@ func (f *FilesService) list(peerID string, m filesMsg) {
 	}
 	entries := make([]fileEntry, 0, len(des))
 	for _, d := range des {
-		if strings.HasPrefix(d.Name(), ".") || (dir == f.homeReal() && isPrivateFolder(d.Name())) {
+		if strings.HasPrefix(d.Name(), ".") || (dir == f.homeReal() && isPrivateFolder(d.Name())) || hiddenOnDisk(filepath.Join(dir, d.Name())) {
 			continue // hidden and private ones stay hidden
 		}
 		info, err := d.Info()

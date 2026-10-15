@@ -191,6 +191,49 @@ func TestBrowseAndDownloadInsideHomeOnly(t *testing.T) {
 	f.Handle("P", true, msg(map[string]any{"type": "done", "id": "d1"}))
 }
 
+// A Windows home: AppData holds the browsers' passwords and cookies and the
+// DPAPI keys, so it must be as unreachable as Library on a Mac.
+func TestWindowsPrivateFolders(t *testing.T) {
+	f, home, w := newFiles(t)
+	_ = os.MkdirAll(filepath.Join(home, "Documents"), 0o755)
+	login := filepath.Join("AppData", "Local", "Google", "Chrome", "User Data", "Default")
+	_ = os.MkdirAll(filepath.Join(home, login), 0o700)
+	_ = os.WriteFile(filepath.Join(home, login, "Login Data"), []byte("logins"), 0o600)
+	_ = os.WriteFile(filepath.Join(home, "NTUSER.DAT"), []byte("hive"), 0o600)
+
+	f.Handle("P", true, msg(map[string]any{"type": "list", "id": "l1", "path": ""}))
+	names := []string{}
+	for _, e := range w.last()["entries"].([]any) {
+		names = append(names, e.(map[string]any)["name"].(string))
+	}
+	if !slices.Equal(names, []string{"Documents"}) {
+		t.Fatalf("listing %v (AppData and NTUSER.DAT must not show)", names)
+	}
+	for _, p := range []string{"AppData", "appdata", "APPDATA/Local", "./AppData/Local", "Documents/../AppData/Local", "AppData/Local/Google/Chrome/User Data/Default/Login Data", "NTUSER.DAT", "ntuser.dat"} {
+		f.Handle("P", true, msg(map[string]any{"type": "download", "id": "x", "path": p}))
+		if got := w.last(); got["type"] != "download_error" {
+			t.Fatalf("%q: %v", p, got)
+		}
+		f.Handle("P", true, msg(map[string]any{"type": "list", "id": "x", "path": p}))
+		if got := w.last(); got["type"] != "files_error" {
+			t.Fatalf("list %q: %v", p, got)
+		}
+	}
+
+	// Windows's own spellings of the same folder, checked on any system.
+	old := windowsPaths
+	windowsPaths = true
+	defer func() { windowsPaths = old }()
+	for _, p := range []string{"AppData./Local", "AppData. /Local", "AppData::$INDEX_ALLOCATION/Local", "Documents:secret", "Application Data", "Local Settings/x"} {
+		if !private(p) {
+			t.Errorf("%q is not private", p)
+		}
+	}
+	if private("Documents/report.pdf") {
+		t.Error("Documents/report.pdf is private")
+	}
+}
+
 func TestCleanName(t *testing.T) {
 	for in, want := range map[string]string{"a.pdf": "a.pdf", "../../etc/passwd": "passwd", `C:\x\y.txt`: "y.txt", ".hidden": "hidden", "a\u202eb.exe": "ab.exe", "": "file"} {
 		if got := cleanName(in); got != want {

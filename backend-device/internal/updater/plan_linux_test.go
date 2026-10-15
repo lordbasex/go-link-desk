@@ -3,7 +3,12 @@
 package updater
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -37,5 +42,37 @@ func TestLinuxPlans(t *testing.T) {
 	}
 	if _, err := (&Updater{Exe: "/opt/elsewhere/go-link-desk"}).plan(); !errors.Is(err, ErrManual) {
 		t.Errorf("a copy elsewhere: %v", err)
+	}
+}
+
+// The package manager runs as root on the package: it must get the bytes
+// Download checked, not ones this user put there before the password
+// prompt. A stand-in pkexec runs the command as is; a stand-in dpkg keeps
+// what it was given.
+func TestPackageCheckedAgainAsRoot(t *testing.T) {
+	bin := t.TempDir()
+	seen := filepath.Join(t.TempDir(), "seen")
+	_ = os.WriteFile(filepath.Join(bin, "pkexec"), []byte("#!/bin/sh\nexec \"$@\"\n"), 0o755)
+	_ = os.WriteFile(filepath.Join(bin, "dpkg"), []byte("#!/bin/sh\nfor last; do :; done\ncat \"$last\" > "+seen+"\n"), 0o755)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	good := []byte("the signed package")
+	sum := sha256.Sum256(good)
+	pkg := filepath.Join(t.TempDir(), "go-link-desk_9.9.9_amd64.deb")
+	p := &pkgPlan{kind: "deb", exe: "/usr/bin/go-link-desk"}
+
+	_ = os.WriteFile(pkg, []byte("swapped after the check"), 0o600)
+	if _, err := p.install(context.Background(), pkg, hex.EncodeToString(sum[:])); !errors.Is(err, ErrSignature) {
+		t.Fatalf("a swapped package: %v", err)
+	}
+	if _, err := os.Stat(seen); err == nil {
+		t.Fatal("dpkg ran on the swapped package")
+	}
+
+	_ = os.WriteFile(pkg, good, 0o600)
+	if _, err := p.install(context.Background(), pkg, hex.EncodeToString(sum[:])); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(seen); !bytes.Equal(b, good) {
+		t.Fatalf("dpkg got %q", b)
 	}
 }

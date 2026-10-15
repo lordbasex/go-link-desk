@@ -34,7 +34,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 
 ### A compromised release host or download
 
-- The app installs an update only when the release's `SHA256SUMS` carries the update key's Ed25519 signature and the downloaded file has the hash it lists. The private key is on the release computer only, never in the repository or CI, so someone who takes over the GitHub account or the release's files cannot push an update to the apps. **Residual risk:** the release computer itself; and the first install, which the person checks against `SHA256SUMS` (the Mac's is also notarized).
+- The app installs an update only when the release's `SHA256SUMS` carries the update key's Ed25519 signature and the downloaded file has the hash it lists. The private key is on the release computer only, never in the repository or CI, so someone who takes over the GitHub account or the release's files cannot push an update to the apps. On Linux, root's package manager gets a copy that root made and checked against that hash, so nothing running as the user can swap the package while the password prompt waits. The Linux installer (`install.sh`) checks the same signature with OpenSSL 3 before it trusts `SHA256SUMS`, also when `GO_LINK_DESK_DOWNLOAD` points elsewhere. **Residual risk:** the release computer itself; and a first install by hand from the releases page, which the person checks against `SHA256SUMS` (the Mac's is also notarized).
 - On macOS the new app must also carry a valid signature by the running app's developer team.
 - A file that fails a check is deleted and nothing is installed. Updates never run in the middle of a session without the person choosing **Update**.
 
@@ -48,7 +48,7 @@ It can see who connects to which room, and the session codes. It can drop or reo
 ### Files
 
 - Files move only with their permission; taking it back stops the transfers.
-- A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and never a hidden file or folder (`.ssh`, `.aws`…) or `~/Library` (keychains, cookies, mail): they are neither listed nor downloadable, also through a symbolic link with a plain name.
+- A viewer can read only the host's home folder (no `..`, no absolute paths, no symbolic links out), and never a hidden file or folder (`.ssh`, `.aws`…, and on Windows whatever has the hidden attribute), `~/Library` (keychains, cookies, mail) or, on Windows, `AppData` (the browsers' passwords and cookies, the DPAPI keys) and `NTUSER.DAT`: they are neither listed nor downloadable, also through a symbolic link with a plain name, a short name (`APPDAT~1`), trailing dots or spaces, or a stream (`AppData::$INDEX_ALLOCATION`).
 - What a viewer sends lands only in Downloads, under a cleaned name, never over a file, at most 20 GB; an incomplete file is deleted.
 - Every file sent or received is logged with the viewer's id, its name and size.
 

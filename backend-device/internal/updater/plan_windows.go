@@ -36,7 +36,7 @@ func (winPlan) asset(tag string) string {
 	return "go-link-desk-" + tag + "-windows-" + arch() + "-setup.exe"
 }
 
-func (winPlan) install(_ context.Context, setup string) (func() error, error) {
+func (winPlan) install(_ context.Context, setup, _ string) (func() error, error) {
 	cmd := exec.Command(setup, "/S", "/UPDATE")
 	detach(cmd)
 	if err := cmd.Start(); err != nil {

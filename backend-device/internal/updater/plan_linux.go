@@ -53,7 +53,7 @@ func (p *userPlan) asset(tag string) string {
 	return "go-link-desk-" + tag + "-linux-" + arch() + ".tar.gz"
 }
 
-func (p *userPlan) install(ctx context.Context, archive string) (func() error, error) {
+func (p *userPlan) install(ctx context.Context, archive, _ string) (func() error, error) {
 	dir, err := os.MkdirTemp("", "go-link-desk-new-")
 	if err != nil {
 		return nil, err
@@ -85,22 +85,38 @@ func (p *pkgPlan) asset(tag string) string {
 	}
 }
 
-func (p *pkgPlan) install(ctx context.Context, pkg string) (func() error, error) {
-	// The package goes where root's tools can read it.
-	_ = os.Chmod(filepath.Dir(pkg), 0o755)
-	_ = os.Chmod(pkg, 0o644)
+// rootInstall runs as root: it copies the package into a folder only root
+// can write and checks its hash there before the package manager opens
+// it. The download belongs to this user, and anything running as this
+// user could swap it between Download's check and the password prompt.
+// Arguments: the package, its SHA-256, then the package manager's command,
+// which gets the copy's path last.
+const rootInstall = `set -eu
+d=$(mktemp -d)
+trap 'rm -rf "$d"' EXIT
+pkg="$d/${1##*/}"
+cp -- "$1" "$pkg"
+[ "$(sha256sum -- "$pkg" | cut -d' ' -f1)" = "$2" ] || { echo "the package changed after it was checked" >&2; exit 3; }
+shift 2
+"$@" "$pkg"`
+
+func (p *pkgPlan) install(ctx context.Context, pkg, sum string) (func() error, error) {
 	var args []string
 	switch p.kind {
 	case "deb":
-		args = []string{"dpkg", "-i", pkg}
+		args = []string{"dpkg", "-i"}
 	case "rpm":
-		args = []string{"rpm", "-U", "--force", pkg}
+		args = []string{"rpm", "-U", "--force"}
 	default:
-		args = []string{"pacman", "-U", "--noconfirm", pkg}
+		args = []string{"pacman", "-U", "--noconfirm"}
 	}
-	if out, err := exec.CommandContext(ctx, "pkexec", args...).CombinedOutput(); err != nil {
+	cmd := append([]string{"/bin/sh", "-c", rootInstall, "sh", pkg, sum}, args...)
+	if out, err := exec.CommandContext(ctx, "pkexec", cmd...).CombinedOutput(); err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && (ee.ExitCode() == 126 || ee.ExitCode() == 127) {
 			return nil, ErrCancelled
+		}
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 3 {
+			return nil, fmt.Errorf("%w: %s changed after it was checked", ErrSignature, filepath.Base(pkg))
 		}
 		return nil, fmt.Errorf("updater: %s: %v: %s", args[0], err, strings.TrimSpace(string(out)))
 	}

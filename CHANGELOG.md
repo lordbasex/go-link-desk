@@ -16,6 +16,12 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 - **The public demo computer:** a visit lasts 5 minutes at most, and after each one the computer starts over: a clean desktop, nothing left from the last visitor, and new codes on the demo page (deploy/demo/vm/session-guard.py).
 - **The public demo computer connects straight:** viewers reach it on UDP 50002, which the router forwards, instead of always going through the relay in Virginia; the relay stays as the fallback. The picture shows up sooner and moves more smoothly.
 
+### Security
+
+- **A viewer with Files could read a Windows host's `AppData`:** the browsers' saved passwords and cookies, the DPAPI keys and other apps' tokens. AppData, NTUSER.DAT and everything Windows marks hidden are now private, like `~/Library` on a Mac, including through short names (`APPDAT~1`), trailing dots and streams. Found with Strix.
+- **The Linux installer checks the release's signature:** `install.sh` trusted `SHA256SUMS` from the same place as the package; it now checks `SHA256SUMS.sig` against the update key with OpenSSL 3 and refuses anything else, so a changed release or `GO_LINK_DESK_DOWNLOAD` pointing elsewhere cannot slip a package in. It needs `openssl` (3 or newer). Found with Strix.
+- **Updating a Linux package:** the package manager ran as root on the download, which the user could still change while the password prompt waited; now root copies it to a folder of its own and checks its hash there first. Found with Strix.
+
 ### Fixed
 
 - **The Windows ARM64 build runs on an x86-64 machine without emulation:** the Dockerfile built its icon tool for ARM64 and could not run it (it only worked where Docker emulates ARM, as on Docker Desktop).
