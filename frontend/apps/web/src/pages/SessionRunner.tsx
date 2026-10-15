@@ -39,6 +39,8 @@ export interface SessionRunnerProps {
   autoStart?: boolean;
   onLinked?: (link: NewLink) => void;
   onUnlinked?: () => void;
+  /** The computer proved itself bound to the connection for the first time. */
+  onBound?: () => void;
   /** Told who the computer is, once it says. */
   onHost?: (host: HostInfo) => void;
   /** Told when the session goes live, and a thumbnail of its screen now and then. */
@@ -54,14 +56,14 @@ export interface SessionRunnerProps {
  * knocks, waits for the person there (or, linked, types the password if
  * the computer asks), and then sees the screen.
  */
-export function SessionRunner({ door, title, waitingText, back, autoStart, onLinked, onUnlinked, onHost, onLive, onSnapshot, onNotFound, createClient }: SessionRunnerProps) {
+export function SessionRunner({ door, title, waitingText, back, autoStart, onLinked, onUnlinked, onBound, onHost, onLive, onSnapshot, onNotFound, createClient }: SessionRunnerProps) {
   const [name, setName] = useState(savedName);
   const [attempt, setAttempt] = useState(() => (autoStart && savedName().trim() ? 1 : 0));
   const cursorFn = useRef<((c: CursorState) => void) | null>(null);
   const registerCursor = useCallback((fn: ((c: CursorState) => void) | null) => {
     cursorFn.current = fn;
   }, []);
-  const { view, session } = useSession({ door, name, attempt, createClient, onCursor: (c) => cursorFn.current?.(c), onLinked, onUnlinked });
+  const { view, session } = useSession({ door, name, attempt, createClient, onCursor: (c) => cursorFn.current?.(c), onLinked, onUnlinked, onBound });
   const start = () => {
     saveName(name.trim());
     setAttempt((n) => n + 1);

@@ -131,6 +131,7 @@ type recorder struct {
 	chat     []ChatLine
 	linked   []NewLink
 	unlinked bool
+	bound    bool
 }
 
 func (r *recorder) events() Events {
@@ -148,6 +149,7 @@ func (r *recorder) events() Events {
 		Chat:     func(c ChatLine) { r.mu.Lock(); r.chat = append(r.chat, c); r.mu.Unlock() },
 		Linked:   func(l NewLink) { r.mu.Lock(); r.linked = append(r.linked, l); r.mu.Unlock() },
 		Unlinked: func() { r.mu.Lock(); r.unlinked = true; r.mu.Unlock() },
+		Bound:    func() { r.mu.Lock(); r.bound = true; r.mu.Unlock() },
 	}
 }
 

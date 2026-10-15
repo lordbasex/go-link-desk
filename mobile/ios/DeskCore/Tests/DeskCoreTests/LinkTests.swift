@@ -31,6 +31,12 @@ final class LinkTests: XCTestCase {
         for c in root["cases"].arr {
             XCTAssertEqual(DeskSession.linkProof(token: c["token"].str(), nonce: c["nonce"].str()), c["proof"].str())
         }
+        for c in root["bound_cases"].arr {
+            XCTAssertEqual(DeskSession.linkProofBound(token: c["token"].str(), nonce: c["nonce"].str(), host: c["host_fingerprint"].str(), viewer: c["viewer_fingerprint"].str()), c["proof2"].str())
+        }
+        for c in root["fingerprint_cases"].arr {
+            XCTAssertEqual(DeskSession.fingerprint(sdp: c["sdp"].str(10000)), c["fingerprint"].str())
+        }
         XCTAssertTrue(DeskSession.same("abc", "abc"))
         XCTAssertFalse(DeskSession.same("abc", "abd"))
         XCTAssertGreaterThanOrEqual(DeskSession.randomNonce().count, 40)
@@ -72,6 +78,41 @@ final class LinkTests: XCTestCase {
         // The password, wrong then right.
         peer.events.onControlMessage(#"{"type":"auth_ok","link_id":"L"}"#)
         XCTAssertEqual(s.status, .connecting) // the early acceptance applies now
+    }
+
+    /** Sends the computer's proofs to a reaching session; returns whether the token went. */
+    private func proofs(_ link: DeviceLink, proof2Host: String?, bound: (() -> Void)? = nil) -> (DeskSession, Bool) {
+        let s = session(.reach(link))
+        s.events.bound = bound
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        // The fake answer repeats the offer, so both sides show "sha-256 HO:ST".
+        fromHost(#"{"kind":"offer","sdp":"v=0\r\na=fingerprint:sha-256 ho:st\r\n"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        let nonce = JSONText.parseObject(peer.control.last!)!["nonce"].str()
+        var m = #"{"type":"auth_proof","link_id":"L","proof":"\#(DeskSession.linkProof(token: "secret-token", nonce: nonce))""#
+        if let h = proof2Host {
+            m += #","proof2":"\#(DeskSession.linkProofBound(token: "secret-token", nonce: nonce, host: h, viewer: "sha-256 HO:ST"))""#
+        }
+        peer.events.onControlMessage(m + "}")
+        return (s, peer.control.last == #"{"type":"auth","link_id":"L","token":"secret-token"}"#)
+    }
+
+    func testTheProofBoundToTheConnection() {
+        var bound = 0
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "secret-token")
+        XCTAssertTrue(proofs(link, proof2Host: "sha-256 HO:ST", bound: { bound += 1 }).1)
+        XCTAssertEqual(bound, 1)
+        // A computer from before proof2 still works, until one gave it.
+        XCTAssertTrue(proofs(link, proof2Host: nil).1)
+        // Relayed from another connection: someone in the middle has its own certificate.
+        let (relayed, sent) = proofs(link, proof2Host: "sha-256 MI:TM")
+        XCTAssertFalse(sent)
+        XCTAssertEqual(relayed.status, .untrusted)
+        // Once bound, the plain proof alone is refused.
+        let (plain, sentPlain) = proofs(DeviceLink(deviceId: "D", linkId: "L", token: "secret-token", bound: true), proof2Host: nil)
+        XCTAssertFalse(sentPlain)
+        XCTAssertEqual(plain.status, .untrusted)
     }
 
     func testAWrongProofSendsNothing() {

@@ -192,6 +192,9 @@ type Events struct {
 	Linked func(NewLink)
 	// Unlinked: the computer no longer has this link: forget it.
 	Unlinked func()
+	// Bound: the computer proved itself bound to the connection for the
+	// first time: remember it (models.RemoteDevice.Bound).
+	Bound func()
 	// Files: the files channel is open (with the files permission).
 	Files func(*Files)
 	// Recording: the computer stopped this viewer's recording (it took the
@@ -240,6 +243,8 @@ type Transport interface {
 type Session struct {
 	opts Options
 	log  *slog.Logger
+	// certs stands in for the connection's fingerprints in tests.
+	certs func() (host, viewer string)
 
 	mu        sync.Mutex
 	status    Status

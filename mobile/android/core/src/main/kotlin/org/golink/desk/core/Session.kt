@@ -65,7 +65,12 @@ fun interface RtcPeerFactory {
 }
 
 /** A computer linked before: its id, the link's id and this device's secret for it. */
-data class DeviceLink(val deviceId: String, val linkId: String, val token: String)
+/**
+ * bound: the computer once proved itself bound to the connection (proof2);
+ * from then on a proof without it is refused, so nobody in the middle can
+ * fall back to the plain one.
+ */
+data class DeviceLink(val deviceId: String, val linkId: String, val token: String, val bound: Boolean = false)
 
 /** How a session reaches its computer. */
 sealed interface Door {
@@ -183,6 +188,9 @@ class SessionEvents {
     /** The computer no longer has this link: forget it. */
     var unlinked: (() -> Unit)? = null
 
+    /** The computer proved itself bound to the connection for the first time: remember it (DeviceLink.bound). */
+    var bound: (() -> Unit)? = null
+
     /** The computer took this unattended password: keep it with the link. */
     var passwordAccepted: ((String) -> Unit)? = null
 
@@ -241,6 +249,10 @@ class DeskSession(
     private val shapes = HashMap<String, CursorShape>()
     private var pointerSeq = 0
     private var nonce = ""
+
+    /** The connection's SDPs, the computer's offer and this viewer's answer: their certificates bind the link's proof. */
+    private var offerSdp = ""
+    private var answerSdp = ""
     private var proven = false
     private var authed = false
     private var early: Permissions? = null
@@ -384,7 +396,11 @@ class DeskSession(
             is HostSignal.Offer -> scope.launch {
                 val answer = runCatching { p.answer(s.sdp) }
                 if (status.isOver) return@launch
-                answer.fold({ sendSignal(RtcSignals.answer(it)) }, { finish(SessionStatus.Ended("network")) })
+                answer.fold({
+                    offerSdp = s.sdp
+                    answerSdp = it
+                    sendSignal(RtcSignals.answer(it))
+                }, { finish(SessionStatus.Ended("network")) })
             }
             is HostSignal.Candidate -> p.addCandidate(s.candidate)
             else -> Unit
@@ -509,11 +525,21 @@ class DeskSession(
         when (m["type"].str(40)) {
             "auth_proof" -> {
                 if (d !is Door.Reach || nonce.isEmpty()) return
-                val proof = m["proof"].str(100)
-                if (m["link_id"].str(64) != d.link.linkId || !same(proof, linkProof(d.link.token, nonce))) {
+                // proof2 ties the proof to this connection's certificates; a
+                // computer that once gave it must always give it, or someone
+                // in the middle could fall back to the plain proof.
+                val host = fingerprint(offerSdp)
+                val mine = fingerprint(answerSdp)
+                val canBind = host.isNotEmpty() && mine.isNotEmpty()
+                val proof2 = if (m.containsKey("proof2")) m["proof2"].str(100) else null
+                val bound = canBind && proof2 != null && same(proof2, linkProofBound(d.link.token, nonce, host, mine))
+                val plain = same(m["proof"].str(100), linkProof(d.link.token, nonce))
+                val ok = bound || (plain && !d.link.bound && (proof2 == null || !canBind))
+                if (m["link_id"].str(64) != d.link.linkId || !ok) {
                     finish(SessionStatus.Untrusted)
                     return
                 }
+                if (bound && !d.link.bound) events.bound?.invoke()
                 nonce = ""
                 proven = true
                 control(
@@ -822,6 +848,30 @@ class DeskSession(
             mac.init(SecretKeySpec(key, "HmacSHA256"))
             val out = mac.doFinal(("go-link-desk link proof\n" + nonce).toByteArray(Charsets.UTF_8))
             return Base64.getUrlEncoder().withoutPadding().encodeToString(out)
+        }
+
+        /**
+         * The proof tied to the connection too: HMAC over the nonce and the
+         * DTLS fingerprints of the computer's and this viewer's certificates
+         * (protocol/vectors/link-proof.json, bound_cases).
+         */
+        fun linkProofBound(token: String, nonce: String, host: String, viewer: String): String {
+            val key = MessageDigest.getInstance("SHA-256").digest(token.toByteArray(Charsets.UTF_8))
+            val mac = Mac.getInstance("HmacSHA256")
+            mac.init(SecretKeySpec(key, "HmacSHA256"))
+            val out = mac.doFinal(("go-link-desk link proof 2\n" + nonce + "\n" + host + "\n" + viewer).toByteArray(Charsets.UTF_8))
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(out)
+        }
+
+        /** An SDP's first sha-256 certificate fingerprint as "sha-256 AB:CD:…", or "" without one. */
+        fun fingerprint(sdp: String): String {
+            for (raw in sdp.lineSequence()) {
+                val line = raw.trim()
+                if (!line.startsWith("a=fingerprint:")) continue
+                val parts = line.removePrefix("a=fingerprint:").trim().split(Regex("\\s+"), limit = 2)
+                if (parts.size == 2 && parts[0].equals("sha-256", ignoreCase = true)) return "sha-256 " + parts[1].trim().uppercase()
+            }
+            return ""
         }
 
         /** Compares two proofs in constant time. */

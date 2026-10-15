@@ -376,6 +376,14 @@ func TestAWaitingBrowserGetsNothingUntilAdmitted(t *testing.T) {
 			t.Fatal("message not handed to the waiting handler")
 		}
 	}
+	// The link's proof is bound to the certificates each side sees: the
+	// host's view of the connection must be the browser's, crossed.
+	host, viewer := stream.Fingerprints("linked")
+	if host == "" || viewer == "" ||
+		host != services.DTLSFingerprint(b.pc.CurrentRemoteDescription().SDP) ||
+		viewer != services.DTLSFingerprint(b.pc.CurrentLocalDescription().SDP) {
+		t.Fatalf("fingerprints: host %q viewer %q", host, viewer)
+	}
 	// A message from the host still reaches it (the link's proofs).
 	if !stream.SendControl("linked", []byte(`{"type":"auth_proof"}`)) {
 		t.Fatal("cannot write to a waiting browser")

@@ -34,6 +34,12 @@ export interface SavedDevice {
   thumb: string;
   /** go-link-desk-terminal: a shell, not a screen. */
   terminal?: boolean;
+  /**
+   * The computer once proved itself bound to the connection (proof2): from
+   * then on a proof without it is refused, so nobody in the middle can
+   * fall back to the plain one.
+   */
+  bound?: boolean;
 }
 
 /** A session this browser had lately, linked or with a code. */
@@ -96,6 +102,7 @@ function toDevice(v: unknown): SavedDevice | null {
     name: text(d.name, 64), label: text(d.label, 64), os: text(d.os, 16), favorite: d.favorite === true,
     savedAt: num(d.savedAt), lastUsed: num(d.lastUsed), thumb: thumb(d.thumb),
     ...(d.terminal === true ? { terminal: true } : {}),
+    ...(d.bound === true ? { bound: true } : {}),
   };
 }
 
@@ -121,7 +128,7 @@ export function saveDevice(storage: Storage | undefined, device: SavedDevice): v
 }
 
 /** Changes what is kept about a linked computer (name, label, favorite, last use, thumbnail). */
-export function updateDevice(storage: Storage | undefined, deviceId: string, signalUrl: string, patch: Partial<Pick<SavedDevice, "name" | "label" | "os" | "favorite" | "lastUsed" | "thumb" | "terminal">>): void {
+export function updateDevice(storage: Storage | undefined, deviceId: string, signalUrl: string, patch: Partial<Pick<SavedDevice, "name" | "label" | "os" | "favorite" | "lastUsed" | "thumb" | "terminal" | "bound">>): void {
   const list = loadDevices(storage);
   const i = list.findIndex((d) => d.deviceId === deviceId.toLowerCase() && d.signalUrl === signalUrl);
   if (i < 0) return;

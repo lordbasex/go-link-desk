@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it, vi } from "vitest";
-import { ServerError, linkProof } from "@go-link-desk/shared";
+import { ServerError, linkProof, linkProofBound } from "@go-link-desk/shared";
 import { ASK_TIMEOUT_MS, Session, type Door, type SessionOptions, type SessionView } from "./session";
 import { FakeClient } from "./test-utils";
 
@@ -352,12 +352,19 @@ describe("Linked computers", () => {
       ...extra,
     });
     void s.start();
-    const inner = s as unknown as { onControl(m: unknown): void; stream: { sendControl(m: unknown): boolean; pendingControl: string[] } };
+    const inner = s as unknown as {
+      onControl(m: unknown): void;
+      stream: { sendControl(m: unknown): boolean; pendingControl: string[]; fingerprints(): { host: string; viewer: string } };
+    };
     const sent: unknown[] = [];
     return {
       s,
       sent,
       control: (m: unknown) => inner.onControl(m),
+      // The connection's certificates as this viewer sees them.
+      certificates: (host: string, viewer: string) => {
+        inner.stream.fingerprints = () => ({ host, viewer });
+      },
       queued: () => inner.stream.pendingControl.map((x) => JSON.parse(x) as Record<string, string>),
       spy: () => {
         inner.stream.sendControl = (m) => (sent.push(m), true);
@@ -427,6 +434,38 @@ describe("Linked computers", () => {
     control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
     expect(s.current.status.kind).toBe("connecting");
     expect(s.current.permissions?.files).toBe(true);
+  });
+
+  it("take the proof bound to the connection, and from then on only that one", async () => {
+    const client = new FakeClient();
+    const bound = vi.fn();
+    const { s, sent, control, queued, spy, certificates } = startDoor(client, { kind: "reach", device }, { onBound: bound });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    certificates("sha-256 HO:ST", "sha-256 VI:EW");
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce), proof2: linkProofBound(device.token, nonce, "sha-256 HO:ST", "sha-256 VI:EW") });
+    expect(sent).toEqual([{ type: "auth", link_id: device.linkId, token: device.token }]);
+    expect(bound).toHaveBeenCalledOnce();
+  });
+
+  it("refuse a proof relayed from another connection, and the plain proof once bound", async () => {
+    // Someone in the middle has a certificate of its own on each side: the
+    // real computer's proof2 names other fingerprints than this viewer sees.
+    for (const [door, proof2] of [
+      [{ kind: "reach", device }, (n: string) => linkProofBound(device.token, n, "sha-256 HO:ST", "sha-256 MI:TM")],
+      [{ kind: "reach", device: { ...device, bound: true } }, () => undefined],
+    ] as const) {
+      const client = new FakeClient();
+      const { s, sent, control, queued, spy, certificates } = startDoor(client, door as Door);
+      await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+      const nonce = queued()[0]!.nonce!;
+      spy();
+      certificates("sha-256 MI:TM", "sha-256 VI:EW");
+      control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce), proof2: proof2(nonce) });
+      expect(sent).toEqual([]);
+      expect(s.current.status.kind).toBe("untrusted");
+    }
   });
 
   it("send nothing to a computer that cannot prove itself", async () => {

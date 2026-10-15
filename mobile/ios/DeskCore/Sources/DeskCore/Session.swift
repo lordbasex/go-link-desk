@@ -46,11 +46,18 @@ public struct DeviceLink: Equatable, Sendable {
     public let deviceId: String
     public let linkId: String
     public let token: String
+    /**
+     * The computer once proved itself bound to the connection (proof2): from
+     * then on a proof without it is refused, so nobody in the middle can fall
+     * back to the plain one.
+     */
+    public let bound: Bool
 
-    public init(deviceId: String, linkId: String, token: String) {
+    public init(deviceId: String, linkId: String, token: String, bound: Bool = false) {
         self.deviceId = deviceId
         self.linkId = linkId
         self.token = token
+        self.bound = bound
     }
 }
 
@@ -158,6 +165,8 @@ public final class SessionEvents {
     public var linked: ((DeviceLink) -> Void)?
     /** The computer no longer has this link: forget it. */
     public var unlinked: (() -> Void)?
+    /** The computer proved itself bound to the connection for the first time: remember it (DeviceLink.bound). */
+    public var bound: (() -> Void)?
     /** The computer took this unattended password: keep it with the link. */
     public var passwordAccepted: ((String) -> Void)?
     /** The password kept with the link was wrong (it changed there): forget it. */
@@ -211,6 +220,9 @@ public final class DeskSession: RtcPeerEvents {
     private var shapes: [String: CursorShape] = [:]
     private var pointerSeq: UInt16 = 0
     private var nonce = ""
+    /** The connection's SDPs, the computer's offer and this viewer's answer: their certificates bind the link's proof. */
+    private var offerSdp = ""
+    private var answerSdp = ""
     private var proven = false
     private var authed = false
     private var early: Permissions?
@@ -364,7 +376,10 @@ public final class DeskSession: RtcPeerEvents {
             peer.answer(offerSdp: sdp) { [weak self] result in
                 guard let self, !self.status.isOver else { return }
                 switch result {
-                case let .success(answer): self.sendSignal(RtcSignals.answer(answer))
+                case let .success(answer):
+                    self.offerSdp = sdp
+                    self.answerSdp = answer
+                    self.sendSignal(RtcSignals.answer(answer))
                 case .failure: self.finish(.ended("network"))
                 }
             }
@@ -482,11 +497,20 @@ public final class DeskSession: RtcPeerEvents {
         switch m["type"].str(40) {
         case "auth_proof":
             guard case let .reach(link) = door, !nonce.isEmpty else { return }
-            let proof = o["proof"].str(100)
-            guard o["link_id"].str(64) == link.linkId, DeskSession.same(proof, DeskSession.linkProof(token: link.token, nonce: nonce)) else {
+            // proof2 ties the proof to this connection's certificates; a
+            // computer that once gave it must always give it, or someone in
+            // the middle could fall back to the plain proof.
+            let host = DeskSession.fingerprint(sdp: offerSdp), mine = DeskSession.fingerprint(sdp: answerSdp)
+            let canBind = !host.isEmpty && !mine.isEmpty
+            let proof2: String? = m["proof2"] == nil ? nil : o["proof2"].str(100)
+            let bound = canBind && proof2.map { DeskSession.same($0, DeskSession.linkProofBound(token: link.token, nonce: nonce, host: host, viewer: mine)) } == true
+            let plain = DeskSession.same(o["proof"].str(100), DeskSession.linkProof(token: link.token, nonce: nonce))
+            let ok = bound || (plain && !link.bound && (proof2 == nil || !canBind))
+            guard o["link_id"].str(64) == link.linkId, ok else {
                 finish(.untrusted)
                 return
             }
+            if bound, !link.bound { events.bound?() }
             nonce = ""
             proven = true
             control(.obj(("type", "auth"), ("link_id", .string(link.linkId)), ("token", .string(link.token))))
@@ -555,6 +579,30 @@ public final class DeskSession: RtcPeerEvents {
         let key = SymmetricKey(data: SHA256.hash(data: Data(token.utf8)))
         let mac = HMAC<SHA256>.authenticationCode(for: Data(("go-link-desk link proof\n" + nonce).utf8), using: key)
         return Data(mac).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+
+    /**
+     * The proof tied to the connection too: HMAC over the nonce and the DTLS
+     * fingerprints of the computer's and this viewer's certificates
+     * (protocol/vectors/link-proof.json, bound_cases).
+     */
+    static func linkProofBound(token: String, nonce: String, host: String, viewer: String) -> String {
+        let key = SymmetricKey(data: SHA256.hash(data: Data(token.utf8)))
+        let mac = HMAC<SHA256>.authenticationCode(for: Data(("go-link-desk link proof 2\n" + nonce + "\n" + host + "\n" + viewer).utf8), using: key)
+        return Data(mac).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+
+    /** An SDP's first sha-256 certificate fingerprint as "sha-256 AB:CD:…", or "" without one. */
+    static func fingerprint(sdp: String) -> String {
+        for raw in sdp.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("a=fingerprint:") else { continue }
+            let parts = line.dropFirst("a=fingerprint:".count).split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            if parts.count == 2, parts[0].lowercased() == "sha-256" {
+                return "sha-256 " + parts[1].trimmingCharacters(in: .whitespaces).uppercased()
+            }
+        }
+        return ""
     }
 
     /** Compares two proofs in constant time. */

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 import { describe, expect, it } from "vitest";
-import { hmacSha256, linkProof, sameString, sha256, utf8 } from "../src";
+import { hmacSha256, linkProof, linkProofBound, sameString, sdpFingerprint, sha256, utf8 } from "../src";
 import vectors from "../../../../protocol/vectors/link-proof.json";
 
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -32,5 +32,11 @@ describe("sha256 and hmac", () => {
     // The same vectors as backend-device/internal/services/link_proof_test.go.
     expect(vectors.cases.length).toBeGreaterThan(0);
     for (const c of vectors.cases) expect(linkProof(c.token, c.nonce)).toBe(c.proof);
+  });
+
+  it("binds the proof to the connection exactly like the host does", () => {
+    expect(vectors.bound_cases.length).toBeGreaterThan(0);
+    for (const c of vectors.bound_cases) expect(linkProofBound(c.token, c.nonce, c.host_fingerprint, c.viewer_fingerprint)).toBe(c.proof2);
+    for (const c of vectors.fingerprint_cases) expect(sdpFingerprint(c.sdp)).toBe(c.fingerprint);
   });
 });

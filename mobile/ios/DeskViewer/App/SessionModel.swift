@@ -152,6 +152,10 @@ final class SessionModel: ObservableObject, MediaListener {
             guard let self, case let .reach(link) = self.door else { return }
             self.app.forgetLink(link.deviceId)
         }
+        ev.bound = { [weak self] in
+            guard let self, case let .reach(link) = self.door else { return }
+            self.app.links.update(link.deviceId) { $0.bound = true }
+        }
         // The picture is sent smaller while the app is in the background.
         let nc = NotificationCenter.default
         lifecycle = [

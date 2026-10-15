@@ -90,6 +90,44 @@ func TestAWrongProofIsUntrusted(t *testing.T) {
 	}
 }
 
+func TestTheProofBoundToTheConnection(t *testing.T) {
+	bound := *linked
+	for _, c := range []struct {
+		name      string
+		device    *models.RemoteDevice
+		certHost  string // the computer's certificate as this viewer sees it
+		proofHost string // the one the real computer bound its proof to
+		withProof bool
+		trusted   bool
+	}{
+		{"bound to this connection", linked, "sha-256 HO:ST", "sha-256 HO:ST", true, true},
+		{"relayed from another connection", linked, "sha-256 MI:TM", "sha-256 HO:ST", true, false},
+		{"a computer from before proof2", linked, "sha-256 HO:ST", "", false, true},
+		{"the plain proof once bound", func() *models.RemoteDevice { bound.Bound = true; return &bound }(), "sha-256 HO:ST", "", false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, rec := linkSession(t, Door{Kind: DoorReach, Device: c.device})
+			s.certs = func() (string, string) { return c.certHost, "sha-256 VI:EW" }
+			nonce := sentControl(s)[0]["nonce"].(string)
+			m := map[string]any{"type": "auth_proof", "link_id": "link1", "proof": linkProof("secret-token", nonce)}
+			if c.withProof {
+				m["proof2"] = linkProofBound("secret-token", nonce, c.proofHost, "sha-256 VI:EW")
+			}
+			control(s, m)
+			out := sentControl(s)
+			if trusted := len(out) == 1 && out[0]["type"] == "auth"; trusted != c.trusted {
+				t.Fatalf("sent %v, status %s", out, s.Status().Kind)
+			}
+			if !c.trusted && s.Status().Kind != StatusUntrusted {
+				t.Fatalf("status %s", s.Status().Kind)
+			}
+			if got := rec.bound; got != (c.trusted && c.withProof) {
+				t.Fatalf("bound event %v", got)
+			}
+		})
+	}
+}
+
 func TestThePasswordAfterTheToken(t *testing.T) {
 	s, _ := linkSession(t, Door{Kind: DoorReach, Device: linked})
 	nonce := sentControl(s)[0]["nonce"].(string)

@@ -253,6 +253,7 @@ func serve(args []string) error {
 		Links: links, Session: session, Settings: settings, Send: stream.SendControl, Logger: logger,
 	})
 	links.SetTransport(stream.SendControl, func(peer string) { session.Drop(peer, models.EndRevoked) })
+	links.SetFingerprints(stream.Fingerprints)
 	pairing.SetLinks(session)
 	pairing.SetAuth(unattended)
 	stream.OnWaiting(unattended.HandleWaiting)

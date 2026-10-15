@@ -8,6 +8,7 @@ import {
   SignalError,
   clipboardPieces,
   linkProof,
+  linkProofBound,
   parseAuthOk,
   parseDecision,
   randomNonce,
@@ -197,6 +198,8 @@ export interface SessionOptions {
   onLinked?: (link: NewLink) => void;
   /** The computer no longer has this browser's link: forget it here. */
   onUnlinked?: () => void;
+  /** Reach: the computer proved itself bound to the connection for the first time (remember it). */
+  onBound?: () => void;
   /** Injectable for tests. */
   RTCPeerConnectionImpl?: typeof RTCPeerConnection;
 }
@@ -713,16 +716,27 @@ export class Session {
   private onLinkMessage(m: Record<string, unknown>): void {
     const door = this.opts.door;
     switch (m.type) {
-      case "auth_proof":
+      case "auth_proof": {
         if (door.kind !== "reach" || !this.nonce) return;
-        if (m.link_id !== door.device.linkId || typeof m.proof !== "string" || !sameString(m.proof, linkProof(door.device.token, this.nonce))) {
+        const { token, linkId } = door.device;
+        // proof2 ties the proof to this connection's certificates; a
+        // computer that once gave it must always give it, or someone in
+        // the middle could fall back to the plain proof.
+        const fp = this.stream?.fingerprints();
+        const canBind = !!fp?.host && !!fp.viewer;
+        const bound = canBind && typeof m.proof2 === "string" && sameString(m.proof2, linkProofBound(token, this.nonce, fp.host, fp.viewer));
+        const plain = typeof m.proof === "string" && sameString(m.proof, linkProof(token, this.nonce));
+        const ok = bound || (plain && !door.device.bound && (m.proof2 === undefined || !canBind));
+        if (m.link_id !== linkId || !ok) {
           this.finish({ kind: "untrusted" });
           return;
         }
+        if (bound && !door.device.bound) this.opts.onBound?.();
         this.nonce = "";
         this.proven = true;
-        this.stream?.sendControl({ type: "auth", link_id: door.device.linkId, token: door.device.token });
+        this.stream?.sendControl({ type: "auth", link_id: linkId, token });
         break;
+      }
       case "auth_ok": {
         const ok = parseAuthOk(m);
         if (door.kind === "claim" && ok?.token) this.opts.onLinked?.({ deviceId: ok.device_id, linkId: ok.link_id, token: ok.token });

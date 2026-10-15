@@ -7,6 +7,7 @@
 
 import type { SignalClient } from "./signal-client";
 import type { Envelope } from "./protocol";
+import { sdpFingerprint } from "./hmac";
 
 export interface RTCSignal {
   kind: "offer" | "answer" | "candidate";
@@ -179,6 +180,14 @@ export class HostStream {
   private callTracks: { video: MediaStreamTrack | null; audio: MediaStreamTrack | null } = { video: null, audio: null };
 
   constructor(private readonly opts: HostStreamOptions) {}
+
+  /** The DTLS fingerprints of this connection, the host's and this viewer's ("" before it is set up). */
+  fingerprints(): { host: string; viewer: string } {
+    return {
+      host: sdpFingerprint(this.pc?.currentRemoteDescription?.sdp ?? ""),
+      viewer: sdpFingerprint(this.pc?.currentLocalDescription?.sdp ?? ""),
+    };
+  }
 
   /** Sends this viewer's camera and microphone in a call (null stops one); no new negotiation. */
   async setCallMedia(video: MediaStreamTrack | null, audio: MediaStreamTrack | null): Promise<void> {

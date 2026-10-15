@@ -78,13 +78,14 @@ type controlMsg struct {
 	Parts int    `json:"parts"`
 	Text  string `json:"text"`
 	// link
-	LinkID     string `json:"link_id"`
-	Proof      string `json:"proof"`
-	DeviceID   string `json:"device_id"`
-	Token      string `json:"token"`
-	OK         bool   `json:"ok"`
-	Left       int    `json:"left"`
-	RetryAfter int    `json:"retry_after"`
+	LinkID     string  `json:"link_id"`
+	Proof      string  `json:"proof"`
+	Proof2     *string `json:"proof2"`
+	DeviceID   string  `json:"device_id"`
+	Token      string  `json:"token"`
+	OK         bool    `json:"ok"`
+	Left       int     `json:"left"`
+	RetryAfter int     `json:"retry_after"`
 }
 
 // onControl takes one message from the computer's control channel.
@@ -247,9 +248,20 @@ func (s *Session) onLinkMessage(m controlMsg) {
 		if door.Kind != DoorReach || nonce == "" {
 			return
 		}
-		if m.LinkID != door.Device.LinkID || !hmac.Equal([]byte(m.Proof), []byte(linkProof(door.Device.Token, nonce))) {
+		// proof2 ties the proof to this connection's certificates; a
+		// computer that once gave it must always give it, or someone in the
+		// middle could fall back to the plain proof.
+		host, mine := s.fingerprints()
+		canBind := host != "" && mine != ""
+		bound := canBind && m.Proof2 != nil && hmac.Equal([]byte(*m.Proof2), []byte(linkProofBound(door.Device.Token, nonce, host, mine)))
+		plain := hmac.Equal([]byte(m.Proof), []byte(linkProof(door.Device.Token, nonce)))
+		ok := bound || (plain && !door.Device.Bound && (m.Proof2 == nil || !canBind))
+		if m.LinkID != door.Device.LinkID || !ok {
 			s.finish(Status{Kind: StatusUntrusted})
 			return
+		}
+		if fn := s.opts.Events.Bound; bound && !door.Device.Bound && fn != nil {
+			fn()
 		}
 		s.mu.Lock()
 		s.nonce, s.proven = "", true
@@ -321,6 +333,33 @@ func (s *Session) onLinkMessage(m controlMsg) {
 func linkProof(token, nonce string) string {
 	h := sha256.Sum256([]byte(token))
 	return services.LinkProof(h[:], nonce)
+}
+
+// linkProofBound is the proof tied to the connection's certificates.
+func linkProofBound(token, nonce, host, viewer string) string {
+	h := sha256.Sum256([]byte(token))
+	return services.LinkProofBound(h[:], nonce, host, viewer)
+}
+
+// fingerprints are the DTLS fingerprints of this connection, the
+// computer's and this viewer's ("" before it is set up).
+func (s *Session) fingerprints() (host, viewer string) {
+	if s.certs != nil {
+		return s.certs()
+	}
+	s.mu.Lock()
+	p := s.peer
+	s.mu.Unlock()
+	if p == nil || p.pc == nil {
+		return "", ""
+	}
+	if d := p.pc.CurrentRemoteDescription(); d != nil {
+		host = services.DTLSFingerprint(d.SDP)
+	}
+	if d := p.pc.CurrentLocalDescription(); d != nil {
+		viewer = services.DTLSFingerprint(d.SDP)
+	}
+	return host, viewer
 }
 
 // randomNonce is 32 random bytes, base64url.

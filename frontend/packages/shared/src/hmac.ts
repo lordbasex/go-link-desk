@@ -158,3 +158,25 @@ export function sameString(a: string, b: string): boolean {
 export function linkProof(token: string, nonce: string): string {
   return base64url(hmacSha256(sha256(utf8(token)), utf8(`go-link-desk link proof\n${nonce}`)));
 }
+
+/**
+ * The same proof tied to this connection too: the DTLS fingerprints of the
+ * host's and this viewer's certificates (sdpFingerprint). A signaling
+ * server that rewrites the SDP to sit in the middle shows each side a
+ * certificate of its own, so a proof it relays from the real host does
+ * not match.
+ */
+export function linkProofBound(token: string, nonce: string, hostFingerprint: string, viewerFingerprint: string): string {
+  return base64url(hmacSha256(sha256(utf8(token)), utf8(`go-link-desk link proof 2\n${nonce}\n${hostFingerprint}\n${viewerFingerprint}`)));
+}
+
+/** An SDP's first sha-256 certificate fingerprint as "sha-256 AB:CD:…", or "" without one. */
+export function sdpFingerprint(sdp: string): string {
+  for (const line of sdp.split("\n")) {
+    const v = line.trim();
+    if (!v.startsWith("a=fingerprint:")) continue;
+    const [alg, hex] = v.slice("a=fingerprint:".length).trim().split(/\s+/, 2);
+    if (alg?.toLowerCase() === "sha-256" && hex) return `sha-256 ${hex.toUpperCase()}`;
+  }
+  return "";
+}
