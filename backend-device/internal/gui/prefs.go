@@ -111,6 +111,10 @@ func (u *ui) prefsSpec() remoteview.Prefs {
 			{ID: "language", Kind: "select", Label: L("Language"), Value: cfg.Language, Options: langs},
 		}},
 	}}
+	general.Sections = append(general.Sections, remoteview.PrefSection{Title: L("Updates"), Rows: []remoteview.PrefRow{
+		{ID: "update_check", Kind: "toggle", Label: L("Check for updates automatically"), On: !cfg.NoUpdateCheck,
+			Detail: L("Asks GitHub for the newest version every 6 hours. Off: only when you choose Check for Updates…")},
+	}})
 	if a := u.opts.Autostart; a != nil {
 		row := remoteview.PrefRow{ID: "autostart", Kind: "toggle", Label: L("Open go-link Desk when I log in"), On: a.Enabled()}
 		if !a.Supported {
@@ -337,6 +341,8 @@ func (u *ui) setting(arg string) {
 		}
 	case id == "lock":
 		update(func(c *models.Config) { c.LockOnEnd = on })
+	case id == "update_check":
+		update(func(c *models.Config) { c.NoUpdateCheck = !on })
 	case id == "request_ticks":
 		if value != "view" {
 			value = ""

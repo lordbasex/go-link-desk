@@ -328,6 +328,12 @@ export const en = {
         ],
       },
       {
+        title: "Updates",
+        text: [
+          "Every 6 hours the computer app asks GitHub (api.github.com) whether a newer version was released; GitHub sees your IP address, as any server does. Turn it off in Settings › General › Updates: then it only asks when you choose Check for Updates…",
+        ],
+      },
+      {
         title: "What stays on your devices",
         text: [
           "The computer app keeps its settings, its logs and the computers and browsers you link, on that computer. This website keeps your theme, language, name and linked computers in your browser. The iPhone, iPad and Android apps keep your name, their settings and your recent and linked computers on the device; a linked computer's key stays in the device's keychain or keystore, behind Face ID, the fingerprint or the screen lock. You can delete them at any time.",
@@ -344,6 +350,46 @@ export const en = {
         text: ["Questions: lord.basex@gmail.com. go-link Desk is free and open source software (MIT license)."],
       },
     ],
+  },
+  codeSigning: {
+    title: "Code signing policy",
+    updated: "go-link Desk for Windows: the program and its installer. October 2026.",
+    lead: "go-link Desk's Windows files are signed so that Windows can tell they come from this project and were not changed on the way.",
+    sections: [
+      {
+        title: "What is signed",
+        text: [
+          "The Windows program (go-link-desk.exe) and its installer, for x86-64 and ARM64. The portable .zip carries the same signed program.",
+          "Only go-link Desk's own files are signed. The libraries inside the program (libvpx, libopus and libyuv) are built from their source code with it; nothing signed by someone else is signed again.",
+          "The Mac app is signed and notarized with Apple's Developer ID, and every release's SHA256SUMS is signed with the project's update key, which the app checks before it installs an update.",
+        ],
+      },
+      {
+        title: "How a signed file is made",
+        text: [
+          "A release's tag starts the windows workflow in GitHub Actions: GitHub's own runners build the program from that tag's source code, with the build scripts in the repository. SignPath checks that the file comes from that build of this repository, and an approver checks the release and approves each signing request by hand. The signed program then goes into the installer, which is signed the same way.",
+        ],
+      },
+    ],
+    roles: {
+      title: "Team roles",
+      authors: "Committers and reviewers",
+      approvers: "Approvers",
+      note: "Changes from anyone else come as pull requests and are reviewed before they are merged. Everyone in these roles uses multi-factor authentication on GitHub and SignPath.",
+    },
+    privacy: {
+      title: "Privacy",
+      text: "go-link Desk sends nothing to other computers unless you use it to: it reaches the signaling server (and, when a direct path is not possible, its relay) to start a session, and it asks GitHub now and then whether a newer version exists, which you can turn off in Settings. The rest is in the",
+      link: "privacy policy",
+    },
+    verify: {
+      title: "Check a signature",
+      text: "In Windows, right-click the file, choose Properties and open Digital Signatures: the signer is SignPath Foundation. In PowerShell:",
+    },
+    report: {
+      title: "Report a problem",
+      text: "If a signed file does something it should not, write to lord.basex@gmail.com or open an issue on GitHub, with the file's SHA-256 and where you downloaded it.",
+    },
   },
   site: {
     nav: { docs: "Docs", ways: "Ways to connect", features: "Features", security: "Security", download: "Download", source: "Open source", openWeb: "Open the web app", downloadButton: "Download" },
@@ -445,6 +491,7 @@ export const en = {
       windows: { title: "Windows", text: "Shares this PC's screen; Connect opens the others in your browser.", meta: "Windows 10 and 11 · x86-64 and ARM64 · installer or portable .zip", button: "Download installer" },
       linux: { title: "Linux", text: "Shares this computer's screen, on X11 or Wayland: GNOME, KDE Plasma and more.", meta: "x86-64 and ARM64 · glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora…)", button: "Download .tar.gz" },
       noInstall: "Nothing to install?",
+      signing: "Windows files are signed through SignPath. Code signing policy →",
       openWeb: "Open {web} in any browser.",
     },
     faq: {
@@ -479,6 +526,7 @@ export const en = {
       review: "Review",
       soon: "Soon",
       privacy: "Privacy",
+      codeSigning: "Code signing policy",
       report: "Report a problem",
       source: "Source code",
       changes: "What's new",

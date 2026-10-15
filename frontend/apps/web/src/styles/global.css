@@ -335,3 +335,5 @@ code, kbd, .mono { font-family: var(--font-mono); }
 .stage-banner-ok { background: var(--tint-ok-bg); border-bottom-color: var(--tint-ok-border); }
 .stage-terminal .terminal-box { padding-top: 56px; } /* under the floating toolbar */
 .bar-menu-key { display: inline-block; min-width: 2.2em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.signing-credit { padding: 10px 14px; border-left: 3px solid var(--color-accent); background: var(--color-surface-sunken); border-radius: 6px; }
+.signing-cmd { overflow-x: auto; padding: 10px 14px; border-radius: 8px; background: var(--color-surface-sunken); font: 13px/1.5 var(--font-mono); }

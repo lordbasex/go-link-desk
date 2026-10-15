@@ -234,6 +234,9 @@ export function LandingPage() {
               </span>
             </div>
           </div>
+          <p className="lp-signing">
+            <Link to="/code-signing">{s.download.signing}</Link>
+          </p>
           <div className="lp-hosts">
             <strong>{s.download.noInstall}</strong>
             <span>
@@ -474,6 +477,9 @@ export function SiteFooter() {
               </li>
               <li>
                 <Link to="/privacy">{f.privacy}</Link>
+              </li>
+              <li>
+                <Link to="/code-signing">{f.codeSigning}</Link>
               </li>
               <li>
                 <button type="button" className="lp-foot-link" onClick={askConsent}>

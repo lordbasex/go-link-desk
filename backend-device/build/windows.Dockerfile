@@ -82,6 +82,12 @@ RUN SUBSYSTEM="-H windowsgui" && case " $TAGS " in *" headless "*) SUBSYSTEM="" 
     go build -trimpath -tags "$TAGS" -ldflags "-s -w $SUBSYSTEM -X main.version=$VERSION" \
       -o /out/go-link-desk.exe ./cmd/desk
 
+# The program the installer takes: this build's, or a signed copy of it
+# from a folder given as the "exe" build context
+# (make windows-package-amd64 WINDOWS_EXE_DIR=…, the Windows workflow).
+FROM scratch AS exe
+COPY --from=build /out/go-link-desk.exe /
+
 # The installer (build/windows/installer.nsi, NSIS: zlib license) with the
 # program, its license and the third parties' notices, which come from the
 # repository's root: the "root" build context (make windows-package-amd64).
@@ -91,7 +97,8 @@ ARG VERSION=dev
 ARG SHORT_VERSION=0.1.0
 ARG GOARCH=amd64
 WORKDIR /nsis
-COPY --from=build /out/go-link-desk.exe /src/build/windows/desk.ico ./
+COPY --from=exe /go-link-desk.exe ./
+COPY --from=build /src/build/windows/desk.ico ./
 COPY build/windows/installer.nsi ./
 COPY --from=root LICENSE ./LICENSE.txt
 COPY --from=root THIRD_PARTY_NOTICES.md ./

@@ -27,6 +27,9 @@ type UpdateConfig struct {
 	Client   *http.Client
 	Logger   *slog.Logger
 	OnUpdate func(models.UpdateInfo) // called when a newer release shows up
+	// Enabled says whether the periodic check may ask now (Settings); nil
+	// is always.
+	Enabled func() bool
 }
 
 // UpdateService checks now and then whether a newer go-link Desk was released,
@@ -68,6 +71,9 @@ func (u *UpdateService) Run(ctx context.Context) {
 		case <-time.After(wait):
 		}
 		wait = u.cfg.Every
+		if u.cfg.Enabled != nil && !u.cfg.Enabled() {
+			continue
+		}
 		info, err := u.Check(ctx)
 		if err != nil {
 			u.cfg.Logger.Debug("cannot check for updates", "err", err)

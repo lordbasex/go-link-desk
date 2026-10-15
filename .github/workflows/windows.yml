@@ -1,0 +1,184 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# The Windows files of a release, built here from the tag's source on
+# GitHub's own runners and signed by SignPath (free code signing for open
+# source, certificate by the SignPath Foundation):
+#
+#   1. programs:          go-link-desk.exe for x86-64 and ARM64 (Docker,
+#                         build/windows.Dockerfile, the same as make).
+#   2. sign-programs:     both go to SignPath in one signing request, which
+#                         a maintainer approves there (artifact configuration
+#                         build/windows/signpath/programs.xml).
+#   3. installers:        the installers and portable .zip files, made with
+#                         the signed programs inside.
+#   4. sign-installers:   the two installers in a second signing request
+#                         (build/windows/signpath/installers.xml), then
+#                         every file with its .sha256 in one artifact,
+#                         go-link-desk-<tag>-windows, which
+#                         make windows-from-ci VERSION=<tag> downloads for
+#                         the release.
+#
+# Signing runs only for a release's tag, and only when the repository has
+# the SIGNPATH_ORGANIZATION_ID variable and the SIGNPATH_API_TOKEN secret;
+# otherwise (pull requests, runs by hand) the same files come out unsigned. docs/code-signing.md tells the whole policy.
+
+name: windows
+
+on:
+  push:
+    tags: ["v*"]
+  # A change to how Windows is built or packaged is tried here too, unsigned.
+  pull_request:
+    paths:
+      - .github/workflows/windows.yml
+      - backend-device/build/windows.Dockerfile
+      - backend-device/build/windows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+
+env:
+  # A release's tag, or "ci" for a pull request or a run by hand.
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'ci' }}
+  # Only a release's tag is signed.
+  SIGNING: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  programs:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - uses: docker/setup-buildx-action@v3
+      # make runs scripts/check-deps.sh windows on it.
+      - run: make device-windows-${{ matrix.arch }} VERSION="$VERSION"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: program-${{ matrix.arch }}
+          path: dist/desk/windows-${{ matrix.arch }}/go-link-desk.exe
+          if-no-files-found: error
+
+  sign-programs:
+    needs: programs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: program-*
+          path: in
+      - name: One folder per architecture
+        run: |
+          for a in amd64 arm64; do
+            mkdir -p "programs/$a" && mv "in/program-$a/go-link-desk.exe" "programs/$a/"
+          done
+      - uses: actions/upload-artifact@v7
+        id: upload
+        with:
+          name: programs
+          path: programs/
+          if-no-files-found: error
+      - if: env.SIGNING == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'go-link-desk' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: programs
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          parameters: |
+            version: "${{ env.VERSION }}"
+          # A maintainer approves every request by hand.
+          wait-for-completion-timeout-in-seconds: "18000"
+          output-artifact-directory: signed
+      - if: env.SIGNING != 'true'
+        run: cp -R programs signed
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-signed
+          path: signed/
+          if-no-files-found: error
+
+  installers:
+    needs: sign-programs
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend-device/go.mod
+          cache-dependency-path: backend-device/go.sum
+      - uses: docker/setup-buildx-action@v3
+      - uses: actions/download-artifact@v7
+        with:
+          name: programs-signed
+          path: signed
+      - run: make windows-package-${{ matrix.arch }} VERSION="$VERSION" WINDOWS_EXE_DIR=signed
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.arch }}
+          path: |
+            dist/desk/go-link-desk-${{ env.VERSION }}-windows-${{ matrix.arch }}-setup.exe
+            dist/desk/go-link-desk-${{ env.VERSION }}-windows-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  sign-installers:
+    needs: installers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: packages
+      - name: The installers apart
+        run: mkdir installers && mv packages/*-setup.exe installers/
+      - uses: actions/upload-artifact@v7
+        id: upload
+        with:
+          name: installers
+          path: installers/
+          if-no-files-found: error
+      - if: env.SIGNING == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'go-link-desk' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: installers
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          parameters: |
+            version: "${{ env.VERSION }}"
+          wait-for-completion-timeout-in-seconds: "18000"
+          output-artifact-directory: signed
+      - if: env.SIGNING != 'true'
+        run: cp -R installers signed
+      - name: Every file with its .sha256
+        run: |
+          mkdir release
+          mv signed/*-setup.exe packages/*.zip release/
+          cd release && for f in *; do shasum -a 256 "$f" > "$f.sha256"; done && ls -l
+      - uses: actions/upload-artifact@v7
+        with:
+          name: go-link-desk-${{ env.VERSION }}-windows
+          path: release/
+          if-no-files-found: error

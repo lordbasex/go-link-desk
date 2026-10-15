@@ -55,6 +55,9 @@ func (u *ui) newUpdates() *updates {
 		Current:  u.opts.Version,
 		Logger:   u.opts.Logger,
 		OnUpdate: p.found,
+		Enabled: func() bool {
+			return u.opts.Settings == nil || !u.opts.Settings.Get().NoUpdateCheck
+		},
 	})
 	return p
 }

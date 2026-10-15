@@ -173,3 +173,5 @@
   .lp-phone-hero { animation: lp-float 7s ease-in-out infinite; }
   @keyframes lp-float { 50% { transform: translateY(-8px); } }
 }
+.lp-signing { margin: 14px 0 0; font-size: 14px; }
+.lp-signing a { color: var(--color-accent-text); }

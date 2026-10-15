@@ -326,6 +326,12 @@ export const pt: Messages = {
         ],
       },
       {
+        title: "Atualizações",
+        text: [
+          "A cada 6 horas o app do computador pergunta ao GitHub (api.github.com) se saiu uma versão mais nova; o GitHub vê o seu endereço IP, como qualquer servidor. Desative em Configurações › Geral › Atualizações: aí ele só pergunta quando você escolhe Procurar atualizações…",
+        ],
+      },
+      {
         title: "O que fica nos seus aparelhos",
         text: [
           "O app de computador guarda os seus ajustes, os seus logs e os computadores e navegadores que você vincula, naquele computador. Este site guarda o seu tema, idioma, nome e computadores vinculados no seu navegador. Os apps para iPhone, iPad e Android guardam o seu nome, os ajustes e os computadores recentes e vinculados no aparelho; a chave de um computador vinculado fica no chaveiro ou no armazenamento de chaves do aparelho, atrás do Face ID, da digital ou do bloqueio de tela. Você pode apagá-los quando quiser.",
@@ -342,6 +348,46 @@ export const pt: Messages = {
         text: ["Dúvidas: lord.basex@gmail.com. O go-link Desk é software livre e de código aberto (licença MIT)."],
       },
     ],
+  },
+  codeSigning: {
+    title: "Política de assinatura de código",
+    updated: "go-link Desk para Windows: o programa e o instalador. Outubro de 2026.",
+    lead: "Os arquivos do go-link Desk para Windows são assinados para que o Windows saiba que vêm deste projeto e que ninguém os alterou no caminho.",
+    sections: [
+      {
+        title: "O que é assinado",
+        text: [
+          "O programa do Windows (go-link-desk.exe) e o instalador, para x86-64 e ARM64. O .zip portátil leva o mesmo programa assinado.",
+          "Só os arquivos do próprio go-link Desk são assinados. As bibliotecas dentro do programa (libvpx, libopus e libyuv) são compiladas a partir do código-fonte junto com ele; nada assinado por outros é assinado de novo.",
+          "O app do Mac é assinado e notarizado com o Developer ID da Apple, e o SHA256SUMS de cada versão é assinado com a chave de atualizações do projeto, que o app confere antes de instalar uma atualização.",
+        ],
+      },
+      {
+        title: "Como um arquivo assinado é feito",
+        text: [
+          "A tag de uma versão inicia o workflow windows no GitHub Actions: os runners do próprio GitHub compilam o programa a partir do código-fonte dessa tag, com os scripts de build do repositório. O SignPath confere que o arquivo vem desse build deste repositório, e um aprovador revisa a versão e aprova à mão cada pedido de assinatura. Depois o programa assinado vai dentro do instalador, que é assinado da mesma forma.",
+        ],
+      },
+    ],
+    roles: {
+      title: "Papéis da equipe",
+      authors: "Autores e revisores",
+      approvers: "Aprovadores",
+      note: "Mudanças de qualquer outra pessoa chegam como pull requests e são revisadas antes de entrar. Todos nesses papéis usam autenticação de dois fatores no GitHub e no SignPath.",
+    },
+    privacy: {
+      title: "Privacidade",
+      text: "O go-link Desk não envia nada a outros computadores, a não ser quando você o usa para isso: ele fala com o servidor de sinalização (e, quando não há caminho direto, com o relay dele) para iniciar uma sessão, e de vez em quando pergunta ao GitHub se há uma versão mais nova, o que você pode desativar nas Configurações. O resto está na",
+      link: "política de privacidade",
+    },
+    verify: {
+      title: "Conferir uma assinatura",
+      text: "No Windows, clique com o botão direito no arquivo, escolha Propriedades e abra Assinaturas digitais: quem assina é a SignPath Foundation. No PowerShell:",
+    },
+    report: {
+      title: "Relatar um problema",
+      text: "Se um arquivo assinado fizer algo que não deveria, escreva para lord.basex@gmail.com ou abra uma issue no GitHub, com o SHA-256 do arquivo e de onde você o baixou.",
+    },
   },
   site: {
     nav: { docs: "Docs", ways: "Formas de conectar", features: "Recursos", security: "Segurança", download: "Downloads", source: "Código aberto", openWeb: "Abrir o app web", downloadButton: "Baixar" },
@@ -443,6 +489,7 @@ export const pt: Messages = {
       windows: { title: "Windows", text: "Compartilha a tela deste PC; Conectar abre os outros no seu navegador.", meta: "Windows 10 e 11 · x86-64 e ARM64 · instalador ou .zip portátil", button: "Baixar instalador" },
       linux: { title: "Linux", text: "Compartilha a tela deste computador, em X11 ou Wayland: GNOME, KDE Plasma e mais.", meta: "x86-64 e ARM64 · glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora…)", button: "Baixar .tar.gz" },
       noInstall: "Sem instalar nada?",
+      signing: "Os arquivos do Windows são assinados pelo SignPath. Política de assinatura de código →",
       openWeb: "Abra {web} em qualquer navegador.",
     },
     faq: {
@@ -477,6 +524,7 @@ export const pt: Messages = {
       review: "Revisão",
       soon: "Em breve",
       privacy: "Privacidade",
+      codeSigning: "Política de assinatura de código",
       report: "Relatar um problema",
       source: "Código-fonte",
       changes: "Novidades",

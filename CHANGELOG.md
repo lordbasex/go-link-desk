@@ -6,6 +6,9 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Added
 
+- **Code signing policy** at desk.go-link.org/code-signing (English, Spanish, Portuguese) and in `docs/code-signing.md`: the Windows files will be signed through SignPath (free code signing for open source, certificate by the SignPath Foundation), with the team's roles, how a signed file is made and the privacy terms. Linked from the home page's footer and download section and from the README.
+- **The Windows workflow** (`.github/workflows/windows.yml`): a release's tag builds the Windows programs, installers and `.zip` files on GitHub's runners and, once SignPath is set up (`SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_API_TOKEN`), signs the programs and then the installers, each request approved by hand; `make windows-from-ci VERSION=<tag>` brings them into the release. Pull requests that change the Windows build run it unsigned. `make windows-package-<arch> WINDOWS_EXE_DIR=…` packages a given (signed) program.
+- **Settings › General › Check for updates automatically:** turns off the check for a newer version that asks GitHub every 6 hours; **Check for Updates…** still asks when chosen. The privacy page says what that check sends.
 - **AI assistants use desktops and files:** new MCP tools `click` and `scroll` (at a point of the assistant's last screenshot), `type_text`, `key` (keys and shortcuts such as `ctrl+c`, `cmd+space`, `f5`), `clipboard_get` and `clipboard_set` for a desktop; `file_list`, `file_download` (into this computer's Downloads, with the text of a short text file) and `file_upload` (to the computer's Downloads) for any computer that allows files, a Raspberry Pi or a server too. Acting needs **Let them type and run commands** and the link's permission (mouse and keyboard, clipboard, files); looking and downloading only the link's. Docs in English, Spanish and Portuguese.
 
 ### Changed

@@ -8,7 +8,7 @@
 #   make e2e          end-to-end tests: signalhub + headless host + browser
 #   make help         everything else
 
-.PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless release-sums \
+.PHONY: help info check check-go check-web check-secrets web-build web-deploy device device-headless release-sums windows-from-ci \
 	device-darwin-universal device-dmg device-notarized e2e clean FORCE
 
 # The darwin, linux and windows device targets are pattern rules
@@ -70,6 +70,7 @@ help:
 	@echo "  make linux-packages-amd64   the same as .deb, .rpm and Arch packages (nFPM; also -arm64)"
 	@echo "  make device-windows-amd64   the Windows host (go-link-desk.exe), built in Docker (also -arm64, -amd64-headless)"
 	@echo "  make windows-package-amd64  its installer (-setup.exe, for the user) and portable .zip (also -arm64)"
+	@echo "  make windows-from-ci        the release's Windows files, signed in GitHub Actions, into dist/desk (VERSION=vX.Y.Z)"
 	@echo "  make release-sums           SHA256SUMS of the release's files, signed with the update key (SHA256SUMS.sig)"
 	@echo "  make e2e                    Playwright against signalhub (../signaling) and a headless host"
 	@echo "  make clean                  remove dist/"
@@ -284,10 +285,14 @@ device-windows-%:
 # The Windows release: dist/desk/go-link-desk-<version>-windows-<arch>-setup.exe
 # (installs for the user, no administrator) and the same program portable,
 # in go-link-desk-<version>-windows-<arch>.zip, each with its .sha256.
+# WINDOWS_EXE_DIR=<dir> packages <dir>/<arch>/go-link-desk.exe instead of
+# the program it builds: the signed one (.github/workflows/windows.yml).
 WINDOWS_PKG = go-link-desk-$(VERSION)-windows-$*
+WINDOWS_EXE_DIR ?=
 windows-package-%:
 	@echo "$(YELLOW)Building the Windows release for $*...$(NC)"
-	$(call WINDOWS_BUILD,$*,--target setup --build-context root=$(CURDIR),$(DEVICE_OUT)/windows-$*-setup)
+	$(call WINDOWS_BUILD,$*,--target setup --build-context root=$(CURDIR) \
+		$(if $(WINDOWS_EXE_DIR),--build-context exe=$(abspath $(WINDOWS_EXE_DIR))/$*),$(DEVICE_OUT)/windows-$*-setup)
 	@scripts/check-deps.sh windows $(DEVICE_OUT)/windows-$*-setup/go-link-desk.exe
 	cp $(DEVICE_OUT)/windows-$*-setup/go-link-desk-setup.exe $(DEVICE_OUT)/$(WINDOWS_PKG)-setup.exe
 	@rm -rf $(DEVICE_OUT)/$(WINDOWS_PKG) && mkdir -p $(DEVICE_OUT)/$(WINDOWS_PKG)
@@ -315,6 +320,15 @@ RELEASE_FILES = go-link-desk-$(VERSION)-macos-universal.dmg \
 	go-link-desk-terminal-$(SHORT_VERSION)-1.armv7hl.rpm \
 	go-link-desk-terminal-$(SHORT_VERSION)-1-x86_64.pkg.tar.zst go-link-desk-terminal-$(SHORT_VERSION)-1-aarch64.pkg.tar.zst \
 	go-link-desk-terminal-$(SHORT_VERSION)-1-armv7h.pkg.tar.zst
+# The Windows files of a release come signed from GitHub Actions
+# (.github/workflows/windows.yml, run by the tag): this puts them in
+# dist/desk, before make release-sums.
+windows-from-ci:
+	@RUN=$$(gh run list --workflow windows.yml --branch $(VERSION) --status success --limit 1 --json databaseId -q '.[0].databaseId'); \
+	test -n "$$RUN" || { echo "$(RED)✗ no successful Windows workflow run for $(VERSION)$(NC)"; exit 1; }; \
+	mkdir -p $(DEVICE_OUT) && gh run download $$RUN --name go-link-desk-$(VERSION)-windows --dir $(DEVICE_OUT)
+	@echo "$(GREEN)✓ the signed Windows files of $(VERSION) are in $(DEVICE_OUT)$(NC)"
+
 release-sums:
 	@test -f "$(UPDATE_KEY)" || { echo "$(RED)✗ no update key at $(UPDATE_KEY)$(NC)"; exit 1; }
 	cd $(DEVICE_OUT) && shasum -a 256 $(RELEASE_FILES) > SHA256SUMS

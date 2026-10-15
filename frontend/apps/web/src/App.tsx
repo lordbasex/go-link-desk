@@ -11,6 +11,7 @@ import { DocsPage } from "./pages/DocsPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkPage } from "./pages/LinkPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import { CodeSigningPage } from "./pages/CodeSigningPage";
 import { DemoPage } from "./pages/DemoPage";
 import { NetworkPage } from "./pages/NetworkPage";
 import { SessionPage } from "./pages/SessionPage";
@@ -49,6 +50,7 @@ export function App() {
       <Route path="/devices" element={<Navigate to="/web" replace />} />
       <Route path="/d/:deviceId" element={<DevicePage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/code-signing" element={<CodeSigningPage />} />
       <Route path="/demo" element={<DemoPage />} />
       <Route path="/network" element={<NetworkPage />} />
       <Route path="/red" element={<Navigate to={{ pathname: "/network", hash: window.location.hash }} replace />} />

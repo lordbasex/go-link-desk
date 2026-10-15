@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "programs": the two go-link-desk.exe
+     the Windows workflow builds (.github/workflows/windows.yml), one per
+     architecture. Only a go-link Desk program of the release's version is
+     signed. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <directory path="amd64">
+      <pe-file path="go-link-desk.exe" product-name="go-link Desk" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+    </directory>
+    <directory path="arm64">
+      <pe-file path="go-link-desk.exe" product-name="go-link Desk" product-version="${version}">
+        <authenticode-sign />
+      </pe-file>
+    </directory>
+  </zip-file>
+</artifact-configuration>
