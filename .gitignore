@@ -28,3 +28,6 @@ coverage/
 backend-device/cmd/desk/*.syso
 backend-device/build/windows/desk.ico
 backend-device/build/windows/version.h
+
+# Python bytecode
+__pycache__/
