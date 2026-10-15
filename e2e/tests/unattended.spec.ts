@@ -80,6 +80,10 @@ test("a linked browser comes back without a code after the host restarts, with t
     await password.fill("correct horse");
     await page.getByRole("button", { name: "Connect" }).click();
     await live(page);
+    // The host's proof was bound to this connection's certificates (proof2),
+    // so from now on this browser takes no other kind from that computer.
+    const bound = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { bound?: boolean }[]);
+    expect(bound[0]?.bound).toBe(true);
     await page.getByRole("button", { name: "Disconnect" }).click();
 
     // Revoked on the host (Settings › Revoke drops it from device.json):

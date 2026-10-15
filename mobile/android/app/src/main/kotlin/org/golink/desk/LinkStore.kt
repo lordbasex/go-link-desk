@@ -40,6 +40,8 @@ data class LinkedComputer(
     val os: String,
     val linkedAt: Long,
     val lastUsed: Long? = null,
+    /** The computer proved itself bound to the connection once (DeviceLink.bound). */
+    val bound: Boolean = false,
 )
 
 /**
@@ -156,7 +158,7 @@ class LinkStore(context: Context) {
             gcm.init(Cipher.DECRYPT_MODE, SecretKeySpec(aes, "AES"), GCMParameterSpec(128, iv))
             val secret = format.decodeFromString(Secret.serializer(), String(gcm.doFinal(sealed), Charsets.UTF_8))
             if (secret.token.isEmpty()) throw LinkError(LinkError.Kind.KEYSTORE, "empty")
-            return DeviceLink(c.deviceId, c.linkId, secret.token) to secret.password
+            return DeviceLink(c.deviceId, c.linkId, secret.token, c.bound) to secret.password
         } catch (e: LinkError) {
             throw e
         } catch (e: Exception) {

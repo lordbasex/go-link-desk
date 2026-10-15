@@ -1,10 +1,36 @@
 {
-  "description": "auth_proof for a remembered browser: base64url (no padding) of HMAC-SHA256 keyed with SHA-256(token) over \"go-link-desk link proof\\n\" + nonce. Read by backend-device and frontend tests.",
+  "description": "auth_proof for a remembered browser. proof: base64url (no padding) of HMAC-SHA256 keyed with SHA-256(token) over \"go-link-desk link proof\\n\" + nonce. proof2 (bound_cases), the same tied to the connection: over \"go-link-desk link proof 2\\n\" + nonce + \"\\n\" + host fingerprint + \"\\n\" + viewer fingerprint, each the SDP's first sha-256 a=fingerprint as \"sha-256 \" + upper-case hex. Read by backend-device, frontend, iOS and Android tests.",
   "cases": [
     {
       "token": "token-for-the-cross-language-test",
       "nonce": "nonce-0123456789abcdef",
       "proof": "RVPYaZWfKSgTKE1cEsFZT3XkFQc90rqOhq3TukeVWWw"
+    }
+  ],
+  "bound_cases": [
+    {
+      "token": "token-for-the-cross-language-test",
+      "nonce": "nonce-0123456789abcdef",
+      "host_fingerprint": "sha-256 EF:A2:35:32:C0:B7:51:3D:2C:DB:16:A5:25:F5:A4:13:1C:8B:AC:13:2C:DE:D5:16:A6:DC:D5:04:E9:B6:6A:EE",
+      "viewer_fingerprint": "sha-256 93:C8:8C:D0:4D:51:79:38:23:F4:74:ED:6B:CB:A4:34:B6:8F:F7:D1:63:C8:AA:EA:E1:B4:0A:3E:18:13:B4:86",
+      "proof2": "NgDK7JQUQ7yh8n3cis6SZl9Ij9tP9-IPyGHhuvq44Xs"
+    },
+    {
+      "token": "token-for-the-cross-language-test",
+      "nonce": "nonce-0123456789abcdef",
+      "host_fingerprint": "sha-256 93:C8:8C:D0:4D:51:79:38:23:F4:74:ED:6B:CB:A4:34:B6:8F:F7:D1:63:C8:AA:EA:E1:B4:0A:3E:18:13:B4:86",
+      "viewer_fingerprint": "sha-256 EF:A2:35:32:C0:B7:51:3D:2C:DB:16:A5:25:F5:A4:13:1C:8B:AC:13:2C:DE:D5:16:A6:DC:D5:04:E9:B6:6A:EE",
+      "proof2": "wGWm1EtifnYXPuDuJTFWqq5tRmcLet_mTcb4XdhYFf0"
+    }
+  ],
+  "fingerprint_cases": [
+    {
+      "sdp": "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\na=fingerprint:sha-512 AA:BB\r\na=fingerprint:SHA-256 ab:cd:ef\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n",
+      "fingerprint": "sha-256 AB:CD:EF"
+    },
+    {
+      "sdp": "v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n",
+      "fingerprint": ""
     }
   ]
 }

@@ -912,6 +912,22 @@ func (s *StreamService) OnChannel(fn func(peerID string, dc *webrtc.DataChannel)
 	s.onChannel = fn
 }
 
+// Fingerprints are the DTLS certificate fingerprints of a viewer's
+// connection, the host's and the viewer's ("" before it is set up).
+func (s *StreamService) Fingerprints(peerID string) (host, viewer string) {
+	v := s.find(peerID)
+	if v == nil {
+		return "", ""
+	}
+	if d := v.pc.CurrentLocalDescription(); d != nil {
+		host = DTLSFingerprint(d.SDP)
+	}
+	if d := v.pc.CurrentRemoteDescription(); d != nil {
+		viewer = DTLSFingerprint(d.SDP)
+	}
+	return host, viewer
+}
+
 // find returns a viewer, gated or not.
 func (s *StreamService) find(peerID string) *viewer {
 	s.mu.Lock()

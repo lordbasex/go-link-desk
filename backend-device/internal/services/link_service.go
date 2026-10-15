@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,6 +61,8 @@ type LinkService struct {
 	timers  map[string]*time.Timer
 	send    func(peerID string, msg []byte) bool
 	drop    func(peerID string)
+	// fingerprints: the DTLS fingerprints of a peer's connection.
+	fingerprints func(peerID string) (host, viewer string)
 	// onChange runs (outside the lock) when a browser becomes trusted or
 	// is forgotten.
 	onChange func()
@@ -128,6 +131,14 @@ func NewLinkService(cfg LinkConfig, status *StatusService) *LinkService {
 	}
 	status.SetSavedLinks(len(l.links))
 	return l
+}
+
+// SetFingerprints gives the DTLS fingerprints of a peer's connection, the
+// host's and the viewer's ("" when not known), for the bound proof.
+func (l *LinkService) SetFingerprints(fn func(peerID string) (host, viewer string)) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.fingerprints = fn
 }
 
 // SetTransport wires the control channel: send a message to a linked
@@ -325,6 +336,33 @@ func LinkProof(tokenHash []byte, nonce string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// LinkProofBound is LinkProof tied to this connection too: the DTLS
+// fingerprints of the host's and the viewer's certificates, as each side
+// sees them in the SDP (DTLSFingerprint). A signaling server that rewrites
+// the SDP to sit in the middle has its own certificate on each side, so a
+// proof it relays from the real host does not match what the viewer sees.
+func LinkProofBound(tokenHash []byte, nonce, hostFingerprint, viewerFingerprint string) string {
+	mac := hmac.New(sha256.New, tokenHash)
+	mac.Write([]byte("go-link-desk link proof 2\n" + nonce + "\n" + hostFingerprint + "\n" + viewerFingerprint))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// DTLSFingerprint is an SDP's first sha-256 certificate fingerprint, as
+// "sha-256 AB:CD:…" (upper case hex), or "" when it has none.
+func DTLSFingerprint(sdp string) string {
+	for _, line := range strings.Split(sdp, "\n") {
+		v, ok := strings.CutPrefix(strings.TrimSpace(line), "a=fingerprint:")
+		if !ok {
+			continue
+		}
+		alg, hexs, ok := strings.Cut(strings.TrimSpace(v), " ")
+		if ok && strings.EqualFold(alg, "sha-256") {
+			return "sha-256 " + strings.ToUpper(strings.TrimSpace(hexs))
+		}
+	}
+	return ""
+}
+
 // prove answers auth_challenge: the proof that this is the device the
 // browser linked to, before the browser shows its token.
 func (l *LinkService) prove(peerID string, m linkMessage) {
@@ -337,13 +375,23 @@ func (l *LinkService) prove(peerID string, m linkMessage) {
 	if i >= 0 {
 		hash, _ = hex.DecodeString(l.links[i].TokenHash)
 	}
+	fingerprints := l.fingerprints
 	l.mu.Unlock()
 	if len(hash) != sha256.Size {
 		l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked})
 		l.dropLater(peerID)
 		return
 	}
-	l.reply(peerID, map[string]string{"type": msgProof, "link_id": m.LinkID, "proof": LinkProof(hash, m.Nonce)})
+	reply := map[string]string{"type": msgProof, "link_id": m.LinkID, "proof": LinkProof(hash, m.Nonce)}
+	// The proof bound to this connection too; the plain one stays for
+	// viewers from before it, which a viewer that once got proof2 from
+	// this link no longer accepts.
+	if fingerprints != nil {
+		if host, viewer := fingerprints(peerID); host != "" && viewer != "" {
+			reply["proof2"] = LinkProofBound(hash, m.Nonce, host, viewer)
+		}
+	}
+	l.reply(peerID, reply)
 }
 
 func (l *LinkService) auth(peerID string, m linkMessage) {

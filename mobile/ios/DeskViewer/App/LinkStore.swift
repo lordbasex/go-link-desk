@@ -13,6 +13,8 @@ struct LinkedComputer: Codable, Equatable, Identifiable {
     var os: String
     var linkedAt: Date
     var lastUsed: Date?
+    /** The computer proved itself bound to the connection once (DeviceLink.bound). */
+    var bound: Bool?
 
     var id: String { deviceId }
 }
@@ -142,7 +144,7 @@ final class LinkStore {
             // A link kept by the first builds holds the token alone.
             let secret = (try? JSONDecoder().decode(Secret.self, from: data)) ?? String(data: data, encoding: .utf8).map { Secret(token: $0) }
             guard let secret, !secret.token.isEmpty else { throw LinkError.keychain(errSecDecode) }
-            return (DeviceLink(deviceId: c.deviceId, linkId: c.linkId, token: secret.token), secret.password)
+            return (DeviceLink(deviceId: c.deviceId, linkId: c.linkId, token: secret.token, bound: c.bound == true), secret.password)
         case errSecUserCanceled, errSecAuthFailed:
             throw LinkError.cancelled
         default:

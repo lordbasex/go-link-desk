@@ -204,8 +204,19 @@ func TestTheDeviceProvesItselfBeforeTheToken(t *testing.T) {
 		t.Fatal("auth_challenge not handled")
 	}
 	sum := sha256.Sum256([]byte(token))
-	if got := tr.last("b2"); got["type"] != "auth_proof" || got["proof"] != LinkProof(sum[:], nonce) {
-		t.Fatalf("proof %v", got)
+	if got := tr.last("b2"); got["type"] != "auth_proof" || got["proof"] != LinkProof(sum[:], nonce) || got["proof2"] != "" {
+		t.Fatalf("proof %v (no proof2 without the connection's fingerprints)", got)
+	}
+	// With the connection's fingerprints, the proof bound to them too.
+	l.SetFingerprints(func(peer string) (string, string) {
+		if peer != "b2" {
+			return "", ""
+		}
+		return "sha-256 AA", "sha-256 BB"
+	})
+	l.HandleMessage("b2", []byte(`{"type":"auth_challenge","link_id":"`+linkID+`","nonce":"`+nonce+`"}`))
+	if got := tr.last("b2"); got["proof"] != LinkProof(sum[:], nonce) || got["proof2"] != LinkProofBound(sum[:], nonce, "sha-256 AA", "sha-256 BB") {
+		t.Fatalf("bound proof %v", got)
 	}
 	// Answering a challenge does not trust anyone: the token still must come.
 	if l.Trusted("b2") {

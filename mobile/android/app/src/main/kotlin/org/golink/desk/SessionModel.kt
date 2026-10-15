@@ -178,6 +178,7 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
         ev.passwordAccepted = { pw -> (door as? Door.Reach)?.let { app.links.setPassword(it.link, pw) } }
         ev.passwordRejected = { (door as? Door.Reach)?.let { app.links.setPassword(it.link, null) } }
         ev.unlinked = { (door as? Door.Reach)?.let { app.forgetLink(it.link.deviceId) } }
+        ev.bound = { (door as? Door.Reach)?.let { r -> app.links.update(r.link.deviceId) { it.copy(bound = true) } } }
         Log.i(TAG, "codecs ${engine.codecs}")
         s.start()
     }

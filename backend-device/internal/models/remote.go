@@ -24,6 +24,10 @@ type RemoteDevice struct {
 	LastUsed time.Time `json:"last_used,omitzero"`
 	// Thumb is a small JPEG of its screen, from the last session.
 	Thumb []byte `json:"thumb,omitempty"`
+	// Bound: the computer once proved itself bound to the connection
+	// (proof2); from then on a proof without it is refused, so nobody in
+	// the middle can fall back to the plain one.
+	Bound bool `json:"bound,omitempty"`
 }
 
 // Title is how the computer is shown: its label, or its name.

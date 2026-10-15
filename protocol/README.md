@@ -4,7 +4,7 @@ The single source of truth for what the host (Go) and the website (TypeScript) m
 
 | File | What | Read by |
 |---|---|---|
-| `vectors/link-proof.json` | The linked-browser proof (`auth_proof`): token, nonce and expected proof. | `backend-device/internal/services/link_proof_test.go`, `frontend/packages/shared/test/hmac.test.ts` |
+| `vectors/link-proof.json` | The linked-browser proof (`auth_proof`): token, nonce and expected `proof`; `proof2`, bound to the connection's DTLS fingerprints; and how a fingerprint is read from an SDP. | `backend-device/internal/services/link_proof_test.go`, `frontend/packages/shared/test/hmac.test.ts`, `mobile/ios/DeskCore/Tests/DeskCoreTests/LinkTests.swift`, `mobile/android/core/src/test/kotlin/org/golink/desk/core/LinkTest.kt` |
 | `keycodes.json` | The keyboard table: each entry's index is the keycode in the input channel's key packet. | From phase 3: the generated Go and TypeScript tables. |
 
 ## keycodes.json
