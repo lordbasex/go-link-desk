@@ -365,12 +365,13 @@ export const es: Messages = {
       web: { chip: "Disponible", title: "Desde la web", text: "Chrome, Safari, Edge o Firefox. Nada que instalar: abrís desk.go-link.org/web y escribís el código.", go: "Abrir la web →", alt: "La web app en un navegador" },
       ios: { chip: "En revisión en la App Store", title: "iPhone y iPad", text: "Tus dedos como trackpad, el teclado del iPad, archivos, chat, y tus computadoras con Face ID. Desde iOS 26.", alt: "go-link Desk en un iPhone" },
       android: { chip: "Pronto en Google Play", title: "Android", text: "Celulares y tablets, desde Android 11. Las mismas pantallas que en iPhone, con la huella o el bloqueo de pantalla.", alt: "go-link Desk en un celular Android" },
-      mac: { chip: "Disponible", title: "App de Mac", text: "Comparte tu pantalla y también se conecta a otras: una pestaña por sesión. Firmada y notarizada, desde macOS 13.", go: "Descargar →", alt: "El escritorio de una Mac" },
+      mac: { chip: "Disponible", title: "App de Mac", text: "Comparte tu pantalla y también se conecta a otras: una pestaña por sesión. Firmada y notarizada, desde macOS 13. También abre las terminales de una Raspberry Pi o un servidor, con pestañas.", go: "Descargar →", alt: "El escritorio de una Mac" },
       hostsLabel: "La computadora que compartís:",
       today: "Hoy",
       macHost: "macOS 13+ · Intel y Apple silicon",
       linuxHost: "Linux · X11 y Wayland (GNOME, KDE Plasma…)",
       winHost: "Windows 10 y 11 · 64 bits",
+      piHost: "Raspberry Pi y servidores · go-link-desk-terminal (ARMv7, ARM64, x86-64)",
       soon: "Próximamente",
     },
     steps: {
@@ -407,6 +408,15 @@ export const es: Messages = {
         ],
         alt: "La guía de gestos en una tablet",
         phoneAlt: "La guía en un iPhone",
+      },
+      more: {
+        title: "Más allá del escritorio.",
+        go: "Leer más →",
+        cards: [
+          { k: "go-link-desk-terminal", title: "Raspberry Pi y servidores", text: "Los shells de una computadora sin escritorio, en el navegador o en la app de Mac: terminales con nombre y pestañas que siguen corriendo cuando te vas, como screen, archivos en los dos sentidos y grabaciones en video o .cast. Sin SSH, sin abrir puertos, vinculada con contraseña.", to: "/docs/terminal" },
+          { k: "MCP · Claude · Cursor", title: "Asistentes de IA", text: "Dejá que Claude, Claude Code o Cursor usen tus computadoras vinculadas: que ejecuten comandos en una Raspberry Pi, lean sus terminales o miren la pantalla de un escritorio. Vos elegís las computadoras; las contraseñas quedan en tu llavero; solo miran salvo que permitas comandos; cada llamada queda registrada.", to: "/docs/assistants" },
+          { k: "PNG · MP4 · .cast", title: "Capturas y grabaciones", text: "Guardá una imagen de la pantalla o grabá la sesión, con su sonido, en Descargas. La computadora tiene que permitirlo y lo muestra cada vez.", to: "/docs/web" },
+        ],
       },
     },
     security: {
@@ -445,6 +455,8 @@ export const es: Messages = {
         { q: "¿Funciona fuera de mi casa?", a: "Sí. Las dos puntas se encuentran a través de internet; si no hay camino directo, los datos pasan por un relé que no puede leerlos." },
         { q: "¿Qué computadora necesito?", a: "Cualquier computadora de 64 bits de los últimos diez años: con dos núcleos manda una pantalla Full HD fluida, y una Mac lo hace por hardware (macOS 13 o más nuevo). Los números, por procesador y tamaño de pantalla, están en la documentación, en Requisitos." },
         { q: "¿Cuánta internet usa?", a: "Casi nada mientras la pantalla está quieta, y hasta 10 Mbps con una pantalla Full HD con mucho movimiento. Con menos, la imagen baja sola su tamaño y sus cuadros por segundo, hasta alrededor de medio megabit." },
+        { q: "¿Funciona en una Raspberry Pi o un servidor sin escritorio?", a: "Sí: go-link-desk-terminal te da sus terminales en el navegador o en la app de Mac, en cualquier Linux (x86-64, ARM64, ARMv7). Se instala con un comando y no escucha en ningún puerto." },
+        { q: "¿Un asistente de IA como Claude puede usar mis computadoras?", a: "Si lo permitís: Configuración › Asistentes agrega go-link Desk a Claude, Claude Code y Cursor. Vos elegís qué computadoras vinculadas, si puede ejecutar comandos, y cada llamada queda registrada. Las contraseñas quedan en tu llavero." },
       ],
     },
     footer: {
@@ -460,6 +472,8 @@ export const es: Messages = {
       android: "Android",
       winLinux: "App de Windows",
       linuxApp: "App de Linux",
+      piApp: "Raspberry Pi y servidores",
+      assistants: "Asistentes de IA",
       review: "Revisión",
       soon: "Pronto",
       privacy: "Privacidad",

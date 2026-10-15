@@ -23,6 +23,7 @@ go-link Desk is a remote desktop that follows go-link's design: the computer bei
 | `backend-device/` | The host (Go module `github.com/lordbasex/go-link-desk/backend-device`). |
 | `backend-device/cmd/desk` | The entry point: flags, logging, configuration and the wiring of the services. |
 | `backend-device/cmd/terminal`, `internal/terminal` | go-link-desk-terminal: a remote shell for a computer without a desktop, pure Go, with the same signaling, links and stream (data only). See [terminal.md](terminal.md). |
+| `backend-device/cmd/desk/mcp.go`, `internal/mcpserver`, `pkg/keyring` | `go-link-desk mcp`: the app as an MCP server for AI assistants (stdio), a viewer of the linked computers; Settings › Assistants registers it in the assistants and keeps the computers' passwords in the system's keychain. See [assistants.md](assistants.md). |
 | `backend-device/internal/models` | Domain types: configuration, status, sessions (knock, permissions, reasons). |
 | `backend-device/internal/services` | Signaling handlers (pairing, room opener, session and consent), the WebRTC stream, linked browsers, PIN gate, status, metrics, updates. |
 | `backend-device/internal/controllers` | The routing of viewers' control-channel messages by type, which go-link keeps in one big `switch` in its `main.go`. |
@@ -148,6 +149,10 @@ go-link Desk also connects to other computers, in the same window: Home has the 
 - **Sound** is decoded with libopus and played with the call's audio engine; files go through the same client as the website's (`files.ts`), into Downloads, never over a file.
 - **Not yet:** the video call from the app (it ignores the call's lines).
 - **What it keeps** (`remotes.json`, 0600): the links (with their tokens, as the browser's `localStorage` does), labels and favorites, the recent sessions, and a small thumbnail of each, taken from the window's own pixels while the session's tab is shown.
+
+## AI assistants
+
+`go-link-desk mcp` is the same binary, run by an assistant (Claude, Claude Code, Cursor) over standard input and output. It is a viewer like the Mac app's (`internal/viewer`, `DoorReach`, VP8 only, picture hidden until a screenshot) for the computers in `remotes.json`, with each one's unattended password read from the keychain, never from the assistant. It takes no lock and runs beside the app. Details: [assistants.md](assistants.md).
 
 ## The iPhone and iPad app
 

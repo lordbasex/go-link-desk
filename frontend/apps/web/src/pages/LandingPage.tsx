@@ -84,6 +84,9 @@ export function LandingPage() {
             <span className="lp-os lp-os-on">
               <i>{s.ways.today}</i> {s.ways.winHost}
             </span>
+            <span className="lp-os lp-os-on">
+              <i>{s.ways.today}</i> {s.ways.piHost}
+            </span>
           </div>
         </div>
       </section>
@@ -130,6 +133,19 @@ export function LandingPage() {
               <h3>{s.features.support.title}</h3>
               <Bullets items={s.features.support.items} />
             </div>
+          </div>
+          <h3 className="lp-more-title">{s.features.more.title}</h3>
+          <div className="lp-cards">
+            {s.features.more.cards.map((c) => (
+              <div key={c.title} className="lp-card">
+                <span className="lp-k">{c.k}</span>
+                <h3>{c.title}</h3>
+                <p>{c.text}</p>
+                <Link className="lp-go" to={c.to}>
+                  {s.features.more.go}
+                </Link>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -432,6 +448,12 @@ export function SiteFooter() {
               </li>
               <li>
                 <a href={RELEASES}>{f.winLinux}</a>
+              </li>
+              <li>
+                <Link to="/docs/terminal">{f.piApp}</Link>
+              </li>
+              <li>
+                <Link to="/docs/assistants">{f.assistants}</Link>
               </li>
             </ul>
           </nav>

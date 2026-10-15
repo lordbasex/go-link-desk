@@ -105,6 +105,8 @@
 .lp-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 22px; }
 .lp-card h3 { font-size: 20px; margin-bottom: 8px; }
 .lp-card p { margin: 0; font-size: 15px; color: var(--color-text-2); }
+.lp-card .lp-go { display: inline-block; margin-top: 12px; }
+.lp-more-title { font-size: 24px; margin: 56px 0 18px; text-wrap: balance; }
 .lp-k { font: 600 12px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-accent-text); display: block; margin-bottom: 12px; }
 .lp-dl { display: flex; flex-direction: column; gap: 10px; }
 .lp-dl .lp-btn { margin-top: auto; }

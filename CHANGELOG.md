@@ -4,10 +4,19 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-15
+
+AI assistants (Claude, Claude Code, Cursor) can use your linked computers through MCP, and the Mac app opens the terminals of a Raspberry Pi or a server, with tabs.
+
 ### Added
 
 - **go-link-desk-terminal in the Mac app:** connecting to a Raspberry Pi or a server from the Mac app shows its terminals in the session window, as in the browser: the tab strip at the bottom (＋, double click renames, × closes, Alt+Shift+T, Alt+Shift+← →), resumed after a disconnect, the text size in the monitor button, Esc and Ctrl keys in Keys, Files, and copy and paste with ⌘C and ⌘V. (On Windows and Linux the app opens sessions in the browser, which already shows terminals.)
 - **AI assistants (MCP):** Claude, Claude Code, Cursor and other MCP clients can use the computers in My computers. The app is its own MCP server (`go-link-desk mcp`, over stdio): **Settings › Assistants** turns it on and adds go-link Desk to the assistants installed on the computer (their MCP settings, kept right after the app moves or updates; off takes it out). Each computer is allowed with its unattended password, kept in the system's keychain (Keychain, Credential Manager, Secret Service), never shown to the assistant. Tools: `list_computers`, `connect`, `disconnect`, `terminal_run` (a command in a terminal of the assistant's own, named *assistant*, with its output and exit code), `terminal_send`, `terminal_read` and `screenshot` (with the link's screenshot permission; the computer shows it). The computer sees the assistant come in by name, with the link's permissions. Assistants only look unless **Let them type and run commands** is on, and every call goes to `assistant-activity.log`. Docs: desk.go-link.org/docs/assistants. New dependency: the official MCP Go SDK (`github.com/modelcontextprotocol/go-sdk` v1.8.0, Apache-2.0/MIT).
+
+### Changed
+
+- **The website tells the new features:** the home page has a *Beyond the desktop* section (Raspberry Pi and servers, AI assistants, screenshots and recordings), Raspberry Pi and servers among the computers you can share, two new questions, and links to both guides in the footer. The docs have a new page, *AI assistants (MCP)*, and the introduction, the Mac app, Settings, Security, Troubleshooting and Command line pages tell about the terminals in the Mac app and the assistants (`go-link-desk mcp`), in English, Spanish and Portuguese, so the docs' search finds them (MCP, Claude, Cursor, assistant, terminal, Raspberry Pi…).
+- **README:** terminals and AI assistants, with links to `docs/terminal.md`, `docs/assistants.md` and `docs/network.md`.
 
 ### Fixed
 
