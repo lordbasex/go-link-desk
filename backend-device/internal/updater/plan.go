@@ -10,10 +10,11 @@ import (
 )
 
 // plan is how this copy of go-link Desk is updated: which release file it
-// takes and how that file goes in.
+// takes and how that file goes in; sum is the file's SHA-256 from the
+// signed list.
 type plan interface {
 	asset(tag string) string
-	install(ctx context.Context, path string) (restart func() error, err error)
+	install(ctx context.Context, path, sum string) (restart func() error, err error)
 }
 
 // bare is a version without its v: 1.3.0.

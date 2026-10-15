@@ -9,7 +9,8 @@
 # zypper, the Arch package with pacman), checks it against the release's
 # SHA256SUMS and installs it with sudo. Without a known package manager or
 # sudo, or with --user, it installs the .tar.gz for this user only
-# (~/.local, no root). Options:
+# (~/.local, no root). SHA256SUMS counts only with the update key's
+# signature (SHA256SUMS.sig), checked with OpenSSL 3. Options:
 #
 #   --terminal        go-link-desk-terminal instead: a remote shell for a
 #                     computer without a desktop (a Raspberry Pi, a server),
@@ -136,11 +137,34 @@ else
   esac
 fi
 
+# The update key, the one the app's updater checks (internal/updater), as
+# a public key file: SHA256SUMS counts only with its signature, so a
+# changed release, or GO_LINK_DESK_DOWNLOAD pointing elsewhere, cannot
+# slip a package in. Its private half is on the release computer only.
+UPDATE_KEY="MCowBQYDK2VwAyEAFhUt69Sg5H3ZLX+Fpnzb98eG2EDRGKzHxNE+iT2nyJI=" # gitleaks:allow (a public key)
+
+need_openssl() {
+  have openssl || fail "openssl is needed to check the release's signature: install it (apt, dnf or zypper install openssl; pacman -S openssl)"
+  openssl pkeyutl -help 2>&1 | grep -q rawin ||
+    fail "OpenSSL 3 or newer is needed to check the release's signature; or download the package from https://github.com/$REPO/releases and install it yourself"
+}
+
+verify_sums() {
+  printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$UPDATE_KEY" >"$TMP/update.pem"
+  tr -d ' \r\n' <"$TMP/SHA256SUMS.sig" >"$TMP/sig.b64"
+  openssl base64 -d -A -in "$TMP/sig.b64" -out "$TMP/sig.bin" 2>/dev/null || fail "the release's SHA256SUMS.sig is not a signature; nothing was installed"
+  openssl pkeyutl -verify -pubin -inkey "$TMP/update.pem" -rawin -in "$TMP/SHA256SUMS" -sigfile "$TMP/sig.bin" >/dev/null 2>&1 ||
+    fail "the release's SHA256SUMS is not signed with go-link Desk's update key; nothing was installed"
+}
+
+need_openssl
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 say "Downloading $NAME $VERSION ($FILE)…"
 get "$BASE/$FILE" "$TMP/$FILE" || fail "could not download $BASE/$FILE"
 get "$BASE/SHA256SUMS" "$TMP/SHA256SUMS" || fail "could not download the release's SHA256SUMS"
+get "$BASE/SHA256SUMS.sig" "$TMP/SHA256SUMS.sig" || fail "could not download the release's SHA256SUMS.sig"
+verify_sums
 want="$(grep " \*\{0,1\}$FILE\$" "$TMP/SHA256SUMS" | cut -d' ' -f1 | head -1)"
 [ -n "$want" ] || fail "$FILE is not in SHA256SUMS"
 if have sha256sum; then got="$(sha256sum "$TMP/$FILE" | cut -d' ' -f1)"; else got="$(shasum -a 256 "$TMP/$FILE" | cut -d' ' -f1)"; fi
@@ -154,6 +178,7 @@ case "$MODE:$PM" in
     ;;
   *:apt) $SUDO apt-get install -y "$TMP/$FILE" ;;
   *:dnf | *:yum) $SUDO "$PM" install -y "$TMP/$FILE" ;;
+  # The package carries no RPM signature: the signed SHA256SUMS vouches for it.
   *:zypper) $SUDO zypper --non-interactive install --allow-unsigned-rpm "$TMP/$FILE" ;;
   *:pacman) $SUDO pacman -U --noconfirm "$TMP/$FILE" ;;
 esac

@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -56,6 +57,9 @@ type Updater struct {
 	Dir    string // where downloads go (default: a new temporary folder)
 	// Exe is this program (default os.Executable); a test's stand-in.
 	Exe string
+
+	mu     sync.Mutex
+	hashes map[string]string // each download's SHA-256, from the signed list
 }
 
 // New is the updater of this program.
@@ -138,6 +142,12 @@ func (u *Updater) Download(ctx context.Context, tag string, progress Progress) (
 		_ = os.Remove(path)
 		return "", fmt.Errorf("%w: %s does not match its hash", ErrSignature, name)
 	}
+	u.mu.Lock()
+	if u.hashes == nil {
+		u.hashes = map[string]string{}
+	}
+	u.hashes[path] = want
+	u.mu.Unlock()
 	return path, nil
 }
 
@@ -149,7 +159,16 @@ func (u *Updater) Install(ctx context.Context, path string) (restart func() erro
 	if err != nil {
 		return nil, err
 	}
-	restart, err = p.install(ctx, path)
+	// The hash goes along: a plan that hands the file to root checks it
+	// again there, past anything this user could do to it meanwhile.
+	u.mu.Lock()
+	want := u.hashes[path]
+	delete(u.hashes, path)
+	u.mu.Unlock()
+	if want == "" {
+		return nil, fmt.Errorf("%w: %s was not downloaded here", ErrSignature, filepath.Base(path))
+	}
+	restart, err = p.install(ctx, path, want)
 	// The download is no longer needed, except Windows' installer, which
 	// is still running from it.
 	if dir := filepath.Dir(path); runtime.GOOS != "windows" && strings.HasPrefix(filepath.Base(dir), "go-link-desk-update-") {
