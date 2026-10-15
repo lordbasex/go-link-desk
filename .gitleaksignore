@@ -1,0 +1,3 @@
+# Findings that are not secrets.
+# The update key in install.sh is the public half (also in internal/updater); later commits mark it gitleaks:allow.
+e110ca744fcad91405520adca068b6cc3ac346c1:frontend/apps/web/public/install.sh:generic-api-key:144
