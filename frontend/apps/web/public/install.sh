@@ -141,7 +141,7 @@ fi
 # a public key file: SHA256SUMS counts only with its signature, so a
 # changed release, or GO_LINK_DESK_DOWNLOAD pointing elsewhere, cannot
 # slip a package in. Its private half is on the release computer only.
-UPDATE_KEY="MCowBQYDK2VwAyEAFhUt69Sg5H3ZLX+Fpnzb98eG2EDRGKzHxNE+iT2nyJI="
+UPDATE_KEY="MCowBQYDK2VwAyEAFhUt69Sg5H3ZLX+Fpnzb98eG2EDRGKzHxNE+iT2nyJI=" # gitleaks:allow (a public key)
 
 need_openssl() {
   have openssl || fail "openssl is needed to check the release's signature: install it (apt, dnf or zypper install openssl; pacman -S openssl)"
