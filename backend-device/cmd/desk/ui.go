@@ -35,6 +35,8 @@ type uiOptions struct {
 	// signalURL the signaling server it reaches them through.
 	remotes   *services.RemotesService
 	signalURL string
+	// configDir holds device.json (and the assistants' activity log).
+	configDir string
 	// connect opens a session to this code at start.
 	connect string
 	// setConsent hands the window's consent dialog to the session (nil:

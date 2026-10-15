@@ -363,8 +363,11 @@ func humanSize(n int64) string {
 // reveal opens a folder in the system's file manager.
 func reveal(dir string) {
 	cmd := "xdg-open"
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		cmd = "open"
+	case "windows":
+		cmd = "explorer"
 	}
 	c := exec.Command(cmd, dir)
 	if err := c.Start(); err == nil {

@@ -181,6 +181,9 @@ func parseFlags(args []string) (flags, error) {
 }
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "mcp" {
+		return runMCP(args[1:])
+	}
 	f, err := parseFlags(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -533,6 +536,7 @@ func run(args []string) error {
 		links:          links,
 		remotes:        remotes,
 		signalURL:      target,
+		configDir:      filepath.Dir(store.Path()),
 		connect:        f.connect,
 		webURL:         web,
 		woken:          lock.Woken(),
