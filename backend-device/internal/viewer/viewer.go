@@ -96,6 +96,19 @@ func (s Status) Over() bool {
 type HostInfo struct {
 	Name string
 	OS   string
+	// Terminal: go-link-desk-terminal, a shell instead of the screen.
+	Terminal bool
+	// TerminalTabs: its terminals have ids and names and outlive the
+	// viewer (1.5 and later); before, one shell whose exit ends the session.
+	TerminalTabs bool
+}
+
+// TerminalTab is one of go-link-desk-terminal's terminals.
+type TerminalTab struct {
+	ID   uint32 `json:"id"`
+	Name string `json:"name"`
+	// Started is when it was opened (unix ms).
+	Started int64 `json:"started"`
 }
 
 // Display is one of the computer's screens.
@@ -184,6 +197,18 @@ type Events struct {
 	// Recording: the computer stopped this viewer's recording (it took the
 	// permission away), or the session ended while recording.
 	Recording func(on bool)
+	// TerminalTabs: go-link-desk-terminal's terminals, oldest first;
+	// resumed says they were open before this viewer came.
+	TerminalTabs func(tabs []TerminalTab, resumed bool)
+	// TerminalOutput is a terminal's output (id 0: an older computer's one
+	// shell). It is called on the channel's goroutine, in order.
+	TerminalOutput func(id uint32, data []byte)
+	// TerminalExit: that terminal's shell ended (an older computer ends
+	// the session after it).
+	TerminalExit func(id uint32, code int)
+	// TerminalReset: a new connection; the computer sends every
+	// terminal's history again, so what was shown goes.
+	TerminalReset func()
 }
 
 // Options configure a Session.
@@ -224,6 +249,8 @@ type Session struct {
 	asked     bool   // the door's request went out
 	peer      *peer
 	perms     models.Permissions
+	welcome   HostInfo // what the computer said of itself
+	termChans int      // terminal channels so far (a new one replays)
 	hasPerms  bool
 	backlog   []json.RawMessage // the host's signals before the peer exists
 	nonce     string            // reach: what the computer must prove

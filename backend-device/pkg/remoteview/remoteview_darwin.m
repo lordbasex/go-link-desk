@@ -7,6 +7,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #import <QuartzCore/QuartzCore.h>
+#import <WebKit/WebKit.h>
 #include <stdint.h>
 #import <objc/runtime.h>
 
@@ -408,6 +409,21 @@ static RVMain *gMain;
 @property(nonatomic) BOOL shown; // its tab is the one shown (or it has its own window)
 @property(atomic, strong) RVRecorder *recorder; // while the session is recorded
 @property(nonatomic, copy) NSString *recordPath;
+// A terminal (go-link-desk-terminal): a web view in place of the picture.
+@property(nonatomic, strong) WKWebView *term;
+@property(nonatomic, strong) id<WKScriptMessageHandler> termBridge;
+@end
+
+// RVTermBridge carries the terminal page's messages to Go, as the action
+// "terminal" with the message (JSON) as its argument.
+@interface RVTermBridge : NSObject <WKScriptMessageHandler>
+@property(nonatomic) uintptr_t handle;
+@end
+
+@implementation RVTermBridge
+- (void)userContentController:(WKUserContentController *)c didReceiveScriptMessage:(WKScriptMessage *)m {
+	if ([m.body isKindOfClass:[NSString class]]) action(self.handle, @"terminal", m.body);
+}
 @end
 
 @interface RVMain : NSObject <NSWindowDelegate>
@@ -1809,7 +1825,7 @@ static NSTextField *fixedText(NSString *s, CGFloat size, NSColor *color, CGFloat
 	if (was && was != s) was.shown = NO;
 	if (s) {
 		s.shown = self.window.isVisible;
-		[self.window makeFirstResponder:s.view];
+		[self.window makeFirstResponder:s.term ?: (NSView *)s.view];
 	} else {
 		[self.window makeFirstResponder:self.address];
 	}
@@ -1986,7 +2002,7 @@ void *rv_open(uintptr_t handle, const char *title, int tabs, const char *toolsJS
 		[win center];
 		[NSApp activateIgnoringOtherApps:YES];
 		[win makeKeyAndOrderFront:nil];
-		[win makeFirstResponder:s.view];
+		[win makeFirstResponder:s.term ?: (NSView *)s.view];
 	});
 	return ref;
 }
@@ -2249,10 +2265,55 @@ void rv_focus(void *ref) {
 	});
 }
 
+// rv_terminal shows a terminal page in place of the picture (once).
+void rv_terminal(void *ref, const char *html) {
+	RVSession *s = S(ref);
+	NSString *page = [NSString stringWithUTF8String:html];
+	onMain(^{
+		if (s.term || s.closed) return;
+		WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
+		RVTermBridge *bridge = [[RVTermBridge alloc] init];
+		bridge.handle = s.handle;
+		s.termBridge = bridge;
+		[cfg.userContentController addScriptMessageHandler:bridge name:@"golink"];
+		WKWebView *w = [[WKWebView alloc] initWithFrame:s.view.frame configuration:cfg];
+		w.translatesAutoresizingMaskIntoConstraints = NO;
+		[w setValue:@NO forKey:@"drawsBackground"];
+		// Above the picture, under the toolbar and the overlay.
+		[s.page addSubview:w positioned:NSWindowAbove relativeTo:s.view];
+		[NSLayoutConstraint activateConstraints:@[
+			[w.topAnchor constraintEqualToAnchor:s.view.topAnchor],
+			[w.leadingAnchor constraintEqualToAnchor:s.view.leadingAnchor],
+			[w.trailingAnchor constraintEqualToAnchor:s.view.trailingAnchor],
+			[w.bottomAnchor constraintEqualToAnchor:s.view.bottomAnchor],
+		]];
+		[w loadHTMLString:page baseURL:nil];
+		s.term = w;
+		s.view.control = NO;
+		s.view.hidden = YES;
+		NSWindow *win = s.page.window;
+		if (win) [win makeFirstResponder:w];
+	});
+}
+
+// rv_terminal_js runs a script in the terminal page.
+void rv_terminal_js(void *ref, const char *js) {
+	RVSession *s = S(ref);
+	NSString *script = [NSString stringWithUTF8String:js];
+	onMain(^{
+		if (s.term) [s.term evaluateJavaScript:script completionHandler:nil];
+	});
+}
+
 void rv_close(void *ref) {
 	RVSession *s = (__bridge_transfer RVSession *)ref;
 	onMain(^{
 		s.closed = YES;
+		if (s.term) {
+			[s.term.configuration.userContentController removeScriptMessageHandlerForName:@"golink"];
+			[s.term removeFromSuperview];
+			s.term = nil;
+		}
 		if (s.window) {
 			s.window.delegate = nil;
 			[s.window close];

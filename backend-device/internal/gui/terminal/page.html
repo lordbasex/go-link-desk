@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+/*XTERM_CSS*/
+:root { color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: #0d1117; color: #e6edf3; font: 13px -apple-system, system-ui, sans-serif; overflow: hidden; }
+body { display: flex; flex-direction: column; }
+#banner { display: none; padding: 8px 14px; background: #16352a; border-bottom: 1px solid #2f7d5a; color: #c9d1d9; }
+#banner.warn { background: #3a2e12; border-bottom-color: #8a6d1d; }
+#box { flex: 1; min-height: 0; padding: 8px 6px 6px 10px; display: flex; }
+#term { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+#term .xterm { height: 100%; }
+#term .xterm-viewport { background-color: #0d1117 !important; overflow: hidden !important; }
+#tabs { display: flex; gap: 2px; overflow-x: auto; padding: 0 6px; background: #161b22; border-top: 1px solid #30363d; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; scrollbar-width: none; }
+#tabs.hidden { display: none; }
+.tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px 7px 12px; border: 0; background: transparent; color: #8b949e; font: inherit; white-space: nowrap; cursor: default; border-top: 2px solid transparent; }
+.tab:hover { color: #e6edf3; }
+.tab.on { color: #e6edf3; background: #0d1117; border-top-color: #58a6ff; }
+.n { color: #6e7681; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: #3fb950; }
+.x { display: none; padding: 0 2px; color: #8b949e; }
+.tab.on .x { display: inline; }
+.x:hover { color: #ff7b72; }
+.new { font-size: 15px; padding: 5px 12px; }
+.edit { width: 14ch; margin: 3px 0; padding: 3px 8px; border: 1px solid #58a6ff; border-radius: 4px; background: #0d1117; color: #e6edf3; font: inherit; }
+</style>
+</head>
+<body>
+<div id="banner"></div>
+<div id="box"><div id="term"></div></div>
+<div id="tabs" class="hidden"></div>
+<script>/*XTERM_JS*/</script>
+<script>/*FIT_JS*/</script>
+<script>
+"use strict";
+// go-link Desk's terminal page for the Mac app: the computer's terminals
+// in xterm.js; Go sends their output and list (window.gl), and hears what
+// is typed and asked for through the golink message handler.
+const L = /*LABELS*/{};
+const KEEP = 2 << 20; // what each terminal keeps here, as the computer does
+const THEME = {
+  background: "#0d1117", foreground: "#e6edf3", cursor: "#58a6ff", selectionBackground: "#264f78",
+  black: "#484f58", red: "#ff7b72", green: "#3fb950", yellow: "#d29922", blue: "#58a6ff", magenta: "#bc8cff", cyan: "#39c5cf", white: "#b1bac4",
+  brightBlack: "#6e7681", brightRed: "#ffa198", brightGreen: "#56d364", brightYellow: "#e3b341", brightBlue: "#79c0ff", brightMagenta: "#d2a8ff", brightCyan: "#56d4dd", brightWhite: "#f0f6fc",
+};
+const send = (m) => window.webkit.messageHandlers.golink.postMessage(JSON.stringify(m));
+const enc = new TextEncoder();
+const b64 = (bytes) => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+const term = new Terminal({ cursorBlink: true, fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 14, scrollback: 5000, theme: THEME, macOptionIsMeta: true });
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.open(document.getElementById("term"));
+
+let tabs = [];        // [{id, name}]
+let active = 0;       // the terminal shown (0: an older computer's one shell)
+let withTabs = false; // the computer has terminals with ids (1.5)
+let control = true;
+const logs = new Map(); // id -> [Uint8Array]
+const sizes = new Map();
+const activity = new Set();
+let opening = false;
+let renaming = null;
+let known = [];
+// What comes first is each terminal's history, not new output.
+let quietUntil = 0;
+
+function keep(id, b) {
+  const list = logs.get(id) || [];
+  list.push(b);
+  let size = (sizes.get(id) || 0) + b.length;
+  while (size > KEEP && list.length > 1) size -= list.shift().length;
+  logs.set(id, list);
+  sizes.set(id, size);
+}
+
+function show(id) {
+  active = id;
+  activity.delete(id);
+  term.reset();
+  for (const b of logs.get(id) || []) term.write(b);
+  render();
+  term.focus();
+}
+
+function refit() {
+  try { fit.fit(); } catch (e) {}
+}
+new ResizeObserver(refit).observe(document.getElementById("term"));
+term.onResize(({ cols, rows }) => send({ t: "size", cols, rows }));
+term.onData((d) => control && send({ t: "input", id: active, data: b64(enc.encode(d)) }));
+term.onBinary((d) => control && send({ t: "input", id: active, data: b64(Uint8Array.from(d, (c) => c.charCodeAt(0) & 255)) }));
+term.attachCustomKeyEventHandler((e) => {
+  if (e.type !== "keydown") return true;
+  if (e.metaKey && !e.altKey && !e.ctrlKey) {
+    if (e.key === "c") { if (term.hasSelection()) send({ t: "copy", text: term.getSelection() }); return false; }
+    if (e.key === "v") { if (control) send({ t: "paste", id: active }); return false; }
+    if (e.key === "a") { term.selectAll(); return false; }
+  }
+  if (withTabs && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (e.code === "KeyT") { newTab(); return false; }
+    const i = tabs.findIndex((x) => x.id === active);
+    if (e.code === "ArrowRight" && tabs.length) { show(tabs[(i + 1) % tabs.length].id); return false; }
+    if (e.code === "ArrowLeft" && tabs.length) { show(tabs[(i + tabs.length - 1) % tabs.length].id); return false; }
+  }
+  return true;
+});
+
+function newTab() {
+  if (!control || tabs.length >= 16) return;
+  opening = true;
+  send({ t: "open" });
+}
+
+function banner(text, warn) {
+  const b = document.getElementById("banner");
+  b.textContent = text || "";
+  b.className = warn ? "warn" : "";
+  b.style.display = text ? "block" : "none";
+  refit();
+}
+
+function render() {
+  const strip = document.getElementById("tabs");
+  strip.className = withTabs ? "" : "hidden";
+  strip.textContent = "";
+  tabs.forEach((x, i) => {
+    if (renaming === x.id) {
+      const input = document.createElement("input");
+      input.className = "edit";
+      input.value = x.name;
+      input.maxLength = 40;
+      input.setAttribute("aria-label", L.renameField);
+      const done = (name) => { if (renaming !== x.id) return; renaming = null; if (name !== null && name.trim()) send({ t: "rename", id: x.id, name: name.trim() }); render(); term.focus(); };
+      input.onkeydown = (e) => { if (e.key === "Enter") done(input.value); else if (e.key === "Escape") done(null); };
+      input.onblur = () => done(input.value);
+      strip.appendChild(input);
+      setTimeout(() => { input.focus(); input.select(); });
+      return;
+    }
+    const t = document.createElement("button");
+    t.className = "tab" + (x.id === active ? " on" : "");
+    t.title = activity.has(x.id) ? x.name + " · " + L.newOutput : x.name;
+    const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
+    const name = document.createElement("span"); name.textContent = x.name;
+    t.append(n, name);
+    if (activity.has(x.id)) { const d = document.createElement("span"); d.className = "dot"; t.append(d); }
+    if (control) {
+      const close = document.createElement("span");
+      close.className = "x"; close.textContent = "×"; close.title = L.close.replace("{name}", x.name);
+      close.onclick = (e) => { e.stopPropagation(); send({ t: "close", id: x.id }); };
+      t.append(close);
+    }
+    t.onclick = () => show(x.id);
+    t.ondblclick = () => { if (control) { renaming = x.id; render(); } };
+    strip.appendChild(t);
+  });
+  if (control && tabs.length < 16) {
+    const plus = document.createElement("button");
+    plus.className = "tab new"; plus.textContent = "+"; plus.title = L.newTab + " (Alt+Shift+T)";
+    plus.onclick = newTab;
+    strip.appendChild(plus);
+  }
+}
+
+window.gl = {
+  // start: the computer is a terminal; tabs says it has terminals with ids.
+  start(hasTabs) { quietUntil = Date.now() + 2000; withTabs = hasTabs; active = hasTabs ? -1 : 0; render(); refit(); send({ t: "size", cols: term.cols, rows: term.rows }); term.focus(); },
+  out(id, data) {
+    const b = unb64(data);
+    keep(id, b);
+    if (id === active) term.write(b);
+    else if (!activity.has(id) && Date.now() > quietUntil) { activity.add(id); render(); }
+  },
+  tabs(list, resumed) {
+    const ids = list.map((x) => x.id);
+    const fresh = ids.filter((id) => !known.includes(id));
+    if (known.length === 0 && resumed && ids.length) {
+      banner(ids.length === 1 ? L.resumedOne : L.resumed.replace("{n}", ids.length));
+      setTimeout(() => banner(""), 7000);
+    }
+    tabs = list;
+    for (const id of [...logs.keys()]) if (!ids.includes(id)) { logs.delete(id); sizes.delete(id); activity.delete(id); }
+    known = ids;
+    if (opening && fresh.length) { opening = false; show(fresh[fresh.length - 1]); return; }
+    if (!ids.includes(active) && ids.length) { show(ids[0]); return; }
+    render();
+  },
+  font(size) { term.options.fontSize = size; refit(); },
+  control(on) { control = on; term.options.disableStdin = !on; banner(on ? "" : L.readOnly, true); render(); },
+  // reset: a new connection; the computer sends every history again.
+  reset() { quietUntil = Date.now() + 2000; logs.clear(); sizes.clear(); activity.clear(); known = []; term.reset(); },
+  focus() { term.focus(); },
+  type(data) { if (control) send({ t: "input", id: active, data }); },
+  // text: what is shown, for a copy.
+  text() {
+    if (term.hasSelection()) return term.getSelection();
+    const b = term.buffer.active, lines = [];
+    for (let y = b.viewportY; y < b.viewportY + term.rows; y++) lines.push(b.getLine(y)?.translateToString(true) ?? "");
+    return lines.join("\n").replace(/\n+$/, "\n");
+  },
+};
+send({ t: "ready" });
+</script>
+</body>
+</html>

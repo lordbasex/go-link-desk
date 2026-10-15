@@ -1,0 +1,10 @@
+# gitleaks: the default rules, with third-party files that only look like
+# secrets left out.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored libraries"
+paths = [
+  '''backend-device/internal/gui/terminal/xterm\.js''',
+]

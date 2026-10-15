@@ -6,7 +6,7 @@ package remoteview
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc -fblocks -mmacosx-version-min=13.0
-#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore -framework VideoToolbox -framework AudioToolbox
+#cgo LDFLAGS: -framework Cocoa -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore -framework VideoToolbox -framework AudioToolbox -framework WebKit
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -28,6 +28,8 @@ void rv_cursor_shape(void *ref, const uint8_t *png, int n, double hotX, double h
 void rv_cursor_pos(void *ref, double x, double y, int visible);
 void rv_control(void *ref, int on);
 void rv_menu(void *ref, const char *tool, const char *itemsJSON);
+void rv_terminal(void *ref, const char *html);
+void rv_terminal_js(void *ref, const char *js);
 void rv_screenshot(void *ref, const char *path);
 void rv_rec_start(void *ref, const char *path, int audio);
 void rv_rec_audio(void *ref, const int16_t *pcm, int n);
@@ -403,4 +405,20 @@ func goRVThumb(h C.uintptr_t, data unsafe.Pointer, n C.int) {
 	if hd, ok := handler(h); ok && n > 0 {
 		hd.Thumb(C.GoBytes(data, n))
 	}
+}
+
+// Terminal shows a terminal page (HTML) in place of the picture: its
+// script sends messages with window.webkit.messageHandlers.golink, which
+// come as Action("terminal", message).
+func (v *View) Terminal(html string) {
+	c := C.CString(html)
+	defer C.free(unsafe.Pointer(c))
+	v.with(func(ref unsafe.Pointer) { C.rv_terminal(ref, c) })
+}
+
+// TerminalJS runs a script in the terminal page.
+func (v *View) TerminalJS(js string) {
+	c := C.CString(js)
+	defer C.free(unsafe.Pointer(c))
+	v.with(func(ref unsafe.Pointer) { C.rv_terminal_js(ref, c) })
 }

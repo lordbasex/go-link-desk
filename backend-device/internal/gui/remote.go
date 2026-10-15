@@ -68,8 +68,9 @@ type remote struct {
 	chat      *remoteChat
 	browse    *remoteFiles
 	closed    bool
-	rec       *recState // this session recorded here (remote_record.go)
-	recSaid   string    // what to say once the recording is written
+	rec       *recState  // this session recorded here (remote_record.go)
+	term      *termState // a go-link-desk-terminal session (remote_terminal.go)
+	recSaid   string     // what to say once the recording is written
 }
 
 // viewerName is the name the other side sees.
@@ -186,6 +187,10 @@ func (r *remote) events() viewer.Events {
 		Recording: func(bool) {
 			r.stopRecording(L("The person at the computer stopped the recording; what was recorded is in Downloads."))
 		},
+		TerminalTabs:   r.onTerminalTabs,
+		TerminalOutput: r.onTerminalOutput,
+		TerminalExit:   r.onTerminalExit,
+		TerminalReset:  r.onTerminalReset,
 	}
 }
 
@@ -290,6 +295,9 @@ func (r *remote) onHost(h viewer.HostInfo) {
 	if h.Name != "" {
 		r.view.SetTitle(h.Name)
 	}
+	if h.Terminal {
+		r.startTerminal(h)
+	}
 	if link != nil {
 		r.keepLink(*link, h)
 	}
@@ -310,6 +318,17 @@ func (r *remote) onPermissions(p models.Permissions) {
 	r.perms = p
 	muted := r.muted
 	r.mu.Unlock()
+	if r.isTerminal() {
+		// The page takes the keyboard; the picture's tools do not apply.
+		r.js(fmt.Sprintf("gl.control(%t);", p.Control))
+		r.view.ToolState("display", false, true)
+		r.view.ToolState("keys", false, p.Control)
+		r.view.ToolState("files", false, p.Files)
+		for _, t := range []string{"quality", "sound", "chat", "record"} {
+			r.view.ToolState(t, false, false)
+		}
+		return
+	}
 	r.input.Allow(p.Control, p.Clipboard)
 	r.view.SetControl(p.Control)
 	r.view.ToolState("display", false, true)
@@ -703,11 +722,21 @@ func (r *remote) Action(name, arg string) {
 		fyne.Do(func() { r.chatWindow().show() })
 	case "files":
 		fyne.Do(func() { r.filesWindow().show() })
+	case "terminal":
+		r.onTerminalMessage(arg)
 	case "display":
+		if r.isTerminal() {
+			r.view.Menu("display", r.terminalFontMenu())
+			return
+		}
 		r.view.Menu("display", r.displayMenu())
 	case "quality":
 		r.view.Menu("quality", r.qualityMenu())
 	case "keys":
+		if r.isTerminal() {
+			r.view.Menu("keys", r.terminalKeysMenu())
+			return
+		}
 		r.view.Menu("keys", r.keysMenu())
 	case "record":
 		r.view.Menu("record", r.recordMenu())
@@ -774,6 +803,9 @@ func (r *remote) keysMenu() []remoteview.MenuItem {
 }
 
 func (r *remote) choose(id string) {
+	if r.chooseTerminal(id) {
+		return
+	}
 	switch {
 	case strings.HasPrefix(id, "rec:"):
 		r.chooseRecord(id)
