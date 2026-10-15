@@ -75,6 +75,10 @@ The terminals belong to the computer, like screen's: they outlive the viewer, an
 - **Content Security Policy:** the site allows no inline styles, and xterm.js writes its colors and sizes into `<style>` elements, which the browser refuses. The page copies their rules into a stylesheet built in script (`adoptedStyleSheets`), which the policy allows. The browser's console still notes the refused elements.
 - My computers shows a terminal icon for a linked terminal (`terminal` in the saved link).
 
+## In the Mac app
+
+The Mac app's session window shows a terminal in place of the picture: a web view (WKWebView) with xterm.js (the same library as the site, its files in `internal/gui/terminal/`) and the same tab strip. The page and Go talk through a script message handler (`golink`): the page sends what is typed (by terminal id), its size, open, close, rename, copy and paste; Go sends each terminal's output (batched every 16 ms), the list, the text size and whether the viewer may type. The app's viewer (`internal/viewer`) speaks the terminal protocol above. The monitor button sets the text size (kept in the app's preferences), Keys sends Esc, Tab and the Ctrl keys, and Files is the app's usual panel. On Windows and Linux the app opens sessions in the browser.
+
 ## Not root
 
 It refuses to run as root, since every session would be a root shell; `--allow-root` is for whoever wants exactly that. Run it as the user whose shell you want, and use `sudo` inside the session.

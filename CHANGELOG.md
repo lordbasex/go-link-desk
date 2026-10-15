@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **go-link-desk-terminal in the Mac app:** connecting to a Raspberry Pi or a server from the Mac app shows its terminals in the session window, as in the browser: the tab strip at the bottom (＋, double click renames, × closes, Alt+Shift+T, Alt+Shift+← →), resumed after a disconnect, the text size in the monitor button, Esc and Ctrl keys in Keys, Files, and copy and paste with ⌘C and ⌘V. (On Windows and Linux the app opens sessions in the browser, which already shows terminals.)
+
 ## [1.5.2] - 2026-10-14
 
 A terminal no longer fills the browser's console with Content Security Policy errors.
