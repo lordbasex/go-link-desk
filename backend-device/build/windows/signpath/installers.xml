@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "installers": the two NSIS installers
+     the Windows workflow builds with the signed programs inside. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="go-link-desk-${version}-windows-amd64-setup.exe" product-name="go-link Desk" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="go-link-desk-${version}-windows-arm64-setup.exe" product-name="go-link Desk" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

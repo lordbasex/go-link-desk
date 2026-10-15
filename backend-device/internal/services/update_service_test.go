@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 )
@@ -53,5 +55,31 @@ func TestTheUpdateReachesLinkedBrowsers(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"update":{"latest":"v0.1.1","url":"https://github.com/lordbasex/go-link-desk/releases/tag/v0.1.1"}`) {
 		t.Fatalf("device_status = %s", b)
+	}
+}
+
+func TestUpdateServiceAsksOnlyWhenEnabled(t *testing.T) {
+	var asked atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked.Add(1)
+		w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+	var on atomic.Bool
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go NewUpdateService(UpdateConfig{Current: "v0.1.0", URL: srv.URL, FirstIn: time.Millisecond, Every: time.Millisecond,
+		Enabled: on.Load}).Run(ctx)
+	time.Sleep(50 * time.Millisecond)
+	if n := asked.Load(); n != 0 {
+		t.Fatalf("asked GitHub %d times while turned off", n)
+	}
+	on.Store(true)
+	deadline := time.Now().Add(2 * time.Second)
+	for asked.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("never asked once turned on")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

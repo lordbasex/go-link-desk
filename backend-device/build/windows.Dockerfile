@@ -68,8 +68,9 @@ ARG VERSION=dev
 # The x.y.z Explorer shows in the file's Properties.
 ARG SHORT_VERSION=0.1.0
 # The resources (icon, manifest, version) as a .syso the Go linker takes
-# from the package's folder.
-RUN CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico && \
+# from the package's folder. The icon's tool runs here, so it is built for
+# this machine, not for GOARCH (an ARM64 build on an x86-64 runner).
+RUN GOOS= GOARCH= CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico && \
     cd build/windows && \
     printf '#define VERSION_COMMA %s,0\n#define VERSION_TEXT "%s"\n' "$(echo "$SHORT_VERSION" | tr . ,)" "$VERSION" > version.h && \
     $HOST-windres -O coff -o /src/cmd/desk/rsrc_windows_$GOARCH.syso desk.rc
@@ -82,6 +83,12 @@ RUN SUBSYSTEM="-H windowsgui" && case " $TAGS " in *" headless "*) SUBSYSTEM="" 
     go build -trimpath -tags "$TAGS" -ldflags "-s -w $SUBSYSTEM -X main.version=$VERSION" \
       -o /out/go-link-desk.exe ./cmd/desk
 
+# The program the installer takes: this build's, or a signed copy of it
+# from a folder given as the "exe" build context
+# (make windows-package-amd64 WINDOWS_EXE_DIR=…, the Windows workflow).
+FROM scratch AS exe
+COPY --from=build /out/go-link-desk.exe /
+
 # The installer (build/windows/installer.nsi, NSIS: zlib license) with the
 # program, its license and the third parties' notices, which come from the
 # repository's root: the "root" build context (make windows-package-amd64).
@@ -91,7 +98,8 @@ ARG VERSION=dev
 ARG SHORT_VERSION=0.1.0
 ARG GOARCH=amd64
 WORKDIR /nsis
-COPY --from=build /out/go-link-desk.exe /src/build/windows/desk.ico ./
+COPY --from=exe /go-link-desk.exe ./
+COPY --from=build /src/build/windows/desk.ico ./
 COPY build/windows/installer.nsi ./
 COPY --from=root LICENSE ./LICENSE.txt
 COPY --from=root THIRD_PARTY_NOTICES.md ./

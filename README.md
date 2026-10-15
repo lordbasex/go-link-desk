@@ -16,7 +16,7 @@ The computer you control runs go-link Desk and shows a code. Whoever controls it
 | Where | What |
 |---|---|
 | **macOS** 13 or newer (Intel and Apple silicon) | [The latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `go-link-desk-<version>-macos-universal.dmg`, signed and notarized. It shares this Mac's screen and connects to other computers. |
-| **Windows** 10 and 11, x86-64 and ARM64 | From [the latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `go-link-desk-<version>-windows-<arch>-setup.exe`, which installs for this user with no administrator rights, or the same program in a portable `.zip`. Not signed yet: Windows SmartScreen asks once (More info, Run anyway). It shares this PC's screen; Connect opens the other computers in the browser. |
+| **Windows** 10 and 11, x86-64 and ARM64 | From [the latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `go-link-desk-<version>-windows-<arch>-setup.exe`, which installs for this user with no administrator rights, or the same program in a portable `.zip`. Until the first release signed through SignPath (see the [code signing policy](docs/code-signing.md)), Windows SmartScreen asks once (More info, Run anyway). It shares this PC's screen; Connect opens the other computers in the browser. |
 | **Linux**, x86-64 and ARM64, glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or newer) | `curl -fsSL https://desk.go-link.org/install.sh \| sh`, or from [the latest release](https://github.com/lordbasex/go-link-desk/releases/latest): `.deb`, `.rpm`, Arch package, or `.tar.gz` (unpack it and run `./install.sh`, for this user, no root). It shares the screen of an X11 or Wayland desktop (GNOME, KDE Plasma and others with the remote desktop portal and PipeWire); to connect to other computers from Linux, use the browser. |
 | **A Raspberry Pi or a server without a desktop**, Linux x86-64, ARM64 and ARMv7, any distribution | `curl -fsSL https://desk.go-link.org/install.sh \| sh -s -- --terminal` installs **go-link-desk-terminal**: a remote shell in the browser or the Mac app (no SSH, nothing listening): terminals with names and tabs that keep running between sessions, like screen, files both ways, and recordings as video or `.cast`, for devices linked there with a password. See [docs/terminal.md](docs/terminal.md). |
 | **iPhone and iPad**, iOS and iPadOS 26 or newer | go-link Desk on the App Store: it connects to other computers (with a code, or linked ones with Face ID). |
@@ -43,9 +43,14 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - [Network: ports, relay and router](docs/network.md)
 - [Protocol](docs/protocol.md)
 - [Security and threat model](docs/security.md)
+- [Code signing policy](docs/code-signing.md): how the Windows files are signed (SignPath Foundation)
 - [Provenance of the code taken from go-link](docs/provenance.md)
 - [signalhub proposals](docs/signalhub-proposals.md)
 - [Contributing](CONTRIBUTING.md): how to run the host, the website and the checks
+
+## Code signing policy
+
+Windows files: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). Roles, build and privacy: [docs/code-signing.md](docs/code-signing.md).
 
 ## License
 

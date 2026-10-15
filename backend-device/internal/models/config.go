@@ -48,6 +48,9 @@ type Config struct {
 	IdleMinutes int `json:"idle_minutes,omitempty"`
 	// LockOnEnd locks the computer's screen when a session ends.
 	LockOnEnd bool `json:"lock_on_end,omitempty"`
+	// NoUpdateCheck stops the app from asking GitHub now and then for a
+	// newer version; "Check for Updates…" still asks when chosen.
+	NoUpdateCheck bool `json:"no_update_check,omitempty"`
 	// ViewerName is the name this app gives when it connects to another
 	// computer ("" for the computer user's name).
 	ViewerName string `json:"viewer_name,omitempty"`
