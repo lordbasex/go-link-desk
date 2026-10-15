@@ -68,8 +68,9 @@ ARG VERSION=dev
 # The x.y.z Explorer shows in the file's Properties.
 ARG SHORT_VERSION=0.1.0
 # The resources (icon, manifest, version) as a .syso the Go linker takes
-# from the package's folder.
-RUN CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico && \
+# from the package's folder. The icon's tool runs here, so it is built for
+# this machine, not for GOARCH (an ARM64 build on an x86-64 runner).
+RUN GOOS= GOARCH= CGO_ENABLED=0 go run ./build/macos/appicon -windows build/windows/desk.ico && \
     cd build/windows && \
     printf '#define VERSION_COMMA %s,0\n#define VERSION_TEXT "%s"\n' "$(echo "$SHORT_VERSION" | tr . ,)" "$VERSION" > version.h && \
     $HOST-windres -O coff -o /src/cmd/desk/rsrc_windows_$GOARCH.syso desk.rc

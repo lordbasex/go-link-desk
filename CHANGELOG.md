@@ -17,6 +17,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Fixed
 
+- **The Windows ARM64 build runs on an x86-64 machine without emulation:** the Dockerfile built its icon tool for ARM64 and could not run it (it only worked where Docker emulates ARM, as on Docker Desktop).
 - **`scripts/third-party-notices.sh` keeps the hand-written notices** (Inter, Lucide, Natural Earth): it wrote the file again without them.
 
 ## [1.6.0] - 2026-10-15
