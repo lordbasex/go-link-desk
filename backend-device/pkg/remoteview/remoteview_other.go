@@ -28,6 +28,8 @@ func (v *View) SetControl(bool)                                        {}
 func (v *View) Menu(string, []MenuItem)                                {}
 func (v *View) ToolState(string, bool, bool)                           {}
 func (v *View) ToggleFullScreen()                                      {}
+func (v *View) Terminal(string)                                        {}
+func (v *View) TerminalJS(string)                                      {}
 func (v *View) ChooseFiles(string)                                     {}
 func (v *View) Thumbnail()                                             {}
 func (v *View) Focus()                                                 {}

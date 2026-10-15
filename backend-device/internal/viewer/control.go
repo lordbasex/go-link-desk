@@ -7,7 +7,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -33,6 +35,11 @@ type controlMsg struct {
 		Name string `json:"name"`
 		OS   string `json:"os"`
 	} `json:"host"`
+	Source   string   `json:"source"`
+	Features []string `json:"features"`
+	// terminal_tabs, terminal_exit
+	Tabs    []TerminalTab `json:"tabs"`
+	Resumed bool          `json:"resumed"`
 	// stream_stats
 	FPS          float64 `json:"fps"`
 	Width        float64 `json:"width"`
@@ -99,16 +106,44 @@ func (s *Session) onControl(data []byte) {
 		}
 		return
 	}
+	ev := s.opts.Events
+	if head.Type == "terminal_exit" {
+		// Its code is a number; controlMsg's (a notice's) is text.
+		var e struct {
+			ID   uint32 `json:"id"`
+			Code int    `json:"code"`
+		}
+		if json.Unmarshal(data, &e) == nil && ev.TerminalExit != nil {
+			ev.TerminalExit(e.ID, e.Code)
+		}
+		return
+	}
 	var m controlMsg
 	if json.Unmarshal(data, &m) != nil {
 		return
 	}
-	ev := s.opts.Events
 	switch m.Type {
 	case "welcome":
+		h := HostInfo{Name: truncate(m.Host.Name, 64), OS: truncate(m.Host.OS, 16), Terminal: m.Source == "terminal"}
+		h.TerminalTabs = h.Terminal && slices.Contains(m.Features, "terminal-tabs")
+		s.mu.Lock()
+		s.welcome = h
+		s.mu.Unlock()
 		if ev.Host != nil {
-			ev.Host(HostInfo{Name: truncate(m.Host.Name, 64), OS: truncate(m.Host.OS, 16)})
+			ev.Host(h)
 		}
+	case "terminal_tabs":
+		tabs := m.Tabs
+		if len(tabs) > maxTerminalTabs {
+			tabs = tabs[:maxTerminalTabs]
+		}
+		for i := range tabs {
+			tabs[i].Name = truncate(tabs[i].Name, 40)
+		}
+		if ev.TerminalTabs != nil {
+			ev.TerminalTabs(tabs, m.Resumed)
+		}
+
 	case "stream_stats":
 		if ev.Sent != nil {
 			ev.Sent(Sent{FPS: m.FPS, Width: int(m.Width), Height: int(m.Height), Kbps: int(m.Kbps), Codec: truncate(m.Codec, 16),
@@ -459,5 +494,100 @@ func (s *Session) filesOpen(f *Files) {
 func (s *Session) RequestKeyframe() {
 	if p := s.livePeer(); p != nil {
 		p.keyframe()
+	}
+}
+
+// maxTerminalTabs bounds the terminals a computer may list.
+const maxTerminalTabs = 32
+
+// Host is what the computer said of itself (its welcome).
+func (s *Session) Host() HostInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.welcome
+}
+
+// onTerminal takes a message of the terminal channel: a terminal's id and
+// its bytes, or (an older computer) the one shell's bytes.
+func (s *Session) onTerminal(b []byte) {
+	ev := s.opts.Events.TerminalOutput
+	if ev == nil {
+		return
+	}
+	if !s.Host().TerminalTabs {
+		ev(0, b)
+		return
+	}
+	if len(b) < 4 {
+		return
+	}
+	ev(binary.BigEndian.Uint32(b), b[4:])
+}
+
+// SendTerminal types into a terminal (only with the control permission;
+// the computer checks too).
+func (s *Session) SendTerminal(id uint32, data []byte) {
+	if !s.Permissions().Control || len(data) == 0 {
+		return
+	}
+	p := s.livePeer()
+	if p == nil {
+		return
+	}
+	if !s.Host().TerminalTabs {
+		p.sendTerminal(data)
+		return
+	}
+	f := make([]byte, 4+len(data))
+	binary.BigEndian.PutUint32(f, id)
+	copy(f[4:], data)
+	p.sendTerminal(f)
+}
+
+// SendTerminalSize tells the computer the terminal's size here.
+func (s *Session) SendTerminalSize(cols, rows int) {
+	if cols < 1 || rows < 1 {
+		return
+	}
+	s.sendJSON(map[string]any{"type": "terminal_size", "cols": min(cols, 1000), "rows": min(rows, 1000)})
+}
+
+// OpenTerminal opens another terminal on the computer (a name, or its own).
+func (s *Session) OpenTerminal(name string) {
+	s.sendJSON(map[string]any{"type": "terminal_open", "name": truncate(name, 40)})
+}
+
+// CloseTerminal closes a terminal: its shell ends.
+func (s *Session) CloseTerminal(id uint32) {
+	s.sendJSON(map[string]any{"type": "terminal_close", "id": id})
+}
+
+// RenameTerminal renames a terminal.
+func (s *Session) RenameTerminal(id uint32, name string) {
+	if name = strings.TrimSpace(truncate(name, 40)); name != "" {
+		s.sendJSON(map[string]any{"type": "terminal_rename", "id": id, "name": name})
+	}
+}
+
+// sendJSON sends a control message to the computer in session.
+func (s *Session) sendJSON(v any) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	if p := s.livePeer(); p != nil {
+		p.sendControl(b)
+	}
+}
+
+// terminalChannel notes a terminal channel; a second one is a new
+// connection whose histories come again.
+func (s *Session) terminalChannel() {
+	s.mu.Lock()
+	s.termChans++
+	again := s.termChans > 1
+	s.mu.Unlock()
+	if again && s.opts.Events.TerminalReset != nil {
+		s.opts.Events.TerminalReset()
 	}
 }

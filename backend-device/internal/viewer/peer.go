@@ -53,6 +53,7 @@ type peer struct {
 	pointer  *webrtc.DataChannel
 	input    *webrtc.DataChannel
 	files    *Files
+	terminal *webrtc.DataChannel
 	videoSSR webrtc.SSRC
 	lastPLI  time.Time
 	closed   bool
@@ -311,6 +312,16 @@ func (p *peer) onDataChannel(dc *webrtc.DataChannel) {
 		p.mu.Lock()
 		p.input = dc
 		p.mu.Unlock()
+	case "terminal":
+		p.mu.Lock()
+		p.terminal = dc
+		p.mu.Unlock()
+		p.s.terminalChannel()
+		dc.OnMessage(func(m webrtc.DataChannelMessage) {
+			if !m.IsString {
+				p.s.onTerminal(m.Data)
+			}
+		})
 	case "files":
 		f := newFiles(dc)
 		p.mu.Lock()
@@ -419,4 +430,14 @@ type videoStats struct {
 	packets int
 	lost    int
 	frames  int
+}
+
+// sendTerminal writes on the terminal channel (bytes typed).
+func (p *peer) sendTerminal(b []byte) {
+	p.mu.Lock()
+	ch := p.terminal
+	p.mu.Unlock()
+	if ch != nil && ch.ReadyState() == webrtc.DataChannelStateOpen {
+		_ = ch.Send(b)
+	}
 }
