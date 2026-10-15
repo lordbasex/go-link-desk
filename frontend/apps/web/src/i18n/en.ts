@@ -367,12 +367,13 @@ export const en = {
       web: { chip: "Available", title: "From the web", text: "Chrome, Safari, Edge or Firefox. Nothing to install: open desk.go-link.org/web and type the code.", go: "Open the web app →", alt: "The web app in a browser" },
       ios: { chip: "In App Store review", title: "iPhone and iPad", text: "Your fingers as a trackpad, the iPad's keyboard, files, chat, and your computers with Face ID. iOS 26 or newer.", alt: "go-link Desk on an iPhone" },
       android: { chip: "Coming to Google Play", title: "Android", text: "Phones and tablets, Android 11 or newer. The same screens as on iPhone, with your fingerprint or screen lock.", alt: "go-link Desk on an Android phone" },
-      mac: { chip: "Available", title: "Mac app", text: "Shares your screen and connects to others, one tab per session. Signed and notarized, macOS 13 or newer.", go: "Download →", alt: "A Mac's desktop" },
+      mac: { chip: "Available", title: "Mac app", text: "Shares your screen and connects to others, one tab per session. Signed and notarized, macOS 13 or newer. It also opens the terminals of a Raspberry Pi or a server, with tabs.", go: "Download →", alt: "A Mac's desktop" },
       hostsLabel: "The computer you share:",
       today: "Today",
       macHost: "macOS 13+ · Intel and Apple silicon",
       linuxHost: "Linux · X11 and Wayland (GNOME, KDE Plasma…)",
       winHost: "Windows 10 and 11 · 64-bit",
+      piHost: "Raspberry Pi and servers · go-link-desk-terminal (ARMv7, ARM64, x86-64)",
       soon: "Coming soon",
     },
     steps: {
@@ -409,6 +410,15 @@ export const en = {
         ],
         alt: "The gestures guide on a tablet",
         phoneAlt: "The guide on an iPhone",
+      },
+      more: {
+        title: "Beyond the desktop.",
+        go: "Read more →",
+        cards: [
+          { k: "go-link-desk-terminal", title: "Raspberry Pi and servers", text: "The shells of a computer without a desktop, in the browser or the Mac app: terminals with names and tabs that keep running when you leave, like screen, files both ways, and recordings as video or .cast. No SSH, no open port, linked with a password.", to: "/docs/terminal" },
+          { k: "MCP · Claude · Cursor", title: "AI assistants", text: "Let Claude, Claude Code or Cursor use your linked computers: run commands on a Raspberry Pi, read its terminals, look at a desktop's screen. You pick the computers; passwords stay in your keychain; they only look unless you allow commands; every call is logged.", to: "/docs/assistants" },
+          { k: "PNG · MP4 · .cast", title: "Screenshots and recordings", text: "Save a picture of the screen or record the session, with its sound, into Downloads. The computer has to allow it and is shown each time.", to: "/docs/web" },
+        ],
       },
     },
     security: {
@@ -447,6 +457,8 @@ export const en = {
         { q: "Does it work away from home?", a: "Yes. Both ends meet over the internet; when there is no direct path, the data goes through a relay that cannot read it." },
         { q: "What computer do I need?", a: "Any 64-bit computer from the last ten years: two cores send a smooth Full HD screen, and a Mac does it in hardware (macOS 13 or newer). The figures, per processor and screen size, are in the docs under System requirements." },
         { q: "How much internet does it use?", a: "Almost nothing while the screen is still, and up to 10 Mbps on a busy Full HD screen. With less, the picture lowers its size and frame rate by itself, down to about half a megabit." },
+        { q: "Does it work on a Raspberry Pi or a server without a desktop?", a: "Yes: go-link-desk-terminal gives you its terminals in the browser or the Mac app, on any Linux (x86-64, ARM64, ARMv7). One command installs it, and nothing listens on a port." },
+        { q: "Can an AI assistant like Claude use my computers?", a: "If you let it: Settings › Assistants adds go-link Desk to Claude, Claude Code and Cursor. You choose which linked computers, whether it may run commands, and every call is logged. The passwords stay in your keychain." },
       ],
     },
     footer: {
@@ -462,6 +474,8 @@ export const en = {
       android: "Android",
       winLinux: "Windows app",
       linuxApp: "Linux app",
+      piApp: "Raspberry Pi and servers",
+      assistants: "AI assistants",
       review: "Review",
       soon: "Soon",
       privacy: "Privacy",
