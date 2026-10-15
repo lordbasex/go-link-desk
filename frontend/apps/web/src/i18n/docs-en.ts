@@ -86,7 +86,7 @@ export const docsEn: Docs = {
               label: "Linux",
               os: "linux",
               blocks: [
-                { t: "p", text: "The quickest way: one line that picks the right package for your distribution (.deb, .rpm or Arch), checks it and installs it." },
+                { t: "p", text: "The quickest way: one line that picks the right package for your distribution (.deb, .rpm or Arch), checks its signature and installs it. It needs OpenSSL 3 (`openssl`), which almost every distribution has." },
                 { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh" },
                 { t: "note", tone: "info", text: "A Raspberry Pi or a server without a desktop? Install the remote terminal instead: [A remote terminal](/docs/terminal)." },
                 { t: "p", text: "Add `--user` to install only for your user, without root (in `~/.local`). Remove it with `--uninstall`." },

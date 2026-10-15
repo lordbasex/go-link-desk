@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-15
+
+Security fixes from an audit with Strix: a Windows host's AppData is private, the Linux installer and updater check every package, and a linked computer's proof is bound to the connection. AI assistants can also click, type and move files.
+
 ### Added
 
 - **Code signing policy** at desk.go-link.org/code-signing (English, Spanish, Portuguese) and in `docs/code-signing.md`: the Windows files will be signed through SignPath (free code signing for open source, certificate by the SignPath Foundation), with the team's roles, how a signed file is made and the privacy terms. Linked from the home page's footer and download section and from the README.
