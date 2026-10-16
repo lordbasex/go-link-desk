@@ -719,14 +719,19 @@ export class Session {
       case "auth_proof": {
         if (door.kind !== "reach" || !this.nonce) return;
         const { token, linkId } = door.device;
-        // proof2 ties the proof to this connection's certificates; a
-        // computer that once gave it must always give it, or someone in
-        // the middle could fall back to the plain proof.
+        // proof2 ties the proof to this connection's certificates. Binding
+        // is fail-closed: whenever this connection has DTLS fingerprints
+        // (every real WebRTC connection does), a valid proof2 is required
+        // and a proof2-less auth_proof is refused, no matter the link's
+        // prior state. Otherwise someone in the middle could strip proof2 on
+        // a link's first reach and fall back to the plain proof to steal the
+        // token. The plain proof is accepted only when the connection has no
+        // fingerprints at all (a genuinely unbindable, legacy path).
         const fp = this.stream?.fingerprints();
         const canBind = !!fp?.host && !!fp.viewer;
         const bound = canBind && typeof m.proof2 === "string" && sameString(m.proof2, linkProofBound(token, this.nonce, fp.host, fp.viewer));
         const plain = typeof m.proof === "string" && sameString(m.proof, linkProof(token, this.nonce));
-        const ok = bound || (plain && !door.device.bound && (m.proof2 === undefined || !canBind));
+        const ok = bound || (plain && !canBind && !door.device.bound);
         if (m.link_id !== linkId || !ok) {
           this.finish({ kind: "untrusted" });
           return;

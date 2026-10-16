@@ -449,6 +449,21 @@ describe("Linked computers", () => {
     expect(bound).toHaveBeenCalledOnce();
   });
 
+  it("refuse a proof2-less auth_proof on a bindable connection, even on a never-bound link", async () => {
+    // Someone in the middle strips proof2 to fall back to the plain proof
+    // and steal the token on a link's first reach. Binding is fail-closed:
+    // with fingerprints on the connection, the plain proof alone is refused.
+    const client = new FakeClient();
+    const { s, sent, control, queued, spy, certificates } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    certificates("sha-256 HO:ST", "sha-256 VI:EW");
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
+    expect(sent).toEqual([]);
+    expect(s.current.status.kind).toBe("untrusted");
+  });
+
   it("refuse a proof relayed from another connection, and the plain proof once bound", async () => {
     // Someone in the middle has a certificate of its own on each side: the
     // real computer's proof2 names other fingerprints than this viewer sees.
