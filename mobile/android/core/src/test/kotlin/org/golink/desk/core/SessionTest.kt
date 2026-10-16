@@ -15,7 +15,7 @@ import org.junit.Test
 
 /** A session against a fake signalhub and fake peers, moved by hand. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class Rig(private val test: TestScope, door: Door = Door.Join("915355636"), name: String = "  Ana  ") {
+class Rig(private val test: TestScope, door: Door = Door.Join("915355636"), name: String = "  Ana  ", keys: LinkKeys = NoLinkKeys) {
     val sockets = FakeSockets()
     val peers = FakePeers()
     val statuses = mutableListOf<SessionStatus>()
@@ -23,7 +23,7 @@ class Rig(private val test: TestScope, door: Door = Door.Join("915355636"), name
 
     init {
         val signal = SignalClient("wss://signal.example/ws", sockets, test.backgroundScope, random = kotlin.random.Random(1))
-        session = DeskSession(door, name, "go-link Desk 1.0 on Android", signal, peers, test.backgroundScope)
+        session = DeskSession(door, name, "go-link Desk 1.0 on Android", signal, peers, test.backgroundScope, keys = keys)
         session.events.status = { statuses += it }
         session.start()
         test.runCurrent()
