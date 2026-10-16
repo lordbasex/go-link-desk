@@ -498,6 +498,10 @@ describe("Linked computers", () => {
     const unlinked = vi.fn();
     const { s, control } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    // A revoked link comes back as an unproven auth_failed (the host dropped
+    // the token hash it would prove with), so it is honored here; the pinned
+    // host device key that would tell a genuine revoke from a MITM is a
+    // tracked follow-up.
     control({ type: "auth_failed", error: "gone" });
     expect(s.current.status.kind).toBe("unlinked");
     expect(unlinked).toHaveBeenCalledOnce();
