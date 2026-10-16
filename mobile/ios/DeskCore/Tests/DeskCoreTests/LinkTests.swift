@@ -103,8 +103,12 @@ final class LinkTests: XCTestCase {
         let link = DeviceLink(deviceId: "D", linkId: "L", token: "secret-token")
         XCTAssertTrue(proofs(link, proof2Host: "sha-256 HO:ST", bound: { bound += 1 }).1)
         XCTAssertEqual(bound, 1)
-        // A computer from before proof2 still works, until one gave it.
-        XCTAssertTrue(proofs(link, proof2Host: nil).1)
+        // Binding is fail-closed: on a connection that has fingerprints, a
+        // proof2-less auth_proof (someone in the middle stripped it) is
+        // refused even on a never-bound link, so the token never leaks.
+        let (stripped, sentStripped) = proofs(link, proof2Host: nil)
+        XCTAssertFalse(sentStripped)
+        XCTAssertEqual(stripped.status, .untrusted)
         // Relayed from another connection: someone in the middle has its own certificate.
         let (relayed, sent) = proofs(link, proof2Host: "sha-256 MI:TM")
         XCTAssertFalse(sent)
