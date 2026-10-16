@@ -92,6 +92,22 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(ch.texts.last?["type"], "cancel")
     }
 
+    // A piece whose 8-byte offset is Int64.max no longer aborts the app:
+    // the old bounds check added the payload length and trapped on signed
+    // overflow; now it is refused as a bad piece.
+    func testADownloadRejectsAnOverflowingOffset() {
+        let ch = Channel(), clock = ManualScheduler()
+        let f = FilesClient(channel: ch, scheduler: clock)
+        var bad: Result<String, FilesError>?
+        f.download("z", ready: { _, _ in Sink() }, progress: { _, _ in }, done: { bad = $0 })
+        f.onText(#"{"type":"download_ready","id":"d1","name":"z","size":10}"#)
+        var d = Data([0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]) // offset Int64.max
+        d.append(0)
+        f.onBinary(d)
+        XCTAssertEqual(bad, .failure(FilesError("the computer sent a bad piece")))
+        XCTAssertEqual(ch.texts.last?["type"], "cancel")
+    }
+
     func testUploadWaitsForTheChannelToDrain() {
         let ch = Channel(), clock = ManualScheduler()
         let f = FilesClient(channel: ch, scheduler: clock)
