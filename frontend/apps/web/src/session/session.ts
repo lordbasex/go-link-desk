@@ -751,12 +751,13 @@ export class Session {
       case "auth_failed":
       case "unlinked":
         if (door.kind === "join") return;
-        // Only a computer that authenticated (reach: proved the token) may
-        // make this browser forget its link. Otherwise a MITM signaling
-        // server could send `unlinked`/`auth_failed` before the proof to
-        // wipe the stored credential and force a trip back to the host to
-        // re-pair (a denial of unattended access).
-        if (door.kind === "reach" && !this.authed) return;
+        // A revoked link cannot be told apart from a MITM here: the host that
+        // dropped the link no longer holds the token hash it would prove with,
+        // so a genuine revoke arrives as an unproven `unlinked`/`auth_failed`,
+        // exactly as a forged one would. Honoring it lets a DTLS MITM force a
+        // re-pair (a bounded denial of unattended access, no token disclosed);
+        // the proper fix is a pinned host device key, tracked as a follow-up
+        // (see docs/security.md).
         this.opts.onUnlinked?.();
         this.finish({ kind: "unlinked" });
         break;
