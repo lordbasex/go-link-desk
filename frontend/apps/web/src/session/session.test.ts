@@ -478,14 +478,26 @@ describe("Linked computers", () => {
     expect(s.current.status.kind).toBe("untrusted");
   });
 
-  it("forget a link the computer no longer has", async () => {
+  it("forget a link only when the authenticated computer says so, never on a pre-auth message", async () => {
     const client = new FakeClient();
     const unlinked = vi.fn();
-    const { s, control } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
+    const { s, control, queued, spy } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    // A MITM signaling server's unlinked/auth_failed before the proof must
+    // not wipe the stored credential.
+    control({ type: "unlinked" });
     control({ type: "auth_failed", error: "gone" });
-    expect(s.current.status.kind).toBe("unlinked");
+    expect(unlinked).not.toHaveBeenCalled();
+    expect(s.current.status.kind).toBe("waiting");
+    // Once the computer proved the token and auth_ok came, a real revoke is
+    // honored.
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
+    control({ type: "unlinked" });
     expect(unlinked).toHaveBeenCalledOnce();
+    expect(s.current.status.kind).toBe("unlinked");
   });
 
   it("say when the computer is off", async () => {

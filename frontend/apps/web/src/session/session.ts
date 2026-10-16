@@ -751,6 +751,12 @@ export class Session {
       case "auth_failed":
       case "unlinked":
         if (door.kind === "join") return;
+        // Only a computer that authenticated (reach: proved the token) may
+        // make this browser forget its link. Otherwise a MITM signaling
+        // server could send `unlinked`/`auth_failed` before the proof to
+        // wipe the stored credential and force a trip back to the host to
+        // re-pair (a denial of unattended access).
+        if (door.kind === "reach" && !this.authed) return;
         this.opts.onUnlinked?.();
         this.finish({ kind: "unlinked" });
         break;

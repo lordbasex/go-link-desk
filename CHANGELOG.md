@@ -4,6 +4,11 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Security
+
+- **A linked browser no longer forgets its link on an unauthenticated message:** on a reach (unattended) session the web viewer acts on `unlinked`/`auth_failed` only once the computer has proved the token (`authed`), as it already did for the password request and the acceptance. Before, a compromised or MITM signaling server could send `unlinked` before the proof and delete the saved credential, a denial of unattended access that forced a trip back to the host to re-pair. Found with Claude Security.
+- **Documented the link-token exposure in the browser:** `docs/security.md` now states plainly that the unattended link token is a bearer credential in `localStorage`, what protects it (same-origin isolation and the strict CSP; the keychain on mobile) and what does not (XSS on the app origin, a rogue extension, profile theft), and records the planned stronger design (a non-extractable key that signs the host's challenge). Raised by Claude Security (F13).
+
 ## [1.7.0] - 2026-10-15
 
 Security fixes from an audit with Strix: a Windows host's AppData is private, the Linux installer and updater check every package, and a linked computer's proof is bound to the connection. AI assistants can also click, type and move files.
