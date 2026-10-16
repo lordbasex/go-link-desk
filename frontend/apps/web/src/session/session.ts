@@ -7,12 +7,15 @@ import {
   ServerError,
   SignalError,
   clipboardPieces,
-  linkProof,
-  linkProofBound,
+  hostProofMessage,
+  hostUnlinkMessage,
+  linkProofMessage,
+  newLinkKey,
   parseAuthOk,
   parseDecision,
   randomNonce,
-  sameString,
+  sign,
+  verify,
   endReason,
   type EndReason,
   type Envelope,
@@ -22,6 +25,7 @@ import {
   type SavedDevice,
   type SignalClient,
 } from "@go-link-desk/shared";
+import { indexedDbKeyStore, type KeyStore } from "./keystore";
 
 /**
  * How a session reaches its computer: with the session code or link the
@@ -31,11 +35,12 @@ import {
  */
 export type Door = { kind: "join"; target: InviteTarget } | { kind: "claim"; code: string } | { kind: "reach"; device: SavedDevice };
 
-/** A new link, to keep: the token is the browser's secret. */
+/** A new link, to keep: the browser's private key stays in the key store. */
 export interface NewLink {
   deviceId: string;
   linkId: string;
-  token: string;
+  /** The host's device public key, pinned so its proofs can be checked. */
+  hostKey: string;
 }
 
 /** Why the unattended password was not taken. */
@@ -198,8 +203,8 @@ export interface SessionOptions {
   onLinked?: (link: NewLink) => void;
   /** The computer no longer has this browser's link: forget it here. */
   onUnlinked?: () => void;
-  /** Reach: the computer proved itself bound to the connection for the first time (remember it). */
-  onBound?: () => void;
+  /** Where a link's non-extractable signing key is kept (IndexedDB by default). */
+  keys?: KeyStore;
   /** Injectable for tests. */
   RTCPeerConnectionImpl?: typeof RTCPeerConnection;
 }
@@ -245,10 +250,16 @@ export class Session {
    */
   private proven = false;
   private authed = false;
+  /** Claim: the key made for the new link, kept until auth_ok stores it. */
+  private linkKey: CryptoKey | null = null;
   /** Reach: an acceptance that came (over signalhub) before auth_ok (over the connection). */
   private early: Permissions | null = null;
 
   constructor(private readonly opts: SessionOptions) {}
+
+  private get keyStore(): KeyStore {
+    return this.opts.keys ?? indexedDbKeyStore;
+  }
 
   get current(): SessionView {
     return this.view;
@@ -364,8 +375,73 @@ export class Session {
   /** The host let this viewer in: a linked browser on a connection already up. */
   private admitted(permissions: Permissions): void {
     this.set({ status: { kind: this.connected ? "live" : "connecting" }, permissions });
-    // Accepted with the pairing code: now ask for the link's token.
-    if (this.opts.door.kind === "claim") this.stream?.sendControl({ type: "auth" });
+    // Accepted with the pairing code: make this link's key and send its
+    // public half, so the computer remembers it. The private half stays here.
+    if (this.opts.door.kind === "claim") void this.claimLink();
+  }
+
+  private async claimLink(): Promise<void> {
+    try {
+      const key = await newLinkKey();
+      this.linkKey = key.privateKey;
+      this.stream?.sendControl({ type: "auth", pub: key.publicKey });
+    } catch {
+      this.finish({ kind: "ended", reason: "viewer" });
+    }
+  }
+
+  /**
+   * Checks the computer's signed proof against the key this link pinned and,
+   * if it holds, proves this link back by signing the same nonce and
+   * fingerprints with the link's key. The signature binds to the connection,
+   * so a signaling server in the middle (its certificate differs on each
+   * side) cannot relay a proof that still verifies, and without the host's
+   * device key it cannot forge one.
+   */
+  private async proveReach(device: SavedDevice, linkId: unknown, sig: string): Promise<void> {
+    const nonce = this.nonce;
+    if (!nonce) return;
+    const fp = this.stream?.fingerprints();
+    const host = fp?.host ?? "";
+    const viewer = fp?.viewer ?? "";
+    const ok = linkId === device.linkId && (await verify(device.hostKey, hostProofMessage(nonce, host, viewer), sig));
+    if (!ok) {
+      this.finish({ kind: "untrusted" });
+      return;
+    }
+    const key = await this.keyStore.get(device.linkId);
+    if (!key) {
+      this.finish({ kind: "untrusted" });
+      return;
+    }
+    let mine: string;
+    try {
+      mine = await sign(key, linkProofMessage(nonce, host, viewer));
+    } catch {
+      this.finish({ kind: "ended", reason: "viewer" });
+      return;
+    }
+    if (this.stopped || this.nonce !== nonce) return;
+    this.nonce = "";
+    this.proven = true;
+    this.stream?.sendControl({ type: "auth", link_id: device.linkId, sig: mine });
+  }
+
+  /**
+   * Forgets a link on `unlinked`/`auth_failed`. In a proven session the
+   * computer's word is trusted outright. Before the proof (reach), only a
+   * refusal the computer signed with its device key is honored, so a
+   * signaling server cannot forge one to wipe a working link.
+   */
+  private async maybeForget(door: Door, sig: string): Promise<void> {
+    let trust = this.proven;
+    if (!trust && door.kind === "reach" && this.nonce && sig) {
+      const fp = this.stream?.fingerprints();
+      trust = await verify(door.device.hostKey, hostUnlinkMessage(this.nonce, fp?.host ?? "", fp?.viewer ?? ""), sig);
+    }
+    if (!trust || this.stopped) return;
+    this.opts.onUnlinked?.();
+    this.finish({ kind: "unlinked" });
   }
 
   /** Sends the unattended password the computer asked for. */
@@ -717,34 +793,19 @@ export class Session {
     const door = this.opts.door;
     switch (m.type) {
       case "auth_proof": {
-        if (door.kind !== "reach" || !this.nonce) return;
-        const { token, linkId } = door.device;
-        // proof2 ties the proof to this connection's certificates. Binding
-        // is fail-closed: whenever this connection has DTLS fingerprints
-        // (every real WebRTC connection does), a valid proof2 is required
-        // and a proof2-less auth_proof is refused, no matter the link's
-        // prior state. Otherwise someone in the middle could strip proof2 on
-        // a link's first reach and fall back to the plain proof to steal the
-        // token. The plain proof is accepted only when the connection has no
-        // fingerprints at all (a genuinely unbindable, legacy path).
-        const fp = this.stream?.fingerprints();
-        const canBind = !!fp?.host && !!fp.viewer;
-        const bound = canBind && typeof m.proof2 === "string" && sameString(m.proof2, linkProofBound(token, this.nonce, fp.host, fp.viewer));
-        const plain = typeof m.proof === "string" && sameString(m.proof, linkProof(token, this.nonce));
-        const ok = bound || (plain && !canBind && !door.device.bound);
-        if (m.link_id !== linkId || !ok) {
-          this.finish({ kind: "untrusted" });
-          return;
-        }
-        if (bound && !door.device.bound) this.opts.onBound?.();
-        this.nonce = "";
-        this.proven = true;
-        this.stream?.sendControl({ type: "auth", link_id: linkId, token });
+        if (door.kind !== "reach" || !this.nonce || typeof m.sig !== "string") return;
+        void this.proveReach(door.device, m.link_id, m.sig);
         break;
       }
       case "auth_ok": {
         const ok = parseAuthOk(m);
-        if (door.kind === "claim" && ok?.token) this.opts.onLinked?.({ deviceId: ok.device_id, linkId: ok.link_id, token: ok.token });
+        if (door.kind === "claim" && ok?.host_key && this.linkKey) {
+          const key = this.linkKey;
+          this.linkKey = null;
+          void this.keyStore
+            .save(ok.link_id, key)
+            .then(() => this.opts.onLinked?.({ deviceId: ok.device_id, linkId: ok.link_id, hostKey: ok.host_key! }));
+        }
         if (door.kind === "reach" && this.proven && ok?.link_id === door.device.linkId) {
           this.authed = true;
           const early = this.early;
@@ -756,15 +817,7 @@ export class Session {
       case "auth_failed":
       case "unlinked":
         if (door.kind === "join") return;
-        // A revoked link cannot be told apart from a MITM here: the host that
-        // dropped the link no longer holds the token hash it would prove with,
-        // so a genuine revoke arrives as an unproven `unlinked`/`auth_failed`,
-        // exactly as a forged one would. Honoring it lets a DTLS MITM force a
-        // re-pair (a bounded denial of unattended access, no token disclosed);
-        // the proper fix is a pinned host device key, tracked as a follow-up
-        // (see docs/security.md).
-        this.opts.onUnlinked?.();
-        this.finish({ kind: "unlinked" });
+        void this.maybeForget(door, typeof m.sig === "string" ? m.sig : "");
         break;
       case "password_required":
         // Only a computer that proved itself and took the token may ask.

@@ -20,7 +20,12 @@ export const MAX_THUMB = 60_000;
 export interface SavedDevice {
   deviceId: string;
   linkId: string;
-  token: string;
+  /**
+   * The computer's device public key, pinned when the link was made. Every
+   * proof the computer signs is checked against it. The link's own private
+   * key is non-extractable and lives in the key store, not here.
+   */
+  hostKey: string;
   /** The link only works through the signaling server it was made on. */
   signalUrl: string;
   /** The computer's name (its welcome), and what the person here calls it. */
@@ -34,12 +39,6 @@ export interface SavedDevice {
   thumb: string;
   /** go-link-desk-terminal: a shell, not a screen. */
   terminal?: boolean;
-  /**
-   * The computer once proved itself bound to the connection (proof2): from
-   * then on a proof without it is refused, so nobody in the middle can
-   * fall back to the plain one.
-   */
-  bound?: boolean;
 }
 
 /** A session this browser had lately, linked or with a code. */
@@ -91,18 +90,17 @@ function toDevice(v: unknown): SavedDevice | null {
     !UUID.test(d.deviceId) ||
     typeof d.linkId !== "string" ||
     !/^[0-9a-f]{16}$/.test(d.linkId) ||
-    typeof d.token !== "string" ||
-    !/^[A-Za-z0-9_-]{20,100}$/.test(d.token) ||
+    typeof d.hostKey !== "string" ||
+    !/^[A-Za-z0-9_-]{80,100}$/.test(d.hostKey) ||
     typeof d.signalUrl !== "string"
   ) {
     return null;
   }
   return {
-    deviceId: d.deviceId.toLowerCase(), linkId: d.linkId, token: d.token, signalUrl: d.signalUrl,
+    deviceId: d.deviceId.toLowerCase(), linkId: d.linkId, hostKey: d.hostKey, signalUrl: d.signalUrl,
     name: text(d.name, 64), label: text(d.label, 64), os: text(d.os, 16), favorite: d.favorite === true,
     savedAt: num(d.savedAt), lastUsed: num(d.lastUsed), thumb: thumb(d.thumb),
     ...(d.terminal === true ? { terminal: true } : {}),
-    ...(d.bound === true ? { bound: true } : {}),
   };
 }
 
@@ -128,7 +126,7 @@ export function saveDevice(storage: Storage | undefined, device: SavedDevice): v
 }
 
 /** Changes what is kept about a linked computer (name, label, favorite, last use, thumbnail). */
-export function updateDevice(storage: Storage | undefined, deviceId: string, signalUrl: string, patch: Partial<Pick<SavedDevice, "name" | "label" | "os" | "favorite" | "lastUsed" | "thumb" | "terminal" | "bound">>): void {
+export function updateDevice(storage: Storage | undefined, deviceId: string, signalUrl: string, patch: Partial<Pick<SavedDevice, "name" | "label" | "os" | "favorite" | "lastUsed" | "thumb" | "terminal">>): void {
   const list = loadDevices(storage);
   const i = list.findIndex((d) => d.deviceId === deviceId.toLowerCase() && d.signalUrl === signalUrl);
   if (i < 0) return;
@@ -173,17 +171,17 @@ export function clearRecents(storage: Storage | undefined): void {
   writeList(storage, RECENTS, []);
 }
 
-/** auth_ok from the device: the token is only present on the first link. */
+/** auth_ok from the device: the host key is sent whenever it accepts. */
 export interface AuthOk {
   type: "auth_ok";
   device_id: string;
   link_id: string;
-  token?: string;
+  host_key?: string;
 }
 
 export function parseAuthOk(msg: unknown): AuthOk | null {
   if (typeof msg !== "object" || msg === null) return null;
   const m = msg as Record<string, unknown>;
   if (m.type !== "auth_ok" || typeof m.device_id !== "string" || typeof m.link_id !== "string") return null;
-  return { type: "auth_ok", device_id: m.device_id, link_id: m.link_id, token: typeof m.token === "string" ? m.token : undefined };
+  return { type: "auth_ok", device_id: m.device_id, link_id: m.link_id, host_key: typeof m.host_key === "string" ? m.host_key : undefined };
 }

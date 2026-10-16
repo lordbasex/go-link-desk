@@ -84,11 +84,8 @@ function LinkSession({ code, createClient }: { code: string; createClient?: () =
     linked.current = l;
     const now = Date.now();
     saveDevice(safeStorage(), {
-      deviceId: l.deviceId, linkId: l.linkId, token: l.token, signalUrl: url,
+      deviceId: l.deviceId, linkId: l.linkId, hostKey: l.hostKey, signalUrl: url,
       name: host.current?.name ?? "", os: host.current?.os ?? "", label: "", favorite: false, savedAt: now, lastUsed: now, thumb: "",
-      // A link is channel-bound from birth: it was made over this direct,
-      // human-accepted connection, so every later reach must prove proof2.
-      bound: true,
       ...(host.current?.terminal ? { terminal: true } : {}),
     });
     setDeviceId(l.deviceId);

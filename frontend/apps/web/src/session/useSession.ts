@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SignalClient, browserLabel, resolveSignalUrl } from "@go-link-desk/shared";
 import { DEFAULT_SIGNAL_URL } from "../config";
+import { indexedDbKeyStore } from "./keystore";
 import { Session, type CursorState, type Door, type NewLink, type SessionView } from "./session";
 
 export interface UseSessionOptions {
@@ -14,7 +15,6 @@ export interface UseSessionOptions {
   /** A claim got its link; the computer forgot this browser's link. */
   onLinked?: (link: NewLink) => void;
   onUnlinked?: () => void;
-  onBound?: () => void;
   /** Injectable for tests. */
   createClient?: () => SignalClient;
 }
@@ -38,15 +38,15 @@ export function safeStorage(): Storage | undefined {
  * own that closes with it. Returns the visit's view and the Session (to
  * hang up and read statistics).
  */
-export function useSession({ door, name, attempt, onCursor, onLinked, onUnlinked, onBound, createClient }: UseSessionOptions): { view: SessionView | null; session: Session | null } {
+export function useSession({ door, name, attempt, onCursor, onLinked, onUnlinked, createClient }: UseSessionOptions): { view: SessionView | null; session: Session | null } {
   const [view, setView] = useState<SessionView | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const nameRef = useRef(name);
   nameRef.current = name;
   const cursorRef = useRef(onCursor);
   cursorRef.current = onCursor;
-  const linkRef = useRef({ onLinked, onUnlinked, onBound });
-  linkRef.current = { onLinked, onUnlinked, onBound };
+  const linkRef = useRef({ onLinked, onUnlinked });
+  linkRef.current = { onLinked, onUnlinked };
   const doorRef = useRef(door);
   doorRef.current = door;
   const key = door.kind === "join" ? ("invite" in door.target ? `i:${door.target.invite}` : `c:${door.target.code}`) : door.kind === "claim" ? `l:${door.code}` : `d:${door.device.deviceId}`;
@@ -59,7 +59,7 @@ export function useSession({ door, name, attempt, onCursor, onLinked, onUnlinked
       door: doorRef.current,
       onLinked: (l) => linkRef.current.onLinked?.(l),
       onUnlinked: () => linkRef.current.onUnlinked?.(),
-      onBound: () => linkRef.current.onBound?.(),
+      keys: indexedDbKeyStore,
       name: nameRef.current,
       browser: browserLabel(navigator.userAgent),
       onChange: setView,

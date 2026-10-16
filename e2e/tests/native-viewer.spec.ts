@@ -48,14 +48,17 @@ test("the app's viewer links with the pairing code, then comes back without one,
     await expect.poll(() => pairingCode(host), { timeout: 30_000 }).not.toBe("");
 
     // Linking: the person there (the test's auto-accept) accepts; the
-    // link is kept in remotes.json, with its token.
+    // link is kept in remotes.json, with this app's private key and the
+    // host's pinned public key.
     const claim = await viewer("claim", ["--test-viewer-code", pairingCode(host)]);
     expect(claim.ok, claim.log).toBe(true);
     expect(claim.log).toMatch(/msg="viewer linked"/);
-    const remotes = JSON.parse(readFileSync(join(VIEWER, "remotes.json"), "utf8")) as { devices: { device_id: string; token: string }[] };
+    const remotes = JSON.parse(readFileSync(join(VIEWER, "remotes.json"), "utf8")) as { devices: { device_id: string; key: string; host_key: string }[] };
     expect(remotes.devices).toHaveLength(1);
-    // The host keeps only the token's hash.
-    expect(readFileSync(host.config, "utf8")).not.toContain(remotes.devices[0]!.token);
+    expect(remotes.devices[0]!.key).toBeTruthy();
+    expect(remotes.devices[0]!.host_key).toBeTruthy();
+    // The host keeps only the browser's public key, never this app's private key.
+    expect(readFileSync(host.config, "utf8")).not.toContain(remotes.devices[0]!.key);
 
     // Coming back without a code: a wrong password is refused...
     const wrong = await viewer("reach", ["--test-viewer-password", "wrong horse"]);

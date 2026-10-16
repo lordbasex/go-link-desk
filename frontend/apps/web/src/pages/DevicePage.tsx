@@ -47,7 +47,6 @@ function ReachSession({ device, createClient }: { device: SavedDevice; createCli
       back={{ to: "/web", label: t.devices.title }}
       autoStart
       onUnlinked={() => removeDevice(store, device.deviceId, device.signalUrl)}
-      onBound={() => updateDevice(store, device.deviceId, device.signalUrl, { bound: true })}
       onHost={(h) => {
         updateDevice(store, device.deviceId, device.signalUrl, { name: h.name, os: h.os, terminal: h.terminal });
         recent.host(h);
