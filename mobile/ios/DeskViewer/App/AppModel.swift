@@ -107,8 +107,8 @@ final class AppModel: ObservableObject {
         guard session == nil else { return }
         Task {
             do {
-                let (link, password) = try await links.unlock(c)
-                open(.reach(link), label: c.name, password: password)
+                let (link, password, signer) = try await links.unlock(c)
+                open(.reach(link), label: c.name, password: password, signer: signer)
             } catch let e as LinkStore.LinkError {
                 if case .cancelled = e { return }
                 linkError = e.errorDescription
@@ -118,21 +118,17 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func open(_ door: Door, label: String, password: String? = nil) {
+    private func open(_ door: Door, label: String, password: String? = nil, signer: LinkSigner? = nil) {
         guard session == nil else { return }
         let s = SessionModel(app: self, door: door, label: label)
         session = s
-        s.start(password: password)
+        s.start(password: password, signer: signer)
     }
 
     /** Keeps a link made with the pairing code (again when the computer says its name). */
     func link(_ link: DeviceLink, name: String, os: String) {
-        do {
-            try links.save(link, name: name, os: os)
-            session?.justLinked = true
-        } catch {
-            linkError = error.localizedDescription
-        }
+        links.save(link, name: name, os: os)
+        session?.justLinked = true
         objectWillChange.send()
     }
 
