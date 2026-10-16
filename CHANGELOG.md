@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-16
+
+More security fixes from a review with Claude Security: unattended links now authenticate with keys instead of a shared token (so nothing replayable is kept in the browser and a revoke cannot be forged), a late accept cannot open a second session, revoking a computer for AI assistants cuts a live session at once, and the iOS viewer no longer crashes on untrusted numbers or download pieces. **Linked computers re-pair once:** the key change is not compatible with earlier versions, so a link made before this is dropped and made again with a code.
+
 ### Security
 
 - **Unattended links now authenticate with keys, not a shared secret:** a link is an ECDSA P-256 key pair, replacing the long-lived token. The computer has one device key; each browser or mobile link has its own, whose private half it keeps **non-extractable** — a WebCrypto key in IndexedDB on the web, the Secure Enclave on iOS, the Android Keystore — so it can sign but never be read, not even by a cross-site-scripting hole, a rogue browser extension, or someone with the profile's files. When it comes back, the computer proves itself by signing the connection's nonce and DTLS fingerprints with its device key, which the browser checks against the key it pinned when it linked; the browser then proves its link by signing the same with its link key. This closes the downgrade the previous channel binding (`proof2`) still allowed (a signaling server stripping it on a link's first reach to steal the token), removes the readable bearer token from the browser, and lets the computer sign even a revoke so a signaling server cannot forge one to wipe a working link. The computer keeps only public keys. No token-and-HMAC fallback remains, so a host and a viewer from before this do not interoperate: a link made earlier is dropped and re-made with a code. Computer and the web, iOS and Android viewers; `docs/protocol.md` and `docs/security.md` updated. Fixes the proof2 downgrade and the token/revoke findings raised by Claude Security.
@@ -19,7 +23,7 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ### Fixed
 
-- **A started session shows in the status before its viewer is told it is accepted:** the host now publishes the active session to the status *before* it sends the `accepted` reply, in both the attended and the unattended path, so there is no window where a viewer (or a test) sees the acceptance while the status still reads idle. This removes a flaky `TestAnAcceptedViewerGetsTheStream` failure under load.
+- **A started session is fully live before its viewer is told it is accepted:** the host now publishes the active session to the status, applies the permissions and adds the viewer to the stream *before* it sends the `accepted` reply, in both the attended and the unattended path, so there is no window where a viewer (or a test) sees the acceptance while the session is not yet in place. This removes a flaky `TestAnAcceptedViewerGetsTheStream` failure under load.
 
 ## [1.7.0] - 2026-10-15
 
