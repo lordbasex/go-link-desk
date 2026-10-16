@@ -4,6 +4,15 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Security
+
+- **A late "accept" can no longer open a second session over the top of a live one:** when a viewer's knock is accepted, the host re-checks under its lock that no session is already on (as the unattended path already did). Before, a linked browser admitted over `reach` during the accept window could stay in the stream with its mouse, keyboard and file grants while the panel showed only the viewer just accepted, and ending that viewer's session did not drop it. Found with Claude Security.
+- **"Stop allowing" a computer for AI assistants now cuts a live session at once:** the per-computer authorization (the keyring entry) is re-checked on every assistant tool call, even for an already-connected computer, and a revoked computer is disconnected. Before, revoking a computer took effect only on the next connection, so an assistant with a live session kept full access until it was otherwise torn down. The global off switch was always honored. Found with Claude Security.
+- **The unattended-password guess limit holds against a concurrent burst:** the gate now reserves each admitted guess before it starts hashing (argon2) and rolls the reservation back only if the guess is right, so the room-wide cap (20 wrong guesses per 10 minutes) counts guesses *started*, not finished. Before, many guesses fired at once from different peers could all pass the cap check while each sat in argon2, letting a token holder try far more passwords than intended. Found with Claude Security.
+- **An unencrypted `ws://` signaling server that is not on this machine is now refused:** the host and the terminal host fail to start (rather than only warning) when pointed at a non-loopback `ws://` URL, because the register message carries the device secret in cleartext. Pass `--allow-insecure-signaling` to override on a trusted private network. Found with Claude Security.
+- **A UPnP device description is fetched only from the default gateway:** the connection test pins the SSDP `LOCATION` to the real router's address when it is known, so a LAN host that spoofs the SSDP source address can no longer steer the fetch at some other internal host (a constrained SSRF). Found with Claude Security.
+- **A remote computer's `device_id` is validated and never read as a command-line option:** the viewer keeps a linked computer's `device_id` to the canonical UUID form before storing it, and the Linux keyring passes `--` to `secret-tool` so a value beginning with `-` is treated as data, not an option. Found with Claude Security.
+
 ## [1.7.0] - 2026-10-15
 
 Security fixes from an audit with Strix: a Windows host's AppData is private, the Linux installer and updater check every package, and a linked computer's proof is bound to the connection. AI assistants can also click, type and move files.

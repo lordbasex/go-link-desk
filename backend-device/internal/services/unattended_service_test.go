@@ -3,10 +3,13 @@
 package services
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -301,6 +304,33 @@ func TestThePasswordGateLocksAfterTooManyWrongTries(t *testing.T) {
 	now = now.Add(pinLock + time.Second)
 	if r := g.Check("y", func() bool { return true }); !r.OK {
 		t.Fatalf("still locked: %+v", r)
+	}
+}
+
+// A burst of guesses fired at once from many peerIDs must not slip the
+// room past its wrong-guess cap: the gate reserves each admitted guess
+// before it hashes, so no more than pinRoomFails ever reach the hashing.
+func TestThePasswordGateBoundsConcurrentGuesses(t *testing.T) {
+	g := NewPasswordGate(nil) // real time, so the lock window is honoured
+	var hashed atomic.Int32
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range 200 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			g.Check(fmt.Sprintf("peer-%d", i), func() bool {
+				hashed.Add(1)
+				time.Sleep(25 * time.Millisecond) // hold the slot the way argon2 does
+				return false                      // every guess is wrong
+			})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	if n := hashed.Load(); n > pinRoomFails {
+		t.Fatalf("let %d guesses reach the hashing, the room cap is %d", n, pinRoomFails)
 	}
 }
 

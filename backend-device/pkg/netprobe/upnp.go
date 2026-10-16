@@ -112,6 +112,7 @@ func ssdpSearch(ctx context.Context) ([]string, error) {
 	_ = c.SetReadDeadline(end)
 	seen := map[string]bool{}
 	var locs []string
+	gw := Gateway()
 	buf := make([]byte, 2048)
 	for {
 		n, from, err := c.ReadFrom(buf)
@@ -119,7 +120,7 @@ func ssdpSearch(ctx context.Context) ([]string, error) {
 			break
 		}
 		loc := ssdpLocation(buf[:n])
-		if loc == "" || seen[loc] || !localDescription(loc, from) {
+		if loc == "" || seen[loc] || !localDescription(loc, from, gw) {
 			continue
 		}
 		seen[loc] = true
@@ -154,14 +155,20 @@ func ssdpLocation(b []byte) string {
 }
 
 // localDescription: plain HTTP, on the device that answered, on a private
-// address. A router never puts its description anywhere else.
-func localDescription(loc string, from net.Addr) bool {
+// address, and - when the default gateway is known - that gateway itself.
+// A router never puts its description anywhere else, and pinning to the
+// gateway stops a LAN host that spoofs the SSDP source address from
+// steering the description fetch at some other internal host.
+func localDescription(loc string, from net.Addr, gw netip.Addr) bool {
 	u, err := url.Parse(loc)
 	if err != nil || u.Scheme != "http" || u.User != nil {
 		return false
 	}
 	host, err := netip.ParseAddr(u.Hostname())
 	if err != nil || !host.IsPrivate() {
+		return false
+	}
+	if gw.IsValid() && host.Unmap() != gw.Unmap() {
 		return false
 	}
 	if a, ok := from.(*net.UDPAddr); ok {

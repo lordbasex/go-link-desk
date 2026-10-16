@@ -162,9 +162,24 @@ func TestAClaimKeepsItsLink(t *testing.T) {
 	if out := sentControl(s); len(out) != 1 || out[0]["type"] != "auth" {
 		t.Fatalf("sent %v", out)
 	}
-	control(s, map[string]any{"type": "auth_ok", "device_id": "dev", "link_id": "l9", "token": "tok"})
-	if len(rec.linked) != 1 || rec.linked[0] != (NewLink{DeviceID: "dev", LinkID: "l9", Token: "tok"}) {
+	const devID = "9c712c21-d03d-47f0-a148-5ce933f04bb8"
+	control(s, map[string]any{"type": "auth_ok", "device_id": devID, "link_id": "l9", "token": "tok"})
+	if len(rec.linked) != 1 || rec.linked[0] != (NewLink{DeviceID: devID, LinkID: "l9", Token: "tok"}) {
 		t.Fatalf("linked %+v", rec.linked)
+	}
+}
+
+// A remote that returns a device_id outside the canonical UUID form (e.g.
+// one crafted to look like a command-line option) is not linked, so the
+// value never reaches the keyring's secret-tool argv.
+func TestAClaimRefusesAMalformedDeviceID(t *testing.T) {
+	for _, bad := range []string{"--help", "-x", "dev", "9c712c21-d03d-47f0-a148-5ce933f04bb8 extra"} {
+		s, rec := linkSession(t, Door{Kind: DoorClaim, Code: "123456789"})
+		signalFromHost(s, map[string]any{"kind": "accepted", "permissions": models.Permissions{}})
+		control(s, map[string]any{"type": "auth_ok", "device_id": bad, "link_id": "l9", "token": "tok"})
+		if len(rec.linked) != 0 {
+			t.Fatalf("%q linked: %+v", bad, rec.linked)
+		}
 	}
 }
 
