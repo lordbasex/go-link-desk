@@ -14,7 +14,7 @@ import { WebHomePage } from "./WebHomePage";
 const device = (): SavedDevice => ({
   deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
   linkId: "3f9c0a1b2c3d4e5f",
-  token: "q8VY3n1s0bPq0n8oJ1m3Zr2yX7eW5vT4uS6rQ9pO0nM", // gitleaks:allow (test value)
+  hostKey: "BI9-mKWqJqRvAlOAtDzOTQYVD-MI1LAlIWwc0F-ZZ9fLSe83_vmxFW8JdzizDGAXfM1CoJ0Vyv4QtpeGLYpNxKQ",
   signalUrl: signalUrl(),
   name: "mac-studio",
   label: "",

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-import CryptoKit
 import Foundation
+import Security
 
 // One visit to a computer with its session code, the iOS port of the Mac
 // app's viewer (backend-device/internal/viewer) and the website's
@@ -41,23 +41,21 @@ public protocol RtcPeerFactory: AnyObject {
     func create(iceServers: [IceServer], events: RtcPeerEvents) -> RtcPeer
 }
 
-/** A computer linked before: its id, the link's id and this device's secret for it. */
+/**
+ * A computer linked before: its id, the link's id and the computer's pinned
+ * device public key. The link's own private key is non-extractable and lives
+ * in the key store, found by the link id, not here.
+ */
 public struct DeviceLink: Equatable, Sendable {
     public let deviceId: String
     public let linkId: String
-    public let token: String
-    /**
-     * The computer once proved itself bound to the connection (proof2): from
-     * then on a proof without it is refused, so nobody in the middle can fall
-     * back to the plain one.
-     */
-    public let bound: Bool
+    /** The computer's device public key, pinned when the link was made. */
+    public let hostKey: String
 
-    public init(deviceId: String, linkId: String, token: String, bound: Bool = false) {
+    public init(deviceId: String, linkId: String, hostKey: String) {
         self.deviceId = deviceId
         self.linkId = linkId
-        self.token = token
-        self.bound = bound
+        self.hostKey = hostKey
     }
 }
 
@@ -165,8 +163,6 @@ public final class SessionEvents {
     public var linked: ((DeviceLink) -> Void)?
     /** The computer no longer has this link: forget it. */
     public var unlinked: (() -> Void)?
-    /** The computer proved itself bound to the connection for the first time: remember it (DeviceLink.bound). */
-    public var bound: (() -> Void)?
     /** The computer took this unattended password: keep it with the link. */
     public var passwordAccepted: ((String) -> Void)?
     /** The password kept with the link was wrong (it changed there): forget it. */
@@ -204,6 +200,9 @@ public final class DeskSession: RtcPeerEvents {
     private let signal: SignalClient
     private let peers: RtcPeerFactory
     private let scheduler: Scheduler
+    private let keys: LinkKeys
+    /** claim: the key made for the new link, kept until auth_ok stores it. */
+    private var madeKey: MadeKey?
     private var listener: CancelHandle?
     private var stateListener: CancelHandle?
     private var joinTimer: CancelHandle?
@@ -247,13 +246,14 @@ public final class DeskSession: RtcPeerEvents {
         self.init(door: .join(code), name: name, ua: ua, signal: signal, peers: peers, scheduler: scheduler)
     }
 
-    public init(door: Door, name: String, ua: String, signal: SignalClient, peers: RtcPeerFactory, scheduler: Scheduler) {
+    public init(door: Door, name: String, ua: String, signal: SignalClient, peers: RtcPeerFactory, scheduler: Scheduler, keys: LinkKeys = NoLinkKeys()) {
         self.door = door
         self.name = name
         self.ua = ua
         self.signal = signal
         self.peers = peers
         self.scheduler = scheduler
+        self.keys = keys
     }
 
     public func start() {
@@ -365,8 +365,17 @@ public final class DeskSession: RtcPeerEvents {
         permissions = p
         set(connected ? .live : .connecting)
         events.permissions?(p)
-        // Accepted with the pairing code: now ask for the link's token.
-        if case .claim = door { control(.obj(("type", "auth"))) }
+        // Accepted with the pairing code: make this link's key and send its
+        // public half, so the computer remembers it. The private half stays
+        // in the key store.
+        if case .claim = door {
+            guard let made = try? keys.make() else {
+                finish(.ended("viewer"))
+                return
+            }
+            madeKey = made
+            control(.obj(("type", "auth"), ("pub", .string(made.publicKey))))
+        }
     }
 
     private func apply(_ s: HostSignal) {
@@ -514,34 +523,30 @@ public final class DeskSession: RtcPeerEvents {
         switch m["type"].str(40) {
         case "auth_proof":
             guard case let .reach(link) = door, !nonce.isEmpty else { return }
-            // proof2 ties the proof to this connection's certificates.
-            // Binding is fail-closed: whenever this connection has DTLS
-            // fingerprints (every real WebRTC connection does), a valid
-            // proof2 is required and a proof2-less auth_proof is refused, no
-            // matter the link's prior state. Otherwise someone in the middle
-            // could strip proof2 on a link's first reach and fall back to the
-            // plain proof to steal the token. The plain proof is accepted
-            // only when the connection has no fingerprints at all (a
-            // genuinely unbindable, legacy path).
+            // The computer signs the nonce and this connection's DTLS
+            // fingerprints with its device key; check it against the key
+            // pinned when the link was made. The fingerprints catch a
+            // signaling server in the middle (its certificate differs on each
+            // side), and the pinned key means only the real computer can make
+            // the proof.
             let host = DeskSession.fingerprint(sdp: offerSdp), mine = DeskSession.fingerprint(sdp: answerSdp)
-            let canBind = !host.isEmpty && !mine.isEmpty
-            let proof2: String? = m["proof2"] == nil ? nil : o["proof2"].str(100)
-            let bound = canBind && proof2.map { DeskSession.same($0, DeskSession.linkProofBound(token: link.token, nonce: nonce, host: host, viewer: mine)) } == true
-            let plain = DeskSession.same(o["proof"].str(100), DeskSession.linkProof(token: link.token, nonce: nonce))
-            let ok = bound || (plain && !canBind && !link.bound)
-            guard o["link_id"].str(64) == link.linkId, ok else {
+            guard o["link_id"].str(64) == link.linkId,
+                LinkAuth.verify(publicKey: link.hostKey, message: LinkAuth.hostProofMessage(nonce: nonce, host: host, viewer: mine), sig: o["sig"].str(200)),
+                let signer = keys.signer(linkId: link.linkId),
+                let mySig = try? signer.sign(LinkAuth.linkProofMessage(nonce: nonce, host: host, viewer: mine))
+            else {
                 finish(.untrusted)
                 return
             }
-            if bound, !link.bound { events.bound?() }
             nonce = ""
             proven = true
-            control(.obj(("type", "auth"), ("link_id", .string(link.linkId)), ("token", .string(link.token))))
+            control(.obj(("type", "auth"), ("link_id", .string(link.linkId)), ("sig", .string(mySig))))
         case "auth_ok":
             if case .claim = door {
-                let device = o["device_id"].str(64), linkId = o["link_id"].str(64), token = o["token"].str(200)
-                if !device.isEmpty, !linkId.isEmpty, !token.isEmpty {
-                    events.linked?(DeviceLink(deviceId: device, linkId: linkId, token: token))
+                let device = o["device_id"].str(64), linkId = o["link_id"].str(64), hostKey = o["host_key"].str(200)
+                if !device.isEmpty, !linkId.isEmpty, !hostKey.isEmpty, let made = madeKey, (try? made.persist(device)) != nil {
+                    madeKey = nil
+                    events.linked?(DeviceLink(deviceId: device, linkId: linkId, hostKey: hostKey))
                 }
                 return
             }
@@ -553,6 +558,16 @@ public final class DeskSession: RtcPeerEvents {
             }
         case "auth_failed", "unlinked":
             if case .join = door { return }
+            // In a proven session the computer's word is trusted outright.
+            // Before the proof (reach), only a refusal it signed with its
+            // device key is, so a signaling server cannot forge one to wipe a
+            // working link.
+            var trust = proven
+            if !trust, case let .reach(link) = door, !nonce.isEmpty {
+                let host = DeskSession.fingerprint(sdp: offerSdp), mine = DeskSession.fingerprint(sdp: answerSdp)
+                trust = LinkAuth.verify(publicKey: link.hostKey, message: LinkAuth.hostUnlinkMessage(nonce: nonce, host: host, viewer: mine), sig: o["sig"].str(200))
+            }
+            guard trust else { return }
             events.unlinked?()
             finish(.unlinked)
         case "password_required":
@@ -597,24 +612,6 @@ public final class DeskSession: RtcPeerEvents {
         control(.obj(("type", "password"), ("password", .string(lastPassword))))
     }
 
-    /** The proof a linked computer gives: base64url of HMAC-SHA256 keyed with SHA-256(token) (protocol/vectors/link-proof.json). */
-    static func linkProof(token: String, nonce: String) -> String {
-        let key = SymmetricKey(data: SHA256.hash(data: Data(token.utf8)))
-        let mac = HMAC<SHA256>.authenticationCode(for: Data(("go-link-desk link proof\n" + nonce).utf8), using: key)
-        return Data(mac).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-    }
-
-    /**
-     * The proof tied to the connection too: HMAC over the nonce and the DTLS
-     * fingerprints of the computer's and this viewer's certificates
-     * (protocol/vectors/link-proof.json, bound_cases).
-     */
-    static func linkProofBound(token: String, nonce: String, host: String, viewer: String) -> String {
-        let key = SymmetricKey(data: SHA256.hash(data: Data(token.utf8)))
-        let mac = HMAC<SHA256>.authenticationCode(for: Data(("go-link-desk link proof 2\n" + nonce + "\n" + host + "\n" + viewer).utf8), using: key)
-        return Data(mac).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-    }
-
     /** An SDP's first sha-256 certificate fingerprint as "sha-256 AB:CD:…", or "" without one. */
     static func fingerprint(sdp: String) -> String {
         for raw in sdp.components(separatedBy: .newlines) {
@@ -626,13 +623,6 @@ public final class DeskSession: RtcPeerEvents {
             }
         }
         return ""
-    }
-
-    /** Compares two proofs in constant time. */
-    static func same(_ a: String, _ b: String) -> Bool {
-        let x = Array(a.utf8), y = Array(b.utf8)
-        guard x.count == y.count else { return false }
-        return zip(x, y).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
     }
 
     /** 32 random bytes, base64url. */

@@ -149,27 +149,6 @@ export function sameString(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/**
- * The proof a remembered host gives before the browser shows its token:
- * HMAC-SHA256 keyed with SHA-256(token) (what the host keeps) over the
- * browser's nonce. The "go-link-desk" prefix keeps a proof from one app
- * from ever passing in another.
- */
-export function linkProof(token: string, nonce: string): string {
-  return base64url(hmacSha256(sha256(utf8(token)), utf8(`go-link-desk link proof\n${nonce}`)));
-}
-
-/**
- * The same proof tied to this connection too: the DTLS fingerprints of the
- * host's and this viewer's certificates (sdpFingerprint). A signaling
- * server that rewrites the SDP to sit in the middle shows each side a
- * certificate of its own, so a proof it relays from the real host does
- * not match.
- */
-export function linkProofBound(token: string, nonce: string, hostFingerprint: string, viewerFingerprint: string): string {
-  return base64url(hmacSha256(sha256(utf8(token)), utf8(`go-link-desk link proof 2\n${nonce}\n${hostFingerprint}\n${viewerFingerprint}`)));
-}
-
 /** An SDP's first sha-256 certificate fingerprint as "sha-256 AB:CD:…", or "" without one. */
 export function sdpFingerprint(sdp: string): string {
   for (const line of sdp.split("\n")) {

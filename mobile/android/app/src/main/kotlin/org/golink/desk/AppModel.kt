@@ -153,8 +153,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         val name = c.name.ifEmpty { text(R.string.the_computer) }
         viewModelScope.launch {
             try {
-                val (link, password) = links.unlock(activity, c, text(R.string.connect_to_x, name), text(R.string.unlock_subtitle))
-                open(Door.Reach(link), c.name, password)
+                val (link, password, signer) = links.unlock(activity, c, text(R.string.connect_to_x, name), text(R.string.unlock_subtitle))
+                open(Door.Reach(link), c.name, password, signer)
             } catch (e: LinkStore.LinkError) {
                 if (e.kind != LinkStore.LinkError.Kind.CANCELLED) linkError = errorText(e)
             }
@@ -173,11 +173,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     /** "your fingerprint or face", or "the screen lock" without them: what opens My computers. */
     val unlockName: String get() = text(if (links.hasBiometrics) R.string.unlock_biometrics else R.string.unlock_screen_lock)
 
-    private fun open(door: Door, label: String, password: String? = null) {
+    private fun open(door: Door, label: String, password: String? = null, signer: org.golink.desk.core.LinkSigner? = null) {
         if (session != null) return
         val s = SessionModel(this, door, label)
         session = s
-        s.start(password)
+        s.start(password, signer)
     }
 
     /** Keeps a link made with the pairing code (again when the computer says its name). */

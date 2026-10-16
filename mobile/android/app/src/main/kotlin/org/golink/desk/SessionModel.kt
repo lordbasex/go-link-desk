@@ -19,6 +19,10 @@ import org.golink.desk.core.DeskSession
 import org.golink.desk.core.Display
 import org.golink.desk.core.Door
 import org.golink.desk.core.FilesClient
+import org.golink.desk.core.LinkKeys
+import org.golink.desk.core.LinkSigner
+import org.golink.desk.core.MadeKey
+import org.golink.desk.core.NoLinkKeys
 import org.golink.desk.core.LiveStats
 import org.golink.desk.core.Permissions
 import org.golink.desk.core.Preset
@@ -138,11 +142,19 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
     var hidden = false
     private var nextLine = 0L
 
-    /** password: the computer's unattended password kept with its link, sent by itself when asked. */
-    fun start(password: String?) {
+    /**
+     * password: the computer's unattended password kept with its link, sent
+     * by itself when asked. signer: the reach link's key, already unlocked.
+     */
+    fun start(password: String?, signer: LinkSigner? = null) {
         peers.media = this
         val signal = SignalClient(app.signalURL, OkHttpSockets(), app.viewModelScope)
-        val s = DeskSession(door, app.knockName, app.agent, signal, peers, app.viewModelScope, engine.codecs)
+        val keys: LinkKeys = when (val d = door) {
+            is Door.Claim -> app.links
+            is Door.Reach -> ReachKeys(d.link.linkId, signer)
+            else -> NoLinkKeys
+        }
+        val s = DeskSession(door, app.knockName, app.agent, signal, peers, app.viewModelScope, engine.codecs, keys)
         session = s
         val ev = s.events
         ev.status = { statusChanged(it) }
@@ -178,7 +190,6 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
         ev.passwordAccepted = { pw -> (door as? Door.Reach)?.let { app.links.setPassword(it.link, pw) } }
         ev.passwordRejected = { (door as? Door.Reach)?.let { app.links.setPassword(it.link, null) } }
         ev.unlinked = { (door as? Door.Reach)?.let { app.forgetLink(it.link.deviceId) } }
-        ev.bound = { (door as? Door.Reach)?.let { r -> app.links.update(r.link.deviceId) { it.copy(bound = true) } } }
         Log.i(TAG, "codecs ${engine.codecs}")
         s.start()
     }
@@ -400,4 +411,10 @@ class SessionModel(private val app: AppModel, val door: Door, val label: String)
         /** A recording stops by itself after 2 hours, as everywhere else. */
         const val MAX_RECORDING_MS = 2 * 60 * 60 * 1000L
     }
+}
+
+/** Reach: the link's key, already unlocked before the session. */
+class ReachKeys(private val linkId: String, private val signer: LinkSigner?) : LinkKeys {
+    override fun make(): MadeKey = throw IllegalStateException("reach makes no key")
+    override fun signer(linkId: String): LinkSigner? = if (linkId == this.linkId) signer else null
 }

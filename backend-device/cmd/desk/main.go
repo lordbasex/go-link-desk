@@ -39,6 +39,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/clipboard"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/testpattern"
 )
@@ -274,8 +275,13 @@ func run(args []string) error {
 	settings := services.NewSettingsService(cfg, save, logger)
 	status := services.NewStatusService(cfg.DeviceID, version, target)
 	status.SetSavedLinks(len(cfg.Links))
+	hostKey, err := linkauth.ParseKey(cfg.HostKey)
+	if err != nil {
+		logger.Error("the device key is invalid", "err", err)
+		os.Exit(1)
+	}
 	links := services.NewLinkService(services.LinkConfig{
-		DeviceID: cfg.DeviceID, Links: cfg.Links, Logger: logger,
+		DeviceID: cfg.DeviceID, HostKey: hostKey, Links: cfg.Links, Logger: logger,
 		Save: func(l []models.Link) error {
 			return settings.Update(func(c *models.Config) { c.Links = l })
 		},

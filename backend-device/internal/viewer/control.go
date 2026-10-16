@@ -3,9 +3,7 @@
 package viewer
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -17,6 +15,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/ids"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 )
 
 // Limits of what the computer sends, as the website keeps them.
@@ -79,14 +78,13 @@ type controlMsg struct {
 	Parts int    `json:"parts"`
 	Text  string `json:"text"`
 	// link
-	LinkID     string  `json:"link_id"`
-	Proof      string  `json:"proof"`
-	Proof2     *string `json:"proof2"`
-	DeviceID   string  `json:"device_id"`
-	Token      string  `json:"token"`
-	OK         bool    `json:"ok"`
-	Left       int     `json:"left"`
-	RetryAfter int     `json:"retry_after"`
+	LinkID     string `json:"link_id"`
+	Sig        string `json:"sig"`
+	DeviceID   string `json:"device_id"`
+	HostKey    string `json:"host_key"`
+	OK         bool   `json:"ok"`
+	Left       int    `json:"left"`
+	RetryAfter int    `json:"retry_after"`
 }
 
 // onControl takes one message from the computer's control channel.
@@ -249,36 +247,48 @@ func (s *Session) onLinkMessage(m controlMsg) {
 		if door.Kind != DoorReach || nonce == "" {
 			return
 		}
-		// proof2 ties the proof to this connection's certificates; a
-		// computer that once gave it must always give it, or someone in the
-		// middle could fall back to the plain proof.
+		// The computer signs the nonce and this connection's DTLS
+		// fingerprints with its device key; check it against the key pinned
+		// when the link was made. The fingerprints catch a signaling server
+		// that sits in the middle (its certificate differs on each side), and
+		// the pinned key means only the real computer can produce the proof.
 		host, mine := s.fingerprints()
-		canBind := host != "" && mine != ""
-		bound := canBind && m.Proof2 != nil && hmac.Equal([]byte(*m.Proof2), []byte(linkProofBound(door.Device.Token, nonce, host, mine)))
-		plain := hmac.Equal([]byte(m.Proof), []byte(linkProof(door.Device.Token, nonce)))
-		ok := bound || (plain && !door.Device.Bound && (m.Proof2 == nil || !canBind))
-		if m.LinkID != door.Device.LinkID || !ok {
+		pin, err := linkauth.ParsePublic(door.Device.HostKey)
+		if m.LinkID != door.Device.LinkID || err != nil || !pin.Verify(linkauth.HostProofMessage(nonce, host, mine), m.Sig) {
 			s.finish(Status{Kind: StatusUntrusted})
 			return
 		}
-		if fn := s.opts.Events.Bound; bound && !door.Device.Bound && fn != nil {
-			fn()
+		key, err := linkauth.ParseKey(door.Device.Key)
+		if err != nil {
+			s.finish(Status{Kind: StatusUntrusted})
+			return
+		}
+		sig, err := key.Sign(linkauth.LinkProofMessage(nonce, host, mine))
+		if err != nil {
+			s.finish(Status{Kind: StatusEnded, Reason: models.EndViewer})
+			return
 		}
 		s.mu.Lock()
 		s.nonce, s.proven = "", true
 		s.mu.Unlock()
-		s.sendControl(map[string]any{"type": "auth", "link_id": door.Device.LinkID, "token": door.Device.Token})
+		s.sendControl(map[string]any{"type": "auth", "link_id": door.Device.LinkID, "sig": sig})
 	case "auth_ok":
-		if door.Kind == DoorClaim && m.Token != "" && m.DeviceID != "" && m.LinkID != "" {
+		if door.Kind == DoorClaim && m.DeviceID != "" && m.LinkID != "" && m.HostKey != "" {
 			// The device_id comes from the remote computer. Keep it to the
 			// canonical UUID form before it is stored and later passed to
 			// tools like secret-tool, so a crafted value (e.g. a leading
-			// dash) can never be read as an argument.
+			// dash) can never be read as an argument. The host key must parse.
 			if !ids.ValidUUID(m.DeviceID) {
 				return
 			}
+			if _, err := linkauth.ParsePublic(m.HostKey); err != nil {
+				return
+			}
+			s.mu.Lock()
+			key := s.linkKey
+			s.mu.Unlock()
 			if fn := s.opts.Events.Linked; fn != nil {
-				fn(NewLink{DeviceID: m.DeviceID, LinkID: m.LinkID, Token: m.Token})
+				fn(NewLink{DeviceID: m.DeviceID, LinkID: m.LinkID, Key: key.Private(), HostKey: m.HostKey})
 			}
 			return
 		}
@@ -296,6 +306,23 @@ func (s *Session) onLinkMessage(m controlMsg) {
 		}
 	case "auth_failed", "unlinked":
 		if door.Kind == DoorJoin {
+			return
+		}
+		// A computer forgets a link two ways. During a live, proven session
+		// its word is trusted outright. Before the proof (reach), only a
+		// refusal it signed with its device key is — so a signaling server
+		// cannot forge one to wipe a working link and force a re-pair.
+		s.mu.Lock()
+		nonce, proven := s.nonce, s.proven
+		s.mu.Unlock()
+		trust := proven
+		if !trust && door.Kind == DoorReach && door.Device != nil && nonce != "" {
+			host, mine := s.fingerprints()
+			if pin, err := linkauth.ParsePublic(door.Device.HostKey); err == nil {
+				trust = pin.Verify(linkauth.HostUnlinkMessage(nonce, host, mine), m.Sig)
+			}
+		}
+		if !trust {
 			return
 		}
 		if fn := s.opts.Events.Unlinked; fn != nil {
@@ -335,18 +362,6 @@ func (s *Session) onLinkMessage(m controlMsg) {
 		s.mu.Unlock()
 		s.finish(Status{Kind: StatusPasswordRefused, PasswordError: reason, RetryAfter: m.RetryAfter})
 	}
-}
-
-// linkProof is what the linked computer must answer to nonce.
-func linkProof(token, nonce string) string {
-	h := sha256.Sum256([]byte(token))
-	return services.LinkProof(h[:], nonce)
-}
-
-// linkProofBound is the proof tied to the connection's certificates.
-func linkProofBound(token, nonce, host, viewer string) string {
-	h := sha256.Sum256([]byte(token))
-	return services.LinkProofBound(h[:], nonce, host, viewer)
 }
 
 // fingerprints are the DTLS fingerprints of this connection, the

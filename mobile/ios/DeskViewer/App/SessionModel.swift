@@ -92,11 +92,21 @@ final class SessionModel: ObservableObject, MediaListener {
         self.label = label
     }
 
-    /** password: the computer's unattended password kept with its link, sent by itself when asked. */
-    func start(password: String? = nil) {
+    /**
+     * password: the computer's unattended password kept with its link, sent
+     * by itself when asked. signer: the reach link's key, already unlocked
+     * with Face ID.
+     */
+    func start(password: String? = nil, signer: LinkSigner? = nil) {
         peers.media = self
         let signal = SignalClient(url: app.signalURL, factory: URLSessionSockets(), scheduler: MainScheduler.shared)
-        let s = DeskSession(door: door, name: app.knockName, ua: app.agent, signal: signal, peers: peers, scheduler: MainScheduler.shared)
+        let keys: LinkKeys
+        switch door {
+        case .claim: keys = ClaimKeys(store: app.links)
+        case let .reach(link): keys = ReachKeys(linkId: link.linkId, signer: signer)
+        default: keys = NoLinkKeys()
+        }
+        let s = DeskSession(door: door, name: app.knockName, ua: app.agent, signal: signal, peers: peers, scheduler: MainScheduler.shared, keys: keys)
         session = s
         let ev = s.events
         ev.status = { [weak self] st in self?.statusChanged(st) }
@@ -151,10 +161,6 @@ final class SessionModel: ObservableObject, MediaListener {
         ev.unlinked = { [weak self] in
             guard let self, case let .reach(link) = self.door else { return }
             self.app.forgetLink(link.deviceId)
-        }
-        ev.bound = { [weak self] in
-            guard let self, case let .reach(link) = self.door else { return }
-            self.app.links.update(link.deviceId) { $0.bound = true }
         }
         // The picture is sent smaller while the app is in the background.
         let nc = NotificationCenter.default
@@ -416,4 +422,19 @@ struct ChatLine: Identifiable, Equatable {
     let fromHost: Bool
     let text: String
     let at: Date
+}
+
+/** Claim: makes a new link key through the store (no reach signer). */
+struct ClaimKeys: LinkKeys {
+    let store: LinkStore
+    func make() throws -> MadeKey { try store.make() }
+    func signer(linkId: String) -> LinkSigner? { nil }
+}
+
+/** Reach: the link's key, already unlocked with Face ID before the session. */
+struct ReachKeys: LinkKeys {
+    let linkId: String
+    let signer: LinkSigner?
+    func make() throws -> MadeKey { throw LinkAuthError.noKeys }
+    func signer(linkId: String) -> LinkSigner? { linkId == self.linkId ? signer : nil }
 }

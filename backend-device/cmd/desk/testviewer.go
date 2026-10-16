@@ -101,7 +101,7 @@ func runTestViewer(f flags, cfg models.Config, signalURL, configDir string, logg
 				mu.Lock()
 				h := host
 				mu.Unlock()
-				remotes.Link(models.RemoteDevice{DeviceID: l.DeviceID, LinkID: l.LinkID, Token: l.Token, SignalURL: signalURL, Name: h.Name, OS: h.OS})
+				remotes.Link(models.RemoteDevice{DeviceID: l.DeviceID, LinkID: l.LinkID, Key: l.Key, HostKey: l.HostKey, SignalURL: signalURL, Name: h.Name, OS: h.OS})
 				logger.Info("viewer linked", "device_id", l.DeviceID)
 			},
 			Unlinked: func() {

@@ -20,7 +20,7 @@ function memoryStorage(): Storage {
 const device: SavedDevice = {
   deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
   linkId: "3f9c0a1b2c3d4e5f",
-  token: "q8VY3n1s0bPq0n8oJ1m3Zr2yX7eW5vT4uS6rQ9pO0nM", // gitleaks:allow (test value)
+  hostKey: "BI9-mKWqJqRvAlOAtDzOTQYVD-MI1LAlIWwc0F-ZZ9fLSe83_vmxFW8JdzizDGAXfM1CoJ0Vyv4QtpeGLYpNxKQ", // a 65-byte P-256 point, base64url
   signalUrl: "wss://signal.example.com/ws",
   name: "mac-studio",
   label: "",
@@ -94,8 +94,8 @@ describe("recent sessions", () => {
 
 describe("auth_ok", () => {
   it("parses", () => {
-    expect(parseAuthOk({ type: "auth_ok", device_id: "d", link_id: "l", token: "t" })?.token).toBe("t");
-    expect(parseAuthOk({ type: "auth_ok", device_id: "d", link_id: "l" })?.token).toBeUndefined();
+    expect(parseAuthOk({ type: "auth_ok", device_id: "d", link_id: "l", host_key: "k" })?.host_key).toBe("k");
+    expect(parseAuthOk({ type: "auth_ok", device_id: "d", link_id: "l" })?.host_key).toBeUndefined();
     expect(parseAuthOk({ type: "device_status" })).toBeNull();
   });
 });

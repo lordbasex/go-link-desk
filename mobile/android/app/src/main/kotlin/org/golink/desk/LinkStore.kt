@@ -16,22 +16,25 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.golink.desk.core.DeviceLink
-import java.security.KeyFactory
+import org.golink.desk.core.LinkAuth
+import org.golink.desk.core.LinkKeys
+import org.golink.desk.core.LinkSigner
+import org.golink.desk.core.MadeKey
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.SecureRandom
-import java.security.spec.MGF1ParameterSpec
-import java.security.spec.X509EncodedKeySpec
+import java.security.Signature
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
 import java.util.Base64
 import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.OAEPParameterSpec
-import javax.crypto.spec.PSource
-import javax.crypto.spec.SecretKeySpec
 import kotlin.coroutines.resume
 
-/** A linked computer as My computers shows it. Its token is not here: it is sealed apart. Dates in ms since 1970. */
+/** A linked computer as My computers shows it. Its key is not here: it is in the keystore. Dates in ms since 1970. */
 @Serializable
 data class LinkedComputer(
     val deviceId: String,
@@ -40,25 +43,22 @@ data class LinkedComputer(
     val os: String,
     val linkedAt: Long,
     val lastUsed: Long? = null,
-    /** The computer proved itself bound to the connection once (DeviceLink.bound). */
-    val bound: Boolean = false,
+    /** The computer's device public key, pinned when the link was made. */
+    val hostKey: String = "",
 )
 
 /**
- * The computers this device is linked to, the Android counterpart of the
- * iOS app's LinkStore. What they are (name, system, dates) is in the app's
- * preferences; each link's token (and the computer's unattended password)
- * is sealed with a key of Android's keystore, kept in this device's secure
- * hardware and never backed up, that opens only after the owner's
- * fingerprint, face or screen lock. So a phone picked up unlocked cannot
- * reach a computer without its owner.
- *
- * Sealing needs no prompt (the key's public half seals a fresh AES key that
- * seals the secret); opening asks for the fingerprint, face or screen lock
- * (the private half is usable only right after it).
+ * The computers this device is linked to, the Android counterpart of the iOS
+ * app's LinkStore. What they are (name, system, dates, the pinned host key)
+ * is in the app's preferences; each link's own private key is an ECDSA P-256
+ * key of Android's keystore, kept in this device's secure hardware, never
+ * backed up, and usable only right after the owner's fingerprint, face or
+ * screen lock. So a phone picked up unlocked cannot reach a computer without
+ * its owner, and the key can sign but never be read.
  */
-class LinkStore(context: Context) {
+class LinkStore(context: Context) : LinkKeys {
     private val prefs = context.getSharedPreferences("links", Context.MODE_PRIVATE)
+    private val aliases = context.getSharedPreferences("link_keys", Context.MODE_PRIVATE)
     private val secrets = context.getSharedPreferences("link_secrets", Context.MODE_PRIVATE)
     private val keyguard = context.getSystemService(KeyguardManager::class.java)
     private val biometrics = context.getSystemService(BiometricManager::class.java)
@@ -78,53 +78,67 @@ class LinkStore(context: Context) {
     /** Whether a fingerprint or face is set up (else the screen lock alone opens the links). */
     val hasBiometrics: Boolean get() = biometrics.canAuthenticate(BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
 
-    /** What the keystore keeps for a link: its token, and the computer's unattended password once typed. */
-    @Serializable
-    private data class Secret(val token: String, val password: String? = null)
-
-    /** Keeps a new link: its token sealed for the owner's fingerprint, face or screen lock. */
-    fun save(link: DeviceLink, name: String, os: String) {
-        store(link, null)
-        val now = System.currentTimeMillis()
-        computers = listOf(LinkedComputer(link.deviceId, link.linkId, name, os, now, now)) + computers.filter { it.deviceId != link.deviceId }
-        persist()
-    }
-
-    /** Keeps (or forgets, with null) the computer's unattended password with its link, sealed too. */
-    fun setPassword(link: DeviceLink, password: String?) {
-        runCatching { store(link, password) }
-    }
-
-    private fun store(link: DeviceLink, password: String?) {
+    /**
+     * Makes a new link key for a claim: an ECDSA P-256 key in the keystore,
+     * usable only after the owner's authentication. The public half goes to
+     * the computer; the key is remembered under the device id once it returns.
+     */
+    override fun make(): MadeKey {
         if (!canProtect) throw LinkError(LinkError.Kind.NO_PASSCODE)
         try {
-            val plain = format.encodeToString(Secret.serializer(), Secret(link.token, password)).toByteArray(Charsets.UTF_8)
-            // A fresh AES key seals the secret; the keystore's public key seals that key.
-            val aes = ByteArray(32).also { SecureRandom().nextBytes(it) }
-            val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
-            val gcm = Cipher.getInstance("AES/GCM/NoPadding")
-            gcm.init(Cipher.ENCRYPT_MODE, SecretKeySpec(aes, "AES"), GCMParameterSpec(128, iv))
-            val sealed = gcm.doFinal(plain)
-            val rsa = Cipher.getInstance(RSA)
-            rsa.init(Cipher.ENCRYPT_MODE, publicKey(), OAEP)
-            val wrapped = rsa.doFinal(aes)
-            val b64 = Base64.getEncoder()
-            secrets.edit().putString(link.deviceId, listOf(wrapped, iv, sealed).joinToString(".") { b64.encodeToString(it) }).apply()
-        } catch (e: LinkError) {
-            throw e
+            val alias = "desk-link-" + Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(12).also { SecureRandom().nextBytes(it) })
+            val gen = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+            gen.initialize(
+                KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
+                    .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                    .setDigests(KeyProperties.DIGEST_SHA256)
+                    .setUserAuthenticationRequired(true)
+                    .setUserAuthenticationParameters(AUTH_WINDOW_S, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
+                    .setInvalidatedByBiometricEnrollment(false)
+                    .build(),
+            )
+            val pair = gen.generateKeyPair()
+            val pub = LinkAuth.publicKeyString(pair.public as ECPublicKey)
+            return MadeKey(pub, EcSigner(pair.private), persist = { deviceId -> aliases.edit().putString(deviceId, alias).apply() })
         } catch (e: Exception) {
             throw LinkError(LinkError.Kind.KEYSTORE, e.javaClass.simpleName)
         }
     }
 
-    /** The link of a computer, after the fingerprint, face or screen lock (the system's own prompt). */
-    suspend fun unlock(activity: Activity, c: LinkedComputer, title: String, subtitle: String): Pair<DeviceLink, String?> {
-        val parts = secrets.getString(c.deviceId, null)?.split(".")?.takeIf { it.size == 3 }
-            ?: throw LinkError(LinkError.Kind.KEYSTORE, "missing")
-        val b64 = Base64.getDecoder()
-        val (wrapped, iv, sealed) = parts.map { b64.decode(it) }
-        val rsa = try {
-            Cipher.getInstance(RSA).apply { init(Cipher.DECRYPT_MODE, privateKey(), OAEP) }
+    /** Reach uses a signer unlocked ahead of the session, not this. */
+    override fun signer(linkId: String): LinkSigner? = null
+
+    /** Keeps a link's name, system and pinned host key (its key is already in the keystore). */
+    fun save(link: DeviceLink, name: String, os: String) {
+        val now = System.currentTimeMillis()
+        computers = listOf(LinkedComputer(link.deviceId, link.linkId, name, os, now, now, link.hostKey)) + computers.filter { it.deviceId != link.deviceId }
+        persist()
+    }
+
+    /** Keeps (or forgets, with null) the computer's unattended password, sealed by a keystore key. */
+    fun setPassword(link: DeviceLink, password: String?) {
+        if (password == null) {
+            secrets.edit().remove(link.deviceId).apply()
+            return
+        }
+        runCatching {
+            val cipher = Cipher.getInstance(AES)
+            cipher.init(Cipher.ENCRYPT_MODE, passwordKey())
+            val sealed = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
+            val b64 = Base64.getEncoder()
+            secrets.edit().putString(link.deviceId, b64.encodeToString(cipher.iv) + "." + b64.encodeToString(sealed)).apply()
+        }
+    }
+
+    /**
+     * The link of a computer, after the fingerprint, face or screen lock (the
+     * system's own prompt): its pinned host key, a signer that can sign once
+     * with its keystore key, and the saved password.
+     */
+    suspend fun unlock(activity: Activity, c: LinkedComputer, title: String, subtitle: String): Triple<DeviceLink, String?, LinkSigner> {
+        val alias = aliases.getString(c.deviceId, null) ?: throw LinkError(LinkError.Kind.KEYSTORE, "missing")
+        val key = try {
+            keyStore().getKey(alias, null) as PrivateKey
         } catch (e: Exception) {
             throw LinkError(LinkError.Kind.KEYSTORE, e.javaClass.simpleName)
         }
@@ -137,7 +151,6 @@ class LinkStore(context: Context) {
                 .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
                 .build()
                 .authenticate(
-                    BiometricPrompt.CryptoObject(rsa),
                     cancel,
                     activity.mainExecutor,
                     object : BiometricPrompt.AuthenticationCallback() {
@@ -152,18 +165,18 @@ class LinkStore(context: Context) {
                 )
         }
         if (!ok) throw LinkError(LinkError.Kind.CANCELLED)
-        try {
-            val aes = rsa.doFinal(wrapped)
-            val gcm = Cipher.getInstance("AES/GCM/NoPadding")
-            gcm.init(Cipher.DECRYPT_MODE, SecretKeySpec(aes, "AES"), GCMParameterSpec(128, iv))
-            val secret = format.decodeFromString(Secret.serializer(), String(gcm.doFinal(sealed), Charsets.UTF_8))
-            if (secret.token.isEmpty()) throw LinkError(LinkError.Kind.KEYSTORE, "empty")
-            return DeviceLink(c.deviceId, c.linkId, secret.token, c.bound) to secret.password
-        } catch (e: LinkError) {
-            throw e
-        } catch (e: Exception) {
-            throw LinkError(LinkError.Kind.KEYSTORE, e.javaClass.simpleName)
-        }
+        // Authenticated now; the keystore key is usable for a short window.
+        return Triple(DeviceLink(c.deviceId, c.linkId, c.hostKey), readPassword(c.deviceId), EcSigner(key))
+    }
+
+    private fun readPassword(deviceId: String): String? {
+        val parts = secrets.getString(deviceId, null)?.split(".")?.takeIf { it.size == 2 } ?: return null
+        return runCatching {
+            val b64 = Base64.getDecoder()
+            val cipher = Cipher.getInstance(AES)
+            cipher.init(Cipher.DECRYPT_MODE, passwordKey(), GCMParameterSpec(128, b64.decode(parts[0])))
+            String(cipher.doFinal(b64.decode(parts[1])), Charsets.UTF_8)
+        }.getOrNull()
     }
 
     fun update(deviceId: String, change: (LinkedComputer) -> LinkedComputer) {
@@ -171,8 +184,10 @@ class LinkStore(context: Context) {
         persist()
     }
 
-    /** Forgets a computer here: its sealed token goes too. */
+    /** Forgets a computer here: its keystore key and sealed password go too. */
     fun forget(deviceId: String) {
+        aliases.getString(deviceId, null)?.let { runCatching { keyStore().deleteEntry(it) } }
+        aliases.edit().remove(deviceId).apply()
         secrets.edit().remove(deviceId).apply()
         computers = computers.filter { it.deviceId != deviceId }
         persist()
@@ -182,44 +197,38 @@ class LinkStore(context: Context) {
         prefs.edit().putString("links", format.encodeToString(ListSerializer(LinkedComputer.serializer()), computers)).apply()
     }
 
-    // The keystore's key pair: made once; its private half needs the owner each time.
-
     private fun keyStore() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
-    private fun ensureKey() {
+    /** A keystore AES key that seals saved passwords, behind the same lock. */
+    private fun passwordKey(): SecretKey {
         val ks = keyStore()
-        if (ks.containsAlias(ALIAS)) return
-        val gen = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
-        gen.initialize(
-            KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setKeySize(2048)
-                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+        (ks.getKey(PW_ALIAS, null) as? SecretKey)?.let { return it }
+        val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        gen.init(
+            KeyGenParameterSpec.Builder(PW_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setUserAuthenticationRequired(true)
-                .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
+                .setUserAuthenticationParameters(AUTH_WINDOW_S, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
                 .setInvalidatedByBiometricEnrollment(false)
                 .build(),
         )
-        gen.generateKeyPair()
+        return gen.generateKey()
     }
 
-    /** The public half as a plain key: sealing with it needs no prompt. */
-    private fun publicKey(): java.security.PublicKey {
-        ensureKey()
-        val pub = keyStore().getCertificate(ALIAS).publicKey
-        return KeyFactory.getInstance(pub.algorithm).generatePublic(X509EncodedKeySpec(pub.encoded))
-    }
-
-    private fun privateKey(): PrivateKey {
-        ensureKey()
-        return keyStore().getKey(ALIAS, null) as PrivateKey
+    /** Signs a link's proof once with its keystore key, right after the owner's authentication. */
+    private class EcSigner(private val key: PrivateKey) : LinkSigner {
+        override fun sign(message: ByteArray): String {
+            val s = Signature.getInstance("SHA256withECDSA")
+            s.initSign(key)
+            s.update(message)
+            return LinkAuth.rawSignature(s.sign())
+        }
     }
 
     companion object {
-        private const val ALIAS = "desk-links"
-        private const val RSA = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
-
-        /** OAEP with SHA-256, and MGF1 with SHA-1 (what the keystore's RSA supports). */
-        private val OAEP = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
+        private const val PW_ALIAS = "desk-link-passwords"
+        private const val AES = "AES/GCM/NoPadding"
+        private const val AUTH_WINDOW_S = 15
     }
 }

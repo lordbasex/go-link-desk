@@ -21,7 +21,7 @@ func TestRemotesKeepFavoritesFirstAndRecentsBounded(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	// A new link to the same computer keeps its label and favorite.
-	s.Link(models.RemoteDevice{DeviceID: "a", LinkID: "new", Token: "t2"})
+	s.Link(models.RemoteDevice{DeviceID: "a", LinkID: "new", Key: "t2"})
 	if d, _ := s.Device("a"); d.LinkID != "new" || d.Label != "Office iMac" || !d.Favorite {
 		t.Fatalf("%+v", d)
 	}

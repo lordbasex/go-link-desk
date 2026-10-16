@@ -14,7 +14,21 @@ import (
 	"time"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 )
+
+// pick returns the one reuse key if given, else a fresh one.
+func pick(t *testing.T, reuse []linkauth.Key) linkauth.Key {
+	t.Helper()
+	if len(reuse) > 0 {
+		return reuse[0]
+	}
+	k, err := linkauth.NewKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
 
 // unattendedRig is a host with an open room, its links, its settings and
 // the unattended service, with the stream played by fakeViewers.
@@ -28,6 +42,8 @@ type unattendedRig struct {
 	settings *SettingsService
 	u        *UnattendedService
 	saved    *[]models.Link
+	hostKey  linkauth.Key
+	hostPub  linkauth.PublicKey
 	// autoPass: the rig gave the host rigPassword (unattended access needs
 	// one), and reach types it.
 	autoPass bool
@@ -35,10 +51,22 @@ type unattendedRig struct {
 
 const rigPassword = "rig password"
 
-func newUnattendedRig(t *testing.T, saved *[]models.Link, cfg models.Config) *unattendedRig {
+// rigLink is a link a browser made in the rig: its id and the private key it
+// signs with.
+type rigLink struct {
+	id  string
+	key linkauth.Key
+}
+
+func newUnattendedRig(t *testing.T, saved *[]models.Link, cfg models.Config, reuse ...linkauth.Key) *unattendedRig {
 	t.Helper()
+	hostKey := pick(t, reuse)
+	hostPub, err := linkauth.ParsePublic(hostKey.Public())
+	if err != nil {
+		t.Fatal(err)
+	}
 	s, st, snd, v := openRoom(t)
-	links, tr, _ := newTestLinks(t, saved, time.Minute)
+	links, tr, _ := newTestLinksWith(t, saved, time.Minute, hostKey)
 	autoPass := false
 	if cfg.Unattended.Enabled && cfg.Unattended.PasswordHash == "" {
 		hash, err := HashPassword(rigPassword)
@@ -54,12 +82,12 @@ func newUnattendedRig(t *testing.T, saved *[]models.Link, cfg models.Config) *un
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	links.SetTransport(tr.send, func(peer string) { s.Drop(peer, models.EndRevoked) })
-	return &unattendedRig{session: s, status: st, snd: snd, viewers: v, links: links, tr: tr, settings: settings, u: u, saved: saved, autoPass: autoPass}
+	return &unattendedRig{session: s, status: st, snd: snd, viewers: v, links: links, tr: tr, settings: settings, u: u, saved: saved, hostKey: hostKey, hostPub: hostPub, autoPass: autoPass}
 }
 
 // claim plays a browser that types the pairing code, is accepted by the
-// person at the host and gets its token. It returns the link and token.
-func (r *unattendedRig) claim(t *testing.T, peer string) (linkID, token string) {
+// person at the host and is remembered by its public key.
+func (r *unattendedRig) claim(t *testing.T, peer string) rigLink {
 	t.Helper()
 	c := newAskedConsent()
 	r.session.SetConsent(c)
@@ -73,17 +101,21 @@ func (r *unattendedRig) claim(t *testing.T, peer string) (linkID, token string) 
 	if got := reply(t, r.snd, peer); got["kind"] != "accepted" {
 		t.Fatalf("reply %v", got)
 	}
-	r.u.HandleControl(peer, []byte(`{"type":"auth"}`))
+	key, err := linkauth.NewKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.u.HandleControl(peer, []byte(`{"type":"auth","pub":"`+key.Public()+`"}`))
 	ok := r.tr.last(peer)
-	if ok["type"] != "auth_ok" || ok["token"] == "" {
+	if ok["type"] != "auth_ok" || ok["host_key"] == "" {
 		t.Fatalf("auth_ok %+v", ok)
 	}
-	return ok["link_id"], ok["token"]
+	return rigLink{id: ok["link_id"], key: key}
 }
 
 // reach plays a linked browser that comes back: it knocks, is connected
-// gated, checks the device's proof and shows its token.
-func (r *unattendedRig) reach(t *testing.T, peer, linkID, token string) {
+// gated, checks the device's signed proof and signs its own.
+func (r *unattendedRig) reach(t *testing.T, peer string, lk rigLink) {
 	t.Helper()
 	r.u.Reached(peer)
 	r.session.AddLink(peer, false)
@@ -92,15 +124,22 @@ func (r *unattendedRig) reach(t *testing.T, peer, linkID, token string) {
 		t.Fatalf("a linked browser is connected gated: %+v", got)
 	}
 	nonce := strings.Repeat("n", 32)
-	r.u.HandleWaiting(peer, []byte(`{"type":"auth_challenge","link_id":"`+linkID+`","nonce":"`+nonce+`"}`))
+	r.u.HandleWaiting(peer, []byte(`{"type":"auth_challenge","link_id":"`+lk.id+`","nonce":"`+nonce+`"}`))
 	switch p := r.tr.last(peer); p["type"] {
 	case "auth_failed":
-		return // a link the device no longer has: it cannot prove itself
+		return // a link the device no longer has: it refuses, signed
 	case "auth_proof":
+		if !r.hostPub.Verify(linkauth.HostProofMessage(nonce, "", ""), p["sig"]) {
+			t.Fatalf("the host proof did not verify: %+v", p)
+		}
 	default:
 		t.Fatalf("proof %+v", p)
 	}
-	r.u.HandleWaiting(peer, []byte(`{"type":"auth","link_id":"`+linkID+`","token":"`+token+`"}`))
+	sig, err := lk.key.Sign(linkauth.LinkProofMessage(nonce, "", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.u.HandleWaiting(peer, []byte(`{"type":"auth","link_id":"`+lk.id+`","sig":"`+sig+`"}`))
 	if r.autoPass && r.tr.last(peer)["type"] == "password_required" {
 		r.u.HandleWaiting(peer, []byte(`{"type":"password","password":"`+rigPassword+`"}`))
 	}
@@ -121,16 +160,16 @@ func TestUnattendedAccessNeedsAPassword(t *testing.T) {
 func TestALinkKeepsWhatThePersonAllowedAndComesBackWithoutAnyone(t *testing.T) {
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
-	linkID, token := r.claim(t, "B1")
+	lk := r.claim(t, "B1")
 	if len(saved) != 1 || saved[0].Name != "Firefox 140 on Linux" || saved[0].Permissions != (models.Permissions{View: true, Control: true}) {
 		t.Fatalf("link %+v", saved)
 	}
 	r.session.End(models.EndViewer)
 
 	// The host restarts: the browser comes back with reach, nobody is asked.
-	r2 := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
+	r2 := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}}, r.hostKey)
 	r2.session.SetConsent(NobodyToAsk)
-	r2.reach(t, "B2", linkID, token)
+	r2.reach(t, "B2", lk)
 	if got := reply(t, r2.snd, "B2"); got["kind"] != "accepted" || got["permissions"].(map[string]any)["control"] != true {
 		t.Fatalf("reply %v", got)
 	}
@@ -145,8 +184,8 @@ func TestALinkKeepsWhatThePersonAllowedAndComesBackWithoutAnyone(t *testing.T) {
 func TestARevokedLinkIsTurnedAway(t *testing.T) {
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
-	linkID, token := r.claim(t, "B1")
-	r.links.Revoke(linkID)
+	lk := r.claim(t, "B1")
+	r.links.Revoke(lk.id)
 	if len(saved) != 0 {
 		t.Fatal("revoked link kept")
 	}
@@ -157,7 +196,7 @@ func TestARevokedLinkIsTurnedAway(t *testing.T) {
 	waitUntil(t, func() bool { return r.status.Snapshot().Session.Active == nil })
 
 	// And when it comes back, its token no longer opens anything.
-	r.reach(t, "B2", linkID, token)
+	r.reach(t, "B2", lk)
 	if got := r.tr.last("B2"); got["type"] != "auth_failed" {
 		t.Fatalf("revoked token: %+v", got)
 	}
@@ -170,9 +209,10 @@ func TestARevokedLinkIsTurnedAway(t *testing.T) {
 func TestAWrongTokenNeverGetsIn(t *testing.T) {
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
-	linkID, _ := r.claim(t, "B1")
+	lk := r.claim(t, "B1")
 	r.session.End(models.EndViewer)
-	r.reach(t, "X", linkID, strings.Repeat("A", 43))
+	wrong, _ := linkauth.NewKey()
+	r.reach(t, "X", rigLink{id: lk.id, key: wrong})
 	if got := r.tr.last("X"); got["type"] != "auth_failed" {
 		t.Fatalf("got %+v", got)
 	}
@@ -186,7 +226,7 @@ func TestAWrongTokenNeverGetsIn(t *testing.T) {
 func TestUnattendedOffTurnsLinkedBrowsersDown(t *testing.T) {
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
-	linkID, token := r.claim(t, "B1")
+	lk := r.claim(t, "B1")
 	r.session.End(models.EndViewer)
 	_ = r.settings.Update(func(c *models.Config) { c.Unattended.Enabled = false })
 
@@ -206,7 +246,7 @@ func TestUnattendedOffTurnsLinkedBrowsersDown(t *testing.T) {
 	if got := r.viewers.snapshot(); len(got.waiting) != 0 {
 		t.Fatalf("connected while off: %+v", got)
 	}
-	_, _ = linkID, token
+	_ = lk
 }
 
 func TestThePasswordComesAfterTheTokenWithLimitedTries(t *testing.T) {
@@ -216,7 +256,7 @@ func TestThePasswordComesAfterTheTokenWithLimitedTries(t *testing.T) {
 	}
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true, PasswordHash: hash}})
-	linkID, token := r.claim(t, "B1")
+	lk := r.claim(t, "B1")
 	r.session.End(models.EndViewer)
 
 	// A password before the token counts for nothing.
@@ -227,7 +267,7 @@ func TestThePasswordComesAfterTheTokenWithLimitedTries(t *testing.T) {
 		t.Fatal("a password alone let it in")
 	}
 
-	r.reach(t, "B2", linkID, token)
+	r.reach(t, "B2", lk)
 	if got := r.tr.last("B2"); got["type"] != "password_required" {
 		t.Fatalf("got %+v", got)
 	}
@@ -245,7 +285,7 @@ func TestThePasswordComesAfterTheTokenWithLimitedTries(t *testing.T) {
 
 	// Five wrong ones and the browser is turned away.
 	r.session.End(models.EndViewer)
-	r.reach(t, "B3", linkID, token)
+	r.reach(t, "B3", lk)
 	for range pinTriesPerPeer {
 		r.u.HandleWaiting("B3", []byte(`{"type":"password","password":"nope nope"}`))
 	}
@@ -259,14 +299,14 @@ func TestThePasswordComesAfterTheTokenWithLimitedTries(t *testing.T) {
 func TestALinkedBrowserWaitsForTheSessionOn(t *testing.T) {
 	var saved []models.Link
 	r := newUnattendedRig(t, &saved, models.Config{Unattended: models.Unattended{Enabled: true}})
-	linkID, token := r.claim(t, "B1") // B1 is in session
+	lk := r.claim(t, "B1") // B1 is in session
 	r.u.Reached("B2")
 	r.session.AddLink("B2", false)
 	signalFrom(r.session, "B2", `{"kind":"knock","name":"Ana"}`)
 	if got := reply(t, r.snd, "B2"); got["kind"] != "rejected" || got["reason"] != models.RejectBusy {
 		t.Fatalf("reply %v", got)
 	}
-	_, _ = linkID, token
+	_ = lk
 }
 
 func TestPasswords(t *testing.T) {

@@ -4,7 +4,16 @@
 useDefault = true
 
 [allowlist]
-description = "Vendored libraries"
+description = "Vendored libraries and test-only key material"
 paths = [
   '''backend-device/internal/gui/terminal/xterm\.js''',
+  # The cross-language link-proof vector holds only test keys (no real secret).
+  '''protocol/vectors/link-proof\.json''',
+  # Test fixtures with a throwaway link public key.
+  '''frontend/apps/web/src/pages/Devices\.test\.tsx''',
+  '''frontend/packages/shared/test/device-link\.test\.ts''',
+]
+regexes = [
+  # A CryptoKit type name, not a secret.
+  '''P256\.Signing\.PrivateKey''',
 ]

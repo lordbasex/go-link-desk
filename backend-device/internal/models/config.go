@@ -23,8 +23,12 @@ type Config struct {
 	// DeviceSecret binds the device_id to this host on signalhub (sent
 	// with register): 32 random bytes, base64url. Made on first run.
 	DeviceSecret string `json:"device_secret,omitempty"`
-	SignalURL    string `json:"signal_url,omitempty"`
-	WebURL       string `json:"web_url,omitempty"`
+	// HostKey is the host's long-lived ECDSA P-256 device signing key, the
+	// 32-byte scalar, base64url. A linked browser pins its public half and
+	// checks every proof the host signs with it. Made on first run.
+	HostKey   string `json:"host_key,omitempty"`
+	SignalURL string `json:"signal_url,omitempty"`
+	WebURL    string `json:"web_url,omitempty"`
 	// UDPPort carries every WebRTC connection on one UDP port, so a single
 	// port forward on a router opens a direct path (0: random ports).
 	UDPPort int `json:"udp_port,omitempty"`
@@ -96,10 +100,14 @@ const MaxIdleMinutes = 24 * 60
 
 // Link is one browser linked to this host.
 type Link struct {
-	ID        string    `json:"id"`
-	TokenHash string    `json:"token_hash"` // hex SHA-256 of the token the browser keeps
-	CreatedAt time.Time `json:"created_at"`
-	LastSeen  time.Time `json:"last_seen"`
+	ID string `json:"id"`
+	// BrowserKey is the browser's ECDSA P-256 public key for this link, the
+	// 65-byte uncompressed point, base64url. The browser keeps the private
+	// half non-extractable and signs its proof with it; the host only ever
+	// holds this public half, so nothing replayable is stored.
+	BrowserKey string    `json:"browser_key"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastSeen   time.Time `json:"last_seen"`
 	// Terms is the version of the terms of use the browser's user accepted
 	// when linking (or later), and TermsAt when the host learned it.
 	Terms   string    `json:"terms,omitempty"`

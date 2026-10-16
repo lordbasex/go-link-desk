@@ -346,13 +346,13 @@ func (s *SessionService) Admit(peer string, perm models.Permissions) error {
 	k := g.knock
 	s.mu.Unlock()
 	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm, Unattended: true})
+	s.permissionsChanged(peer, perm)
+	s.viewers.Admit(peer)
 	s.signal(peer, struct {
 		Kind        string             `json:"kind"`
 		Permissions models.Permissions `json:"permissions"`
 	}{"accepted", perm})
 	s.log.Info("unattended session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
-	s.permissionsChanged(peer, perm)
-	s.viewers.Admit(peer)
 	return nil
 }
 
@@ -461,20 +461,22 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 	s.perm = perm
 	s.mu.Unlock()
 
-	// Publish the active session before telling the peer it is accepted, so
+	// Put the session fully in place — the status, the permissions and the
+	// viewer on the stream — before telling the peer it is accepted, so
 	// anyone who sees the `accepted` reply (a viewer, or the panel) already
-	// finds the session in the status.
+	// finds the session live.
 	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm})
+	s.permissionsChanged(peer, perm)
+	if err := s.viewers.AddViewer(peer, k.Codecs); err != nil {
+		s.log.Error("cannot start the stream", "peer_id", peer, "err", err)
+		s.End(models.EndNetwork)
+		return
+	}
 	s.signal(peer, struct {
 		Kind        string             `json:"kind"`
 		Permissions models.Permissions `json:"permissions"`
 	}{"accepted", perm})
 	s.log.Info("session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
-	s.permissionsChanged(peer, perm)
-	if err := s.viewers.AddViewer(peer, k.Codecs); err != nil {
-		s.log.Error("cannot start the stream", "peer_id", peer, "err", err)
-		s.End(models.EndNetwork)
-	}
 }
 
 func (s *SessionService) reject(peer, reason string) {

@@ -6,12 +6,19 @@ import "time"
 
 // RemoteDevice is a computer this app linked to for unattended access
 // (its pairing code, accepted there): the app comes back to it without a
-// code. Token is this app's secret for it; the computer keeps only its
-// hash. Kept in remotes.json with 0600 permissions.
+// code. Key is this app's private signing key for the link; the computer
+// keeps only its public half. HostKey is the computer's device public key,
+// pinned when the link was made, which every proof it signs is checked
+// against. Kept in remotes.json with 0600 permissions.
 type RemoteDevice struct {
 	DeviceID string `json:"device_id"`
 	LinkID   string `json:"link_id"`
-	Token    string `json:"token"`
+	// Key is the link's private key, the 32-byte ECDSA P-256 scalar,
+	// base64url. It never leaves this app.
+	Key string `json:"key"`
+	// HostKey is the computer's pinned device public key, the 65-byte
+	// uncompressed point, base64url.
+	HostKey string `json:"host_key"`
 	// SignalURL is the signaling server the link was made through.
 	SignalURL string `json:"signal_url,omitempty"`
 	// Name and OS are what the computer said of itself; Label is the
@@ -24,10 +31,6 @@ type RemoteDevice struct {
 	LastUsed time.Time `json:"last_used,omitzero"`
 	// Thumb is a small JPEG of its screen, from the last session.
 	Thumb []byte `json:"thumb,omitempty"`
-	// Bound: the computer once proved itself bound to the connection
-	// (proof2); from then on a proof without it is refused, so nobody in
-	// the middle can fall back to the plain one.
-	Bound bool `json:"bound,omitempty"`
 }
 
 // Title is how the computer is shown: its label, or its name.

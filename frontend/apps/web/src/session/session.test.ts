@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
-import { describe, expect, it, vi } from "vitest";
-import { ServerError, linkProof, linkProofBound } from "@go-link-desk/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ServerError, hostProofMessage, hostUnlinkMessage, newLinkKey, sign, type LinkKey, type SavedDevice } from "@go-link-desk/shared";
 import { ASK_TIMEOUT_MS, Session, type Door, type SessionOptions, type SessionView } from "./session";
+import type { KeyStore } from "./keystore";
 import { FakeClient } from "./test-utils";
 
 /** A peer connection that never connects: enough to see the session's steps. */
@@ -326,19 +327,33 @@ describe("go-link-desk-terminal", () => {
 });
 
 describe("Linked computers", () => {
-  const device = {
-    deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
-    linkId: "3f9c0a1b2c3d4e5f",
-    token: "q8VY3n1s0bPq0n8oJ1m3Zr2yX7eW5vT4uS6rQ9pO0nM", // gitleaks:allow (test value)
-    signalUrl: "wss://x/ws",
-    name: "mac",
-    label: "",
-    os: "darwin",
-    favorite: false,
-    savedAt: 0,
-    lastUsed: 0,
-    thumb: "",
-  };
+  let hostKey: LinkKey;
+  let store: KeyStore;
+  let device: SavedDevice;
+
+  beforeEach(async () => {
+    hostKey = await newLinkKey();
+    const viewerKey = await newLinkKey();
+    const m = new Map<string, CryptoKey>();
+    store = {
+      async save(id, k) { m.set(id, k); },
+      async get(id) { return m.get(id) ?? null; },
+      async remove(id) { m.delete(id); },
+    };
+    device = {
+      deviceId: "c2c5f76f-1a25-45d8-abe7-91f51d11f75d",
+      linkId: "3f9c0a1b2c3d4e5f",
+      hostKey: hostKey.publicKey,
+      signalUrl: "wss://x/ws",
+      name: "mac", label: "", os: "darwin", favorite: false, savedAt: 0, lastUsed: 0, thumb: "",
+    };
+    await store.save(device.linkId, viewerKey.privateKey);
+  });
+
+  // The computer signs its proof over the nonce and the fingerprints this
+  // viewer sees; the test plays the computer with its device key.
+  const proof = (nonce: string, host = "", viewer = "") => sign(hostKey.privateKey, hostProofMessage(nonce, host, viewer));
+  const unlinkProof = (nonce: string, host = "", viewer = "") => sign(hostKey.privateKey, hostUnlinkMessage(nonce, host, viewer));
 
   function startDoor(client: FakeClient, door: Door, extra: Partial<SessionOptions> = {}) {
     client.joinReply = { type: "paired", remote: "H", session_id: "S" };
@@ -348,6 +363,7 @@ describe("Linked computers", () => {
       name: "Ana",
       browser: "Firefox",
       onChange: () => undefined,
+      keys: store,
       RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection,
       ...extra,
     });
@@ -356,18 +372,17 @@ describe("Linked computers", () => {
       onControl(m: unknown): void;
       stream: { sendControl(m: unknown): boolean; pendingControl: string[]; fingerprints(): { host: string; viewer: string } };
     };
-    const sent: unknown[] = [];
+    const sent: Record<string, unknown>[] = [];
     return {
       s,
       sent,
       control: (m: unknown) => inner.onControl(m),
-      // The connection's certificates as this viewer sees them.
       certificates: (host: string, viewer: string) => {
         inner.stream.fingerprints = () => ({ host, viewer });
       },
       queued: () => inner.stream.pendingControl.map((x) => JSON.parse(x) as Record<string, string>),
       spy: () => {
-        inner.stream.sendControl = (m) => (sent.push(m), true);
+        inner.stream.sendControl = (m) => (sent.push(m as Record<string, unknown>), true);
       },
     };
   }
@@ -380,12 +395,13 @@ describe("Linked computers", () => {
     expect(client.signals()[0]).toMatchObject({ kind: "knock", name: "Ana" });
     const challenge = queued()[0]!;
     expect(challenge).toMatchObject({ type: "auth_challenge", link_id: device.linkId });
-    expect(JSON.stringify(queued())).not.toContain(device.token); // never before the proof
     spy();
 
-    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, challenge.nonce!) });
-    expect(sent).toEqual([{ type: "auth", link_id: device.linkId, token: device.token }]);
-    // The password is asked only once the computer took the token.
+    control({ type: "auth_proof", link_id: device.linkId, sig: await proof(challenge.nonce!) });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ type: "auth", link_id: device.linkId });
+    expect(typeof sent[0]!.sig).toBe("string");
+    // The password is asked only once the computer accepted the proof (auth_ok).
     control({ type: "password_required" });
     expect(s.current.status.kind).toBe("waiting");
     control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId });
@@ -414,7 +430,6 @@ describe("Linked computers", () => {
     expect(s.current.status.kind).toBe("waiting");
     s.sendPassword("secret");
     expect(sent).toEqual([]);
-    // An acceptance without the proof lets nothing in.
     client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, control: true } } });
     await new Promise((r) => setTimeout(r, 20));
     expect(s.current.status.kind).toBe("waiting");
@@ -427,7 +442,7 @@ describe("Linked computers", () => {
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
     const nonce = queued()[0]!.nonce!;
     spy();
-    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
+    control({ type: "auth_proof", link_id: device.linkId, sig: await proof(nonce) });
     client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true, files: true } } });
     await new Promise((r) => setTimeout(r, 20));
     expect(s.current.status.kind).toBe("waiting");
@@ -436,51 +451,31 @@ describe("Linked computers", () => {
     expect(s.current.permissions?.files).toBe(true);
   });
 
-  it("take the proof bound to the connection, and from then on only that one", async () => {
-    const client = new FakeClient();
-    const bound = vi.fn();
-    const { s, sent, control, queued, spy, certificates } = startDoor(client, { kind: "reach", device }, { onBound: bound });
-    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
-    const nonce = queued()[0]!.nonce!;
-    spy();
-    certificates("sha-256 HO:ST", "sha-256 VI:EW");
-    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce), proof2: linkProofBound(device.token, nonce, "sha-256 HO:ST", "sha-256 VI:EW") });
-    expect(sent).toEqual([{ type: "auth", link_id: device.linkId, token: device.token }]);
-    expect(bound).toHaveBeenCalledOnce();
-  });
-
-  it("refuse a proof2-less auth_proof on a bindable connection, even on a never-bound link", async () => {
-    // Someone in the middle strips proof2 to fall back to the plain proof
-    // and steal the token on a link's first reach. Binding is fail-closed:
-    // with fingerprints on the connection, the plain proof alone is refused.
+  it("take the proof bound to this connection's fingerprints", async () => {
     const client = new FakeClient();
     const { s, sent, control, queued, spy, certificates } = startDoor(client, { kind: "reach", device });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
     const nonce = queued()[0]!.nonce!;
     spy();
     certificates("sha-256 HO:ST", "sha-256 VI:EW");
-    control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce) });
-    expect(sent).toEqual([]);
-    expect(s.current.status.kind).toBe("untrusted");
+    control({ type: "auth_proof", link_id: device.linkId, sig: await proof(nonce, "sha-256 HO:ST", "sha-256 VI:EW") });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ type: "auth", link_id: device.linkId });
   });
 
-  it("refuse a proof relayed from another connection, and the plain proof once bound", async () => {
+  it("refuse a proof relayed from another connection", async () => {
     // Someone in the middle has a certificate of its own on each side: the
-    // real computer's proof2 names other fingerprints than this viewer sees.
-    for (const [door, proof2] of [
-      [{ kind: "reach", device }, (n: string) => linkProofBound(device.token, n, "sha-256 HO:ST", "sha-256 MI:TM")],
-      [{ kind: "reach", device: { ...device, bound: true } }, () => undefined],
-    ] as const) {
-      const client = new FakeClient();
-      const { s, sent, control, queued, spy, certificates } = startDoor(client, door as Door);
-      await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
-      const nonce = queued()[0]!.nonce!;
-      spy();
-      certificates("sha-256 MI:TM", "sha-256 VI:EW");
-      control({ type: "auth_proof", link_id: device.linkId, proof: linkProof(device.token, nonce), proof2: proof2(nonce) });
-      expect(sent).toEqual([]);
-      expect(s.current.status.kind).toBe("untrusted");
-    }
+    // real computer's proof names the fingerprints it saw, not what this
+    // viewer sees, so it does not verify here.
+    const client = new FakeClient();
+    const { s, sent, control, queued, spy, certificates } = startDoor(client, { kind: "reach", device });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
+    const nonce = queued()[0]!.nonce!;
+    spy();
+    certificates("sha-256 MI:TM", "sha-256 VI:EW");
+    control({ type: "auth_proof", link_id: device.linkId, sig: await proof(nonce, "sha-256 HO:ST", "sha-256 VI:EW") });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("untrusted"));
+    expect(sent).toEqual([]);
   });
 
   it("send nothing to a computer that cannot prove itself", async () => {
@@ -488,29 +483,33 @@ describe("Linked computers", () => {
     const { s, sent, control, spy } = startDoor(client, { kind: "reach", device });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
     spy();
-    control({ type: "auth_proof", link_id: device.linkId, proof: "forged" });
+    control({ type: "auth_proof", link_id: device.linkId, sig: "forged" });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("untrusted"));
     expect(sent).toEqual([]);
-    expect(s.current.status.kind).toBe("untrusted");
   });
 
-  it("forget a link the computer no longer has", async () => {
+  it("forget a link only when the refusal is signed, never on a forged one", async () => {
     const client = new FakeClient();
     const unlinked = vi.fn();
-    const { s, control } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
+    const { s, control, queued } = startDoor(client, { kind: "reach", device }, { onUnlinked: unlinked });
     await vi.waitFor(() => expect(s.current.status.kind).toBe("waiting"));
-    // A revoked link comes back as an unproven auth_failed (the host dropped
-    // the token hash it would prove with), so it is honored here; the pinned
-    // host device key that would tell a genuine revoke from a MITM is a
-    // tracked follow-up.
+    const nonce = queued()[0]!.nonce!;
+    // Before any proof, an unsigned refusal is ignored: a signaling server
+    // could forge it to wipe a working link.
     control({ type: "auth_failed", error: "gone" });
-    expect(s.current.status.kind).toBe("unlinked");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(unlinked).not.toHaveBeenCalled();
+    expect(s.current.status.kind).toBe("waiting");
+    // A refusal the computer signed with its device key is honored.
+    control({ type: "auth_failed", sig: await unlinkProof(nonce) });
+    await vi.waitFor(() => expect(s.current.status.kind).toBe("unlinked"));
     expect(unlinked).toHaveBeenCalledOnce();
   });
 
   it("say when the computer is off", async () => {
     const client = new FakeClient();
     client.joinReply = ServerError.DeviceOffline;
-    const s = new Session({ client: client.asClient(), door: { kind: "reach", device }, name: "Ana", browser: "x", onChange: () => undefined, RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection });
+    const s = new Session({ client: client.asClient(), door: { kind: "reach", device }, name: "Ana", browser: "x", onChange: () => undefined, keys: store, RTCPeerConnectionImpl: NoPC as unknown as typeof RTCPeerConnection });
     void s.start();
     await vi.waitFor(() => expect(s.current.status.kind).toBe("offline"));
   });
@@ -523,9 +522,14 @@ describe("Linked computers", () => {
     expect(client.sent[0]).toEqual({ type: "claim", app: "go-link-desk", code: "113134323" });
     spy();
     client.deliver({ type: "signal", from: "H", payload: { kind: "accepted", permissions: { view: true } } });
-    await vi.waitFor(() => expect(sent).toEqual([{ type: "auth" }]));
-    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId, token: device.token });
-    expect(linked).toHaveBeenCalledWith({ deviceId: device.deviceId, linkId: device.linkId, token: device.token });
+    // The viewer makes its key and sends the public half.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ type: "auth" });
+    expect(typeof sent[0]!.pub).toBe("string");
+    control({ type: "auth_ok", device_id: device.deviceId, link_id: device.linkId, host_key: hostKey.publicKey });
+    await vi.waitFor(() => expect(linked).toHaveBeenCalledWith({ deviceId: device.deviceId, linkId: device.linkId, hostKey: hostKey.publicKey }));
+    // The viewer's private key was kept in the store under the link id.
+    expect(await store.get(device.linkId)).not.toBeNull();
   });
 
   it("ignore link messages in a session with a code", async () => {

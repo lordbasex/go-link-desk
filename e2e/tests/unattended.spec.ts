@@ -55,13 +55,16 @@ test("a linked browser comes back without a code after the host restarts, with t
     await page.getByLabel("Your name").fill("Linked viewer");
     await page.getByRole("button", { name: "Connect" }).click();
     await live(page);
-    const devices = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { deviceId: string; token: string }[]);
+    const devices = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { deviceId: string; hostKey?: string }[]);
     expect(devices).toHaveLength(1);
     const deviceId = devices[0]!.deviceId;
-    // Only the hash of the token is on the host.
-    const saved = JSON.parse(readFileSync(host.config, "utf8")) as { links: { token_hash: string; permissions: { control: boolean } }[] };
+    // The browser keeps the host's public key and no secret at all; its own
+    // private key is a non-extractable WebCrypto key in IndexedDB.
+    expect(devices[0]!.hostKey).toBeTruthy();
+    // Only the browser's public key is on the host, never anything private.
+    const saved = JSON.parse(readFileSync(host.config, "utf8")) as { links: { browser_key: string; permissions: { control: boolean } }[] };
     expect(saved.links).toHaveLength(1);
-    expect(readFileSync(host.config, "utf8")).not.toContain(devices[0]!.token);
+    expect(saved.links[0]!.browser_key).toBeTruthy();
     await page.getByRole("button", { name: "Disconnect" }).click();
     await expect(page.getByText("You left the session.")).toBeVisible();
 
@@ -80,10 +83,6 @@ test("a linked browser comes back without a code after the host restarts, with t
     await password.fill("correct horse");
     await page.getByRole("button", { name: "Connect" }).click();
     await live(page);
-    // The host's proof was bound to this connection's certificates (proof2),
-    // so from now on this browser takes no other kind from that computer.
-    const bound = await page.evaluate(() => JSON.parse(localStorage.getItem("go-link-desk.devices") ?? "[]") as { bound?: boolean }[]);
-    expect(bound[0]?.bound).toBe(true);
     await page.getByRole("button", { name: "Disconnect" }).click();
 
     // Revoked on the host (Settings › Revoke drops it from device.json):

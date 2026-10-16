@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
 
@@ -154,11 +155,14 @@ type ChatLine struct {
 }
 
 // NewLink is a link the computer made for this app (claim): keep it to
-// come back without a code. Token is this app's secret.
+// come back without a code. Key is this app's private signing key for the
+// link (the 32-byte scalar, base64url); HostKey is the computer's device
+// public key to pin.
 type NewLink struct {
 	DeviceID string
 	LinkID   string
-	Token    string
+	Key      string
+	HostKey  string
 }
 
 // Frame is one video frame as it came: an H.264 access unit in Annex B,
@@ -192,9 +196,6 @@ type Events struct {
 	Linked func(NewLink)
 	// Unlinked: the computer no longer has this link: forget it.
 	Unlinked func()
-	// Bound: the computer proved itself bound to the connection for the
-	// first time: remember it (models.RemoteDevice.Bound).
-	Bound func()
 	// Files: the files channel is open (with the files permission).
 	Files func(*Files)
 	// Recording: the computer stopped this viewer's recording (it took the
@@ -259,8 +260,9 @@ type Session struct {
 	hasPerms  bool
 	backlog   []json.RawMessage // the host's signals before the peer exists
 	nonce     string            // reach: what the computer must prove
+	linkKey   linkauth.Key      // claim: the key made for the new link
 	proven    bool              // reach: the proof checked out
-	authed    bool              // reach: the computer took the token (auth_ok)
+	authed    bool              // reach: the computer accepted this app (auth_ok)
 	early     *models.Permissions
 	connected bool // the peer connection is up
 	clipSeq   uint32
@@ -564,9 +566,19 @@ func (s *Session) admitted(p models.Permissions) {
 	if fn := s.opts.Events.Permissions; fn != nil {
 		fn(p)
 	}
-	// Accepted with the pairing code: now ask for the link's token.
+	// Accepted with the pairing code: make this link's key and send its
+	// public half, so the computer remembers it. The private half stays here.
 	if claim {
-		s.sendControl(map[string]any{"type": "auth"})
+		key, err := linkauth.NewKey()
+		if err != nil {
+			s.log.Error("cannot make a link key", "err", err)
+			s.finish(Status{Kind: StatusEnded, Reason: models.EndViewer})
+			return
+		}
+		s.mu.Lock()
+		s.linkKey = key
+		s.mu.Unlock()
+		s.sendControl(map[string]any{"type": "auth", "pub": key.Public()})
 	}
 }
 
