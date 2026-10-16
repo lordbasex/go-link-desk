@@ -91,7 +91,9 @@ final class LinkStore {
     func save(_ link: DeviceLink, name: String, os: String) throws {
         try store(link, password: nil)
         computers.removeAll { $0.deviceId == link.deviceId }
-        computers.insert(LinkedComputer(deviceId: link.deviceId, linkId: link.linkId, name: name, os: os, linkedAt: Date(), lastUsed: Date()), at: 0)
+        // A link is channel-bound from birth: it was made over this direct,
+        // human-accepted connection, so every later reach must prove proof2.
+        computers.insert(LinkedComputer(deviceId: link.deviceId, linkId: link.linkId, name: name, os: os, linkedAt: Date(), lastUsed: Date(), bound: true), at: 0)
         persist()
     }
 
