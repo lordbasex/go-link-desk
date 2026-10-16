@@ -72,7 +72,10 @@ public enum RtcSignals {
             return .candidate(IceCandidateInit(
                 candidate: String(text.prefix(1000)),
                 sdpMid: c["sdpMid"].strOrNil.map { String($0.prefix(32)) },
-                sdpMLineIndex: c["sdpMLineIndex"].isNumber ? Int(c["sdpMLineIndex"].num) : 0
+                // Clamp to a small non-negative range: the value is relayed
+                // through the (untrusted) signaling server, and a huge one
+                // would otherwise trap when narrowed to Int32 for WebRTC.
+                sdpMLineIndex: c["sdpMLineIndex"].int.clamped(0, 255)
             ))
         default:
             return nil

@@ -214,6 +214,22 @@ extension Optional where Wrapped == JSON {
         return 0
     }
 
+    /**
+     * A finite number narrowed to Int without trapping: an untrusted
+     * message can carry any Double (e.g. 1e300), and Swift's `Int(_:)`
+     * aborts the app when the value is out of range, so these clamp to the
+     * integer's range and round instead.
+     */
+    var int: Int { num.clampedToInt() }
+    var int64: Int64 { num.clampedToInt64() }
+    /** A finite number narrowed to a non-negative UInt32, never trapping. */
+    var uint32: UInt32 {
+        let d = num.rounded()
+        if d <= 0 { return 0 }
+        if d >= Double(UInt32.max) { return UInt32.max }
+        return UInt32(d)
+    }
+
     var isNumber: Bool {
         if case let .number(d)? = self { return d.isFinite }
         return false
@@ -231,7 +247,27 @@ extension Optional where Wrapped == JSON {
 }
 
 /** JavaScript's Math.round (halves go up), so numbers match the web. */
-func jsRound(_ v: Double) -> Int { Int((v + 0.5).rounded(.down)) }
+func jsRound(_ v: Double) -> Int { (v + 0.5).rounded(.down).clampedToInt() }
+
+extension Double {
+    /** This value rounded to the nearest Int, clamped to Int's range (no trap). */
+    func clampedToInt() -> Int {
+        guard isFinite else { return 0 }
+        let r = rounded()
+        if r >= Double(Int.max) { return Int.max }
+        if r <= Double(Int.min) { return Int.min }
+        return Int(r)
+    }
+
+    /** This value rounded to the nearest Int64, clamped to Int64's range (no trap). */
+    func clampedToInt64() -> Int64 {
+        guard isFinite else { return 0 }
+        let r = rounded()
+        if r >= Double(Int64.max) { return Int64.max }
+        if r <= Double(Int64.min) { return Int64.min }
+        return Int64(r)
+    }
+}
 
 public extension Comparable {
     func clamped(_ lo: Self, _ hi: Self) -> Self { min(max(self, lo), hi) }
