@@ -310,14 +310,19 @@ func (s *Server) computer(ctx context.Context, req *mcp.CallToolRequest, which s
 	if err != nil {
 		return nil, err
 	}
-	if c := s.connected(d.DeviceID); c != nil {
-		return c, nil
-	}
+	// Re-check the per-computer authorization on every call, even for a
+	// cached live connection: if the user clicked "Stop allowing" (the
+	// keyring entry is gone), drop any live session for this computer at
+	// once instead of letting it keep working until the next connect.
 	pass, err := s.opts.Password(d.DeviceID)
 	if errors.Is(err, keyring.ErrNotFound) {
+		s.drop(d.DeviceID)
 		return nil, fmt.Errorf("%s is not allowed for assistants: the user can allow it in go-link Desk › Settings › Assistants", title(d))
 	} else if err != nil {
 		return nil, fmt.Errorf("cannot read %s's saved password: %w", title(d), err)
+	}
+	if c := s.connected(d.DeviceID); c != nil {
+		return c, nil
 	}
 	c := newComputer(d)
 	c.pass = pass
@@ -392,6 +397,17 @@ func (s *Server) describe(c *computer) string {
 		b.WriteString(" You may only look: typing, clicking and commands are off in go-link Desk › Settings › Assistants.")
 	}
 	return b.String()
+}
+
+// drop closes and forgets the live connection to a computer, if any.
+func (s *Server) drop(id string) {
+	s.mu.Lock()
+	c := s.computers[id]
+	delete(s.computers, id)
+	s.mu.Unlock()
+	if c != nil {
+		c.close()
+	}
 }
 
 func (s *Server) disconnect(ctx context.Context, req *mcp.CallToolRequest, in computerIn) (*mcp.CallToolResult, any, error) {

@@ -90,6 +90,7 @@ type PasswordGate struct {
 	mu          sync.Mutex
 	tries       map[string]int
 	fails       []time.Time
+	pending     int // guesses admitted and still hashing (reserved slots)
 	lockedUntil time.Time
 }
 
@@ -103,6 +104,13 @@ func NewPasswordGate(now func() time.Time) *PasswordGate {
 
 // Check answers one try of peer: ok runs only when the gate lets it try,
 // so a locked gate costs no hashing.
+//
+// The attempt is reserved under the lock before ok() (the argon2 hashing)
+// runs without it: the per-peer and room counters are charged up front and
+// rolled back only if the guess turns out right. So the room-wide cap is
+// enforced against guesses *started*, not finished - a burst fired at once
+// from many peerIDs can no longer all pass the check while each sits in
+// argon2 and slip the room past its limit.
 func (g *PasswordGate) Check(peer string, ok func() bool) PinResult {
 	g.mu.Lock()
 	now := g.now()
@@ -115,23 +123,31 @@ func (g *PasswordGate) Check(peer string, ok func() bool) PinResult {
 		g.mu.Unlock()
 		return PinResult{Reason: "blocked"}
 	}
-	g.mu.Unlock()
-	if ok() {
-		g.mu.Lock()
-		delete(g.tries, peer)
+	g.trimFails(now)
+	// Count guesses already in flight too: if the committed and reserved
+	// wrong guesses would reach the room cap, lock now rather than letting
+	// the burst through.
+	if len(g.fails)+g.pending >= pinRoomFails {
+		g.lockedUntil = now.Add(pinLock)
 		g.mu.Unlock()
-		return PinResult{OK: true}
+		return PinResult{Reason: "locked", RetryAfter: int(pinLock.Seconds())}
 	}
+	g.tries[peer]++
+	g.pending++
+	g.mu.Unlock()
+
+	right := ok()
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.tries[peer]++
-	recent := g.fails[:0]
-	for _, t := range g.fails {
-		if now.Sub(t) < pinWindow {
-			recent = append(recent, t)
-		}
+	g.pending--
+	if right {
+		delete(g.tries, peer)
+		return PinResult{OK: true}
 	}
-	g.fails = append(recent, now)
+	now = g.now()
+	g.trimFails(now)
+	g.fails = append(g.fails, now)
 	if len(g.fails) >= pinRoomFails {
 		g.lockedUntil = now.Add(pinLock)
 		g.fails = nil
@@ -141,6 +157,17 @@ func (g *PasswordGate) Check(peer string, ok func() bool) PinResult {
 		return PinResult{Reason: "wrong", Left: left}
 	}
 	return PinResult{Reason: "blocked"}
+}
+
+// trimFails drops wrong guesses older than the window. Call it holding mu.
+func (g *PasswordGate) trimFails(now time.Time) {
+	recent := g.fails[:0]
+	for _, t := range g.fails {
+		if now.Sub(t) < pinWindow {
+			recent = append(recent, t)
+		}
+	}
+	g.fails = recent
 }
 
 // Forget drops a browser that left. Its wrong tries stay counted.

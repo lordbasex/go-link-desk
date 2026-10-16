@@ -93,6 +93,7 @@ func main() {
 type serveFlags struct {
 	config, signal, name, shell, user string
 	debug, allowRoot                  bool
+	allowInsecureSignaling            bool
 }
 
 var sf serveFlags
@@ -107,6 +108,7 @@ func flags(out io.Writer) *flag.FlagSet {
 	fs.StringVar(&sf.user, "user", "", "commands run as root: the user whose service to use (when several run it)")
 	fs.BoolVar(&sf.debug, "debug", false, "log more")
 	fs.BoolVar(&sf.allowRoot, "allow-root", false, "let it run as root: every session would be a root shell")
+	fs.BoolVar(&sf.allowInsecureSignaling, "allow-insecure-signaling", false, "allow an unencrypted ws:// signaling server that is not on this machine (the device secret then crosses the network in cleartext; use only on a trusted private network)")
 	return fs
 }
 
@@ -153,8 +155,12 @@ func serve(args []string) error {
 	if sf.signal != "" {
 		target = sf.signal
 	}
-	if _, err := signalclient.CheckURL(target); err != nil {
+	encrypted, err := signalclient.CheckURL(target)
+	if err != nil {
 		return fmt.Errorf("invalid signaling server: %w", err)
+	}
+	if !encrypted && !signalclient.IsLoopback(target) && !sf.allowInsecureSignaling {
+		return fmt.Errorf("refusing to use the unencrypted signaling URL %q: the device secret would cross the network in cleartext. Use wss://, or pass --allow-insecure-signaling to override on a trusted private network", target)
 	}
 	shell := terminal.LoginShell()
 	if sf.shell != "" {

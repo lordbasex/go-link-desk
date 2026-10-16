@@ -16,6 +16,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/ids"
 )
 
 // Limits of what the computer sends, as the website keeps them.
@@ -269,6 +270,13 @@ func (s *Session) onLinkMessage(m controlMsg) {
 		s.sendControl(map[string]any{"type": "auth", "link_id": door.Device.LinkID, "token": door.Device.Token})
 	case "auth_ok":
 		if door.Kind == DoorClaim && m.Token != "" && m.DeviceID != "" && m.LinkID != "" {
+			// The device_id comes from the remote computer. Keep it to the
+			// canonical UUID form before it is stored and later passed to
+			// tools like secret-tool, so a crafted value (e.g. a leading
+			// dash) can never be read as an argument.
+			if !ids.ValidUUID(m.DeviceID) {
+				return
+			}
 			if fn := s.opts.Events.Linked; fn != nil {
 				fn(NewLink{DeviceID: m.DeviceID, LinkID: m.LinkID, Token: m.Token})
 			}

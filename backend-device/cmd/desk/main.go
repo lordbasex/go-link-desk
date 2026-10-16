@@ -62,6 +62,10 @@ type flags struct {
 	debug    bool
 	source   string
 	version  bool
+	// allowInsecureSignaling lets the host use an unencrypted ws:// URL to a
+	// non-loopback signaling server; without it, such a URL is refused so
+	// the device secret never crosses the network in cleartext.
+	allowInsecureSignaling bool
 	// autoAccept lets every viewer in without asking: end-to-end tests
 	// only, and only with the test card.
 	autoAccept bool
@@ -103,6 +107,7 @@ func parseFlags(args []string) (flags, error) {
 	fs.StringVar(&f.webURL, "web-url", "", "website shown with the code, for this run (default: web_url in device.json, else "+models.DefaultWebURL+")")
 	fs.BoolVar(&f.headless, "headless", false, "run without window or tray icon; the session code goes to the log")
 	fs.BoolVar(&f.debug, "debug", false, "verbose logs")
+	fs.BoolVar(&f.allowInsecureSignaling, "allow-insecure-signaling", false, "allow an unencrypted ws:// signaling server that is not on this machine (the device secret then crosses the network in cleartext; use only on a trusted private network)")
 	fs.StringVar(&f.source, "source", "screen", "what sessions show: screen, or testpattern (diagnostics, CI)")
 	fs.BoolVar(&f.version, "version", false, "print the version and exit")
 	fs.BoolVar(&f.autoAccept, "test-auto-accept", false, "accept every viewer without asking (automated tests only; needs --source testpattern)")
@@ -235,7 +240,10 @@ func run(args []string) error {
 	}
 	logger.Info("host starting", "version", version, "device_id", cfg.DeviceID, "config", store.Path(), "first_run", created, "signaling", target, "source", f.source)
 	if encrypted, _ := signalclient.CheckURL(target); !encrypted && !signalclient.IsLoopback(target) {
-		logger.Warn("signaling URL is not encrypted (ws://); use wss:// outside local development", "url", target)
+		if !f.allowInsecureSignaling {
+			return fmt.Errorf("refusing to use the unencrypted signaling URL %q: the device secret would cross the network in cleartext. Use wss://, or pass --allow-insecure-signaling to override on a trusted private network", target)
+		}
+		logger.Warn("signaling URL is not encrypted (ws://); the device secret crosses the network in cleartext", "url", target)
 	}
 	if !guiBuilt && !f.headless {
 		f.headless = true // a build without a window

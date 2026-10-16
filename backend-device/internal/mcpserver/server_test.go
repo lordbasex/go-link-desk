@@ -284,6 +284,32 @@ func TestAnAssistantRunsCommandsOnATerminalComputer(t *testing.T) {
 	}
 }
 
+// "Stop allowing" a computer during a live session drops it at once: the
+// per-computer authorization is re-checked on every call, even for a
+// cached connection, not only when a new one is made.
+func TestStopAllowingDropsALiveSession(t *testing.T) {
+	pi := terminalHost()
+	saved := map[string]string{"dev-pi": "pi-secret"}
+	r := newRig(t, on(true), saved, map[string]*fakeHost{"dev-pi": pi})
+	if _, isErr, _ := r.call("connect", map[string]any{"computer": "desk-pi"}); isErr {
+		t.Fatal("connect failed")
+	}
+	if r.server.connected("dev-pi") == nil {
+		t.Fatal("not connected after connect")
+	}
+	// The user clicks "Stop allowing": the keyring entry is gone.
+	delete(saved, "dev-pi")
+	if got, isErr, _ := r.call("terminal_run", map[string]any{"computer": "desk-pi", "command": "id"}); !isErr || !strings.Contains(got, "not allowed for assistants") {
+		t.Fatalf("still allowed after revoke: %q", got)
+	}
+	if !pi.hungUp {
+		t.Fatal("the live session was not dropped")
+	}
+	if r.server.connected("dev-pi") != nil {
+		t.Fatal("the connection was not forgotten")
+	}
+}
+
 // Off in Settings: nothing. Allowed only to look: no commands. A computer
 // not allowed, or a wrong saved password: told how to fix it.
 func TestWhatTheSettingsAllow(t *testing.T) {

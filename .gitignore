@@ -25,6 +25,9 @@ Thumbs.db
 coverage/
 
 # the Windows build's generated resources
+# Local `go build` output in the module root (the real builds go to dist/).
+/backend-device/desk
+/backend-device/terminal
 backend-device/cmd/desk/*.syso
 backend-device/build/windows/desk.ico
 backend-device/build/windows/version.h

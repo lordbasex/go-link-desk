@@ -99,13 +99,24 @@ func TestSSDPAnswers(t *testing.T) {
 		t.Fatalf("%q", loc)
 	}
 	router := &net.UDPAddr{IP: net.IPv4(192, 168, 0, 1), Port: 1900}
-	if !localDescription(loc, router) {
+	gw := netip.AddrFrom4([4]byte{192, 168, 0, 1})
+	if !localDescription(loc, router, gw) {
 		t.Fatal("the router's own description refused")
 	}
 	for _, bad := range []string{"https://192.168.0.1/d.xml", "http://8.8.8.8/d.xml", "http://192.168.0.7/d.xml", "http://user@192.168.0.1/d.xml", "file:///etc/passwd"} {
-		if localDescription(bad, router) {
+		if localDescription(bad, router, gw) {
 			t.Fatalf("%s taken", bad)
 		}
+	}
+	// A spoofed SSDP source address that matches a non-gateway LOCATION no
+	// longer steers the fetch at that host: the gateway pin refuses it.
+	spoofed := &net.UDPAddr{IP: net.IPv4(192, 168, 0, 7), Port: 1900}
+	if localDescription("http://192.168.0.7:5000/rootDesc.xml", spoofed, gw) {
+		t.Fatal("a spoofed source reached a non-gateway host")
+	}
+	// With no known gateway, it still refuses a host other than the source.
+	if localDescription("http://192.168.0.7/d.xml", router, netip.Addr{}) {
+		t.Fatal("a non-source host taken when the gateway is unknown")
 	}
 	if ssdpLocation([]byte("NOTIFY * HTTP/1.1\r\nLocation: http://192.168.0.1/x\r\n\r\n")) != "" {
 		t.Fatal("a NOTIFY taken as an answer")

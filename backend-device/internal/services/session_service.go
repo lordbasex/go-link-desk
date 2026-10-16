@@ -345,11 +345,11 @@ func (s *SessionService) Admit(peer string, perm models.Permissions) error {
 	s.perm = perm
 	k := g.knock
 	s.mu.Unlock()
+	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm, Unattended: true})
 	s.signal(peer, struct {
 		Kind        string             `json:"kind"`
 		Permissions models.Permissions `json:"permissions"`
 	}{"accepted", perm})
-	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm, Unattended: true})
 	s.log.Info("unattended session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
 	s.permissionsChanged(peer, perm)
 	s.viewers.Admit(peer)
@@ -443,17 +443,32 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 		s.reject(peer, reason)
 		return
 	}
+	// A linked browser may have been admitted over reach (Admit) while this
+	// knock waited for the person's answer. Re-check under the lock, as
+	// Admit does, so a late "accept" never takes a second session over the
+	// top of the one already on - which would leave the other viewer in the
+	// stream with its input and file grants while the panel shows only this
+	// one.
+	if s.active != "" {
+		g.state = guestDone
+		s.mu.Unlock()
+		s.reject(peer, models.RejectBusy)
+		return
+	}
 	perm.View = true // a session always shows the screen
 	g.state = guestAccepted
 	s.active = peer
 	s.perm = perm
 	s.mu.Unlock()
 
+	// Publish the active session before telling the peer it is accepted, so
+	// anyone who sees the `accepted` reply (a viewer, or the panel) already
+	// finds the session in the status.
+	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm})
 	s.signal(peer, struct {
 		Kind        string             `json:"kind"`
 		Permissions models.Permissions `json:"permissions"`
 	}{"accepted", perm})
-	s.status.SetActive(&models.ActiveSession{PeerID: peer, Name: k.Name, Browser: k.Browser, Since: time.Now(), Permissions: perm})
 	s.log.Info("session started", "peer_id", peer, "name", k.Name, "control", perm.Control)
 	s.permissionsChanged(peer, perm)
 	if err := s.viewers.AddViewer(peer, k.Codecs); err != nil {

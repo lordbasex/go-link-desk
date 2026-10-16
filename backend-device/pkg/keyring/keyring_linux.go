@@ -43,16 +43,19 @@ func run(stdin string, args ...string) (string, error) {
 	return out.String(), nil
 }
 
+// The "--" ends secret-tool's option parsing, so an attribute value that
+// begins with "-" (a remote-supplied device_id like "--help") is read as a
+// value, never as an option.
 func set(service, account, secret string) error {
-	_, err := run(secret, "store", "--label=go-link Desk ("+account+")", "service", service, "account", account)
+	_, err := run(secret, "store", "--label=go-link Desk ("+account+")", "--", "service", service, "account", account)
 	return err
 }
 
 func get(service, account string) (string, error) {
-	return run("", "lookup", "service", service, "account", account)
+	return run("", "lookup", "--", "service", service, "account", account)
 }
 
 func del(service, account string) error {
-	_, err := run("", "clear", "service", service, "account", account)
+	_, err := run("", "clear", "--", "service", service, "account", account)
 	return err
 }
