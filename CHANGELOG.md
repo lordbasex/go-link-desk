@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Security
+
+- **Channel binding (`proof2`) is now fail-closed, so a signaling server cannot downgrade it:** a browser or mobile viewer that reaches a linked computer over a connection with DTLS fingerprints (every real WebRTC connection) now requires a valid `proof2` and refuses an `auth_proof` that omits it, whatever the link's state. Before, a never-bound link accepted the plain proof when `proof2` was absent, so a signaling server in the middle could strip `proof2` on a link's first reach and fall back to the plain proof to steal the long-lived link token — the exact attack `proof2` was added to stop. Links are also bound from birth: a link is marked bound the moment it is made (over its direct, human-accepted connection), so even its first reach demands `proof2`. The plain proof survives only for a connection with no fingerprints at all (a legacy-only path that does not arise in practice). Web and iOS viewers; `docs/protocol.md` updated. Found with Claude Security.
+
 ## [1.7.0] - 2026-10-15
 
 Security fixes from an audit with Strix: a Windows host's AppData is private, the Linux installer and updater check every package, and a linked computer's proof is bound to the connection. AI assistants can also click, type and move files.
