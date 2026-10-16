@@ -85,7 +85,7 @@ export const docsPt: Docs = {
               label: "Linux",
               os: "linux",
               blocks: [
-                { t: "p", text: "O jeito mais rápido: uma linha que escolhe o pacote da sua distribuição (.deb, .rpm ou Arch), verifica e instala." },
+                { t: "p", text: "O jeito mais rápido: uma linha que escolhe o pacote da sua distribuição (.deb, .rpm ou Arch), verifica a assinatura e instala. Precisa do OpenSSL 3 (`openssl`), que quase toda distribuição tem." },
                 { t: "code", code: "curl -fsSL https://desk.go-link.org/install.sh | sh" },
                 { t: "note", tone: "info", text: "Um Raspberry Pi ou um servidor sem área de trabalho? Instale o terminal remoto: [Um terminal remoto](/docs/terminal)." },
                 { t: "p", text: "Acrescente `--user` para instalar só para o seu usuário, sem root (em `~/.local`). Remova com `--uninstall`." },
