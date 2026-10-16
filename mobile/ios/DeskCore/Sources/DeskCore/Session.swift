@@ -422,6 +422,19 @@ public final class DeskSession: RtcPeerEvents {
         for t in p { peer?.sendControl(t) }
     }
 
+    /**
+     * On a reach session nothing the computer sends takes effect until it
+     * proved itself and the token went (authed). Input and the password are
+     * already gated this way; this gates the other side-effecting messages
+     * (clipboard, chat, permissions, session_end) so an unproven peer - a
+     * signaling MITM that completed DTLS - cannot write the pasteboard,
+     * inject chat or end the session before the link proof authenticates.
+     */
+    private var reachNotAuthed: Bool {
+        if case .reach = door { return !authed }
+        return false
+    }
+
     public func onControlMessage(_ text: String) {
         guard text.utf8.count <= 64 << 10, let m = JSONText.parseObject(text) else { return }
         let o = JSON.object(m)
@@ -433,18 +446,19 @@ public final class DeskSession: RtcPeerEvents {
             hostOS = JSON.object(h)["os"].str(16)
             events.host?(JSON.object(h)["name"].str(64), hostOS)
         case "stream_stats":
-            events.sent?(Sent(fps: o["fps"].num, width: Int(o["width"].num), height: Int(o["height"].num),
-                              kbps: Int(o["kbps"].num), codec: o["codec"].str(16)))
+            events.sent?(Sent(fps: o["fps"].num, width: o["width"].int, height: o["height"].int,
+                              kbps: o["kbps"].int, codec: o["codec"].str(16)))
         case "displays":
             displays = m["displays"].arr.prefix(16).map { d in
                 let x = Optional(d)
-                return Display(id: Int(x?["id"].num ?? 0), name: x?["name"].str(64) ?? "", width: Int(x?["width"].num ?? 0),
-                               height: Int(x?["height"].num ?? 0), pointsWidth: Int(x?["points_width"].num ?? 0),
-                               pointsHeight: Int(x?["points_height"].num ?? 0), primary: x?["primary"].isTrue ?? false)
+                return Display(id: x?["id"].int ?? 0, name: x?["name"].str(64) ?? "", width: x?["width"].int ?? 0,
+                               height: x?["height"].int ?? 0, pointsWidth: x?["points_width"].int ?? 0,
+                               pointsHeight: x?["points_height"].int ?? 0, primary: x?["primary"].isTrue ?? false)
             }
-            currentDisplay = Int(o["current"].num)
+            currentDisplay = o["current"].int
             events.displays?(displays, currentDisplay)
         case "permissions":
+            if reachNotAuthed { return }
             permissions = Permissions.parse(m["permissions"])
             if !permissions.record && recording {
                 recording = false
@@ -452,10 +466,10 @@ public final class DeskSession: RtcPeerEvents {
             }
             events.permissions?(permissions)
         case "screenshot":
-            answer(UInt32(max(0, o["id"].num)), o["ok"].isTrue)
+            answer(o["id"].uint32, o["ok"].isTrue)
         case "recording":
             // The answer to startRecording, or the computer stopping it (id 0).
-            let id = UInt32(max(0, o["id"].num))
+            let id = o["id"].uint32
             let on = o["on"].isTrue && permissions.record
             if on && asks[id] == nil {
                 control(.obj(("type", "recording"), ("id", .number(0)), ("on", .bool(false)))) // a yes that came too late
@@ -473,17 +487,20 @@ public final class DeskSession: RtcPeerEvents {
         case "cursor_pos":
             events.cursorPos?(o["x"].num, o["y"].num, o["visible"].isTrue)
         case "clipboard":
-            let id = UInt32(max(0, o["id"].num))
-            if let t = clipIn.add(id: id, part: Int(o["part"].num), parts: Int(o["parts"].num), text: o["text"].str(ClipboardAssembler.piece)),
+            if reachNotAuthed { return }
+            let id = o["id"].uint32
+            if let t = clipIn.add(id: id, part: o["part"].int, parts: o["parts"].int, text: o["text"].str(ClipboardAssembler.piece)),
                permissions.clipboard {
                 events.clipboard?(t)
             }
         case "chat":
+            if reachNotAuthed { return }
             let t = String(o["text"].str(DeskSession.maxChat))
             if !t.isEmpty { events.chat?(t) }
         case "typing":
             events.typing?(o["on"].isTrue)
         case "session_end":
+            if reachNotAuthed { return }
             let r = o["reason"].str(20)
             finish(.ended(["host", "viewer", "network", "signal", "idle", "revoked"].contains(r) ? r : "host"))
         default:
@@ -558,13 +575,13 @@ public final class DeskSession: RtcPeerEvents {
             }
             let reason = o["reason"].str(20)
             if reason == "blocked" || reason == "locked" {
-                finish(.passwordRefused(reason: reason, retryAfter: Int(max(0, o["retry_after"].num))))
+                finish(.passwordRefused(reason: reason, retryAfter: max(0, o["retry_after"].int)))
                 return
             }
             var next = prompt
             next.wrong = true
             next.checking = false
-            next.left = Int(max(0, o["left"].num))
+            next.left = max(0, o["left"].int)
             set(.password(next))
         default:
             break

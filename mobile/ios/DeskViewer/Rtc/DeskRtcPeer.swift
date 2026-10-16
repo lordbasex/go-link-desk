@@ -73,7 +73,7 @@ final class DeskRtcPeer: NSObject, RtcPeer {
 
     func addCandidate(_ candidate: IceCandidateInit) {
         guard !closed else { return }
-        pc.add(RTCIceCandidate(sdp: candidate.candidate, sdpMLineIndex: Int32(candidate.sdpMLineIndex), sdpMid: candidate.sdpMid)) { _ in }
+        pc.add(RTCIceCandidate(sdp: candidate.candidate, sdpMLineIndex: Int32(exactly: candidate.sdpMLineIndex) ?? 0, sdpMid: candidate.sdpMid)) { _ in }
     }
 
     func sendControl(_ text: String) -> Bool {
