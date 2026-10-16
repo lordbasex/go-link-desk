@@ -3,11 +3,7 @@
 package services
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"log/slog"
@@ -17,6 +13,7 @@ import (
 	"time"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 )
 
 // Messages on the control channel of a linked browser.
@@ -37,7 +34,10 @@ const errNotLinked = "This browser is no longer linked to the device. Link it ag
 
 // LinkConfig configures LinkService. Zero values get defaults.
 type LinkConfig struct {
-	DeviceID    string
+	DeviceID string
+	// HostKey is this host's device signing key. A linked browser pins its
+	// public half and checks every proof the host signs with it.
+	HostKey     linkauth.Key
 	Links       []models.Link             // loaded from device.json
 	Save        func([]models.Link) error // persists the links
 	AuthTimeout time.Duration             // default 30 s, for peers that came with reach
@@ -55,12 +55,17 @@ type LinkService struct {
 	cfg    LinkConfig
 	status *StatusService
 
+	hostKey linkauth.Key
+
 	mu      sync.Mutex
 	links   []models.Link
-	trusted map[string]string // peer_id -> link id ("" until it got a token)
+	trusted map[string]string // peer_id -> link id ("" until it is linked)
 	timers  map[string]*time.Timer
-	send    func(peerID string, msg []byte) bool
-	drop    func(peerID string)
+	// nonces keeps the nonce a reaching browser sent in auth_challenge, so
+	// auth can rebuild the message its proof signs over.
+	nonces map[string]string
+	send   func(peerID string, msg []byte) bool
+	drop   func(peerID string)
 	// fingerprints: the DTLS fingerprints of a peer's connection.
 	fingerprints func(peerID string) (host, viewer string)
 	// onChange runs (outside the lock) when a browser becomes trusted or
@@ -125,9 +130,11 @@ func NewLinkService(cfg LinkConfig, status *StatusService) *LinkService {
 	l := &LinkService{
 		cfg:     cfg,
 		status:  status,
+		hostKey: cfg.HostKey,
 		links:   slices.Clone(cfg.Links),
 		trusted: map[string]string{},
 		timers:  map[string]*time.Timer{},
+		nonces:  map[string]string{},
 	}
 	status.SetSavedLinks(len(l.links))
 	return l
@@ -277,6 +284,7 @@ func (l *LinkService) Reached(peerID string) {
 func (l *LinkService) Forget(peerID string) {
 	l.mu.Lock()
 	delete(l.trusted, peerID)
+	delete(l.nonces, peerID)
 	if t := l.timers[peerID]; t != nil {
 		t.Stop()
 		delete(l.timers, peerID)
@@ -288,8 +296,11 @@ func (l *LinkService) Forget(peerID string) {
 type linkMessage struct {
 	Type   string `json:"type"`
 	LinkID string `json:"link_id,omitempty"`
-	Token  string `json:"token,omitempty"`
-	Nonce  string `json:"nonce,omitempty"`
+	// Pub is the browser's public key, sent once when it links (claim).
+	Pub string `json:"pub,omitempty"`
+	// Sig is the browser's signature over the reach proof message.
+	Sig   string `json:"sig,omitempty"`
+	Nonce string `json:"nonce,omitempty"`
 	// Terms: the version of the terms of use accepted in this browser.
 	Terms string `json:"terms,omitempty"`
 }
@@ -327,26 +338,6 @@ func (l *LinkService) HandleMessage(peerID string, data []byte) bool {
 	return true
 }
 
-// LinkProof is what the host answers to a remembered browser's nonce:
-// HMAC-SHA256 keyed with SHA-256(token), which only the real host keeps. The "go-link-desk"
-// prefix keeps a proof from one app from ever passing in another.
-func LinkProof(tokenHash []byte, nonce string) string {
-	mac := hmac.New(sha256.New, tokenHash)
-	mac.Write([]byte("go-link-desk link proof\n" + nonce))
-	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-}
-
-// LinkProofBound is LinkProof tied to this connection too: the DTLS
-// fingerprints of the host's and the viewer's certificates, as each side
-// sees them in the SDP (DTLSFingerprint). A signaling server that rewrites
-// the SDP to sit in the middle has its own certificate on each side, so a
-// proof it relays from the real host does not match what the viewer sees.
-func LinkProofBound(tokenHash []byte, nonce, hostFingerprint, viewerFingerprint string) string {
-	mac := hmac.New(sha256.New, tokenHash)
-	mac.Write([]byte("go-link-desk link proof 2\n" + nonce + "\n" + hostFingerprint + "\n" + viewerFingerprint))
-	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-}
-
 // DTLSFingerprint is an SDP's first sha-256 certificate fingerprint, as
 // "sha-256 AB:CD:…" (upper case hex), or "" when it has none.
 func DTLSFingerprint(sdp string) string {
@@ -363,35 +354,44 @@ func DTLSFingerprint(sdp string) string {
 	return ""
 }
 
-// prove answers auth_challenge: the proof that this is the device the
-// browser linked to, before the browser shows its token.
+// prove answers auth_challenge: the host signs the connection's nonce and
+// DTLS fingerprints with its device key, so the browser can check it against
+// the public key it pinned when it linked, before it proves its own key. A
+// browser whose link is gone (revoked, or never known) gets a refusal the
+// host signs the same way, so it can trust the refusal and forget the link
+// — a signaling server cannot forge it to make the browser re-pair.
 func (l *LinkService) prove(peerID string, m linkMessage) {
 	if len(m.Nonce) < 16 || len(m.Nonce) > 128 {
 		return
 	}
 	l.mu.Lock()
-	i := slices.IndexFunc(l.links, func(r models.Link) bool { return r.ID == m.LinkID })
-	var hash []byte
-	if i >= 0 {
-		hash, _ = hex.DecodeString(l.links[i].TokenHash)
-	}
+	known := slices.ContainsFunc(l.links, func(r models.Link) bool { return r.ID == m.LinkID })
+	l.nonces[peerID] = m.Nonce
 	fingerprints := l.fingerprints
+	hostKey := l.hostKey
 	l.mu.Unlock()
-	if len(hash) != sha256.Size {
+
+	host, viewer := "", ""
+	if fingerprints != nil {
+		host, viewer = fingerprints(peerID)
+	}
+	if !known {
+		sig, err := hostKey.Sign(linkauth.HostUnlinkMessage(m.Nonce, host, viewer))
+		if err != nil {
+			l.cfg.Logger.Error("cannot sign the unlink refusal", "err", err)
+		}
+		l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked, "sig": sig})
+		l.dropLater(peerID)
+		return
+	}
+	sig, err := hostKey.Sign(linkauth.HostProofMessage(m.Nonce, host, viewer))
+	if err != nil {
+		l.cfg.Logger.Error("cannot sign the link proof", "err", err)
 		l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked})
 		l.dropLater(peerID)
 		return
 	}
-	reply := map[string]string{"type": msgProof, "link_id": m.LinkID, "proof": LinkProof(hash, m.Nonce)}
-	// The proof bound to this connection too; the plain one stays for
-	// viewers from before it, which a viewer that once got proof2 from
-	// this link no longer accepts.
-	if fingerprints != nil {
-		if host, viewer := fingerprints(peerID); host != "" && viewer != "" {
-			reply["proof2"] = LinkProofBound(hash, m.Nonce, host, viewer)
-		}
-	}
-	l.reply(peerID, reply)
+	l.reply(peerID, map[string]string{"type": msgProof, "link_id": m.LinkID, "sig": sig})
 }
 
 func (l *LinkService) auth(peerID string, m linkMessage) {
@@ -399,8 +399,16 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 	linkID, trusted := l.trusted[peerID]
 	switch {
 	case trusted && linkID == "":
-		// Just redeemed a code: remember this browser.
-		token, rec, err := newLink(l.cfg.Now())
+		// Just redeemed a code: remember this browser by the public key it
+		// sends now. The private half never leaves the browser.
+		if _, err := linkauth.ParsePublic(m.Pub); err != nil {
+			l.mu.Unlock()
+			l.cfg.Logger.Warn("a linking browser sent no valid key", "peer_id", peerID)
+			l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked})
+			l.dropLater(peerID)
+			return
+		}
+		rec, err := newLink(l.cfg.Now(), m.Pub)
 		if err != nil {
 			l.mu.Unlock()
 			l.cfg.Logger.Error("cannot create a link", "err", err)
@@ -415,18 +423,40 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 		l.mu.Unlock()
 		l.persist(links)
 		l.cfg.Logger.Info("browser remembered", "link_id", rec.ID, "terms", rec.Terms)
-		l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": rec.ID, "token": token})
+		l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": rec.ID, "host_key": l.hostKey.Public()})
 		l.authenticated(peerID, rec, true)
 		return
 	case trusted:
 		l.mu.Unlock()
-		l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": linkID})
+		l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": linkID, "host_key": l.hostKey.Public()})
 		return
 	}
 	i := slices.IndexFunc(l.links, func(r models.Link) bool { return r.ID == m.LinkID })
-	if i < 0 || !tokenMatches(l.links[i].TokenHash, m.Token) {
-		l.mu.Unlock()
+	nonce := l.nonces[peerID]
+	fingerprints := l.fingerprints
+	var browserKey string
+	if i >= 0 {
+		browserKey = l.links[i].BrowserKey
+	}
+	l.mu.Unlock()
+
+	host, viewer := "", ""
+	if fingerprints != nil {
+		host, viewer = fingerprints(peerID)
+	}
+	pub, err := linkauth.ParsePublic(browserKey)
+	if i < 0 || nonce == "" || err != nil || !pub.Verify(linkauth.LinkProofMessage(nonce, host, viewer), m.Sig) {
 		l.cfg.Logger.Warn("browser failed to authenticate", "peer_id", peerID)
+		l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked})
+		l.dropLater(peerID)
+		return
+	}
+
+	l.mu.Lock()
+	// The link may have moved while we verified without the lock.
+	i = slices.IndexFunc(l.links, func(r models.Link) bool { return r.ID == m.LinkID })
+	if i < 0 {
+		l.mu.Unlock()
 		l.reply(peerID, map[string]string{"type": msgAuthFailed, "error": errNotLinked})
 		l.dropLater(peerID)
 		return
@@ -436,6 +466,7 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 		l.links[i].Terms, l.links[i].TermsAt = m.Terms, l.cfg.Now()
 	}
 	l.trusted[peerID] = m.LinkID
+	delete(l.nonces, peerID)
 	if t := l.timers[peerID]; t != nil {
 		t.Stop()
 		delete(l.timers, peerID)
@@ -447,7 +478,7 @@ func (l *LinkService) auth(peerID string, m linkMessage) {
 	l.changed()
 	l.status.AddPeer(peerID, "", l.cfg.Now())
 	l.cfg.Logger.Info("browser back", "peer_id", peerID, "link_id", m.LinkID)
-	l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": m.LinkID})
+	l.reply(peerID, map[string]string{"type": msgAuthOK, "device_id": l.cfg.DeviceID, "link_id": m.LinkID, "host_key": l.hostKey.Public()})
 	l.authenticated(peerID, rec, false)
 }
 
@@ -520,30 +551,12 @@ func (l *LinkService) dropPeer(peerID string) {
 	}
 }
 
-// newLink creates a random token for a browser and the record that keeps
-// only its hash.
-func newLink(now time.Time) (string, models.Link, error) {
+// newLink makes the record for a browser just linked, keeping the browser's
+// public key and a fresh random id.
+func newLink(now time.Time, browserKey string) (models.Link, error) {
 	var id [8]byte
-	var secret [32]byte
 	if _, err := rand.Read(id[:]); err != nil {
-		return "", models.Link{}, err
+		return models.Link{}, err
 	}
-	if _, err := rand.Read(secret[:]); err != nil {
-		return "", models.Link{}, err
-	}
-	token := base64.RawURLEncoding.EncodeToString(secret[:])
-	return token, models.Link{ID: hex.EncodeToString(id[:]), TokenHash: hashToken(token), CreatedAt: now, LastSeen: now}, nil
-}
-
-func hashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
-}
-
-// tokenMatches compares in constant time, so timing reveals nothing.
-func tokenMatches(hash, token string) bool {
-	if token == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(hash), []byte(hashToken(token))) == 1
+	return models.Link{ID: hex.EncodeToString(id[:]), BrowserKey: browserKey, CreatedAt: now, LastSeen: now}, nil
 }

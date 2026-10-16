@@ -152,9 +152,9 @@ func newRig(t *testing.T, cfg models.Config, saved map[string]string, hosts map[
 	t.Helper()
 	r := &rig{t: t, cfg: cfg, hosts: hosts, audit: filepath.Join(t.TempDir(), AuditFile)}
 	remotes := models.Remotes{Devices: []models.RemoteDevice{
-		{DeviceID: "dev-pi", Name: "desk-pi", OS: "linux", Token: "t1"},
-		{DeviceID: "dev-mac", Name: "Studio", Label: "Office Mac", OS: "darwin", Token: "t2"},
-		{DeviceID: "dev-other", Name: "laptop", OS: "windows", Token: "t3"},
+		{DeviceID: "dev-pi", Name: "desk-pi", OS: "linux", Key: "t1"},
+		{DeviceID: "dev-mac", Name: "Studio", Label: "Office Mac", OS: "darwin", Key: "t2"},
+		{DeviceID: "dev-other", Name: "laptop", OS: "windows", Key: "t3"},
 	}}
 	r.server = New(Options{
 		Version: "1.6.0",

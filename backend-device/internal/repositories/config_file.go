@@ -15,6 +15,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/ids"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
 )
 
 // ConfigFile stores models.Config as JSON. The file holds no secrets yet,
@@ -63,12 +64,42 @@ func validDeviceSecret(s string) bool {
 	return err == nil && len(b) == 32
 }
 
+// newHostKey returns the stored form of a fresh device signing key.
+func newHostKey() string {
+	k, err := linkauth.NewKey()
+	if err != nil {
+		panic(err) // crypto/rand never fails on supported systems
+	}
+	return k.Private()
+}
+
+func validHostKey(s string) bool {
+	_, err := linkauth.ParseKey(s)
+	return err == nil
+}
+
+// dropLegacyLinks keeps only links that carry a browser public key. Links
+// from before the key-based handshake had only a token hash and cannot
+// authenticate any more, so they are forgotten.
+func dropLegacyLinks(links []models.Link) []models.Link {
+	kept := make([]models.Link, 0, len(links))
+	for _, l := range links {
+		if _, err := linkauth.ParsePublic(l.BrowserKey); err == nil {
+			kept = append(kept, l)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
+}
+
 // LoadOrCreate reads the configuration. On first run it creates the file
 // with a new permanent device_id and reports created=true.
 func (f *ConfigFile) LoadOrCreate() (cfg models.Config, created bool, err error) {
 	data, err := os.ReadFile(f.path)
 	if errors.Is(err, fs.ErrNotExist) {
-		cfg = models.Config{DeviceID: ids.NewUUIDv4(), DeviceSecret: newDeviceSecret()}
+		cfg = models.Config{DeviceID: ids.NewUUIDv4(), DeviceSecret: newDeviceSecret(), HostKey: newHostKey()}
 		if err := f.Save(cfg); err != nil {
 			return models.Config{}, false, err
 		}
@@ -83,9 +114,24 @@ func (f *ConfigFile) LoadOrCreate() (cfg models.Config, created bool, err error)
 	if !ids.ValidUUID(cfg.DeviceID) {
 		return models.Config{}, false, fmt.Errorf("parse %s: invalid device_id %q", f.path, cfg.DeviceID)
 	}
-	// Configurations made before the device secret existed get one now.
+	// Configurations made before the device secret or the device key existed
+	// get them now. Links made before the key-based handshake kept only a
+	// token hash and can no longer come back, so they are dropped and their
+	// browsers link again with a code.
+	resave := false
 	if !validDeviceSecret(cfg.DeviceSecret) {
 		cfg.DeviceSecret = newDeviceSecret()
+		resave = true
+	}
+	if !validHostKey(cfg.HostKey) {
+		cfg.HostKey = newHostKey()
+		resave = true
+	}
+	if kept := dropLegacyLinks(cfg.Links); len(kept) != len(cfg.Links) {
+		cfg.Links = kept
+		resave = true
+	}
+	if resave {
 		if err := f.Save(cfg); err != nil {
 			return models.Config{}, false, err
 		}

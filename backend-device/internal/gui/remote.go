@@ -183,7 +183,6 @@ func (r *remote) events() viewer.Events {
 		},
 		Linked:   r.onLinked,
 		Unlinked: r.onUnlinked,
-		Bound:    r.onBound,
 		Files:    r.onFiles,
 		Recording: func(bool) {
 			r.stopRecording(L("The person at the computer stopped the recording; what was recorded is in Downloads."))
@@ -531,21 +530,13 @@ func (r *remote) keepLink(l viewer.NewLink, h viewer.HostInfo) {
 	if r.door.Kind == viewer.DoorReach && r.door.Device != nil && r.door.Device.SignalURL != "" {
 		signal = r.door.Device.SignalURL
 	}
-	r.u.opts.Remotes.Link(models.RemoteDevice{DeviceID: l.DeviceID, LinkID: l.LinkID, Token: l.Token, SignalURL: signal,
+	r.u.opts.Remotes.Link(models.RemoteDevice{DeviceID: l.DeviceID, LinkID: l.LinkID, Key: l.Key, HostKey: l.HostKey, SignalURL: signal,
 		Name: h.Name, OS: h.OS, LastUsed: time.Now()})
 }
 
 func (r *remote) onUnlinked() {
 	if r.door.Kind == viewer.DoorReach && r.door.Device != nil && r.u.opts.Remotes != nil {
 		r.u.opts.Remotes.Forget(r.door.Device.DeviceID)
-	}
-}
-
-// onBound: the computer proved itself bound to the connection; from now
-// on it must, every time.
-func (r *remote) onBound() {
-	if r.door.Kind == viewer.DoorReach && r.door.Device != nil && r.u.opts.Remotes != nil {
-		r.u.opts.Remotes.Update(r.door.Device.DeviceID, func(d *models.RemoteDevice) { d.Bound = true })
 	}
 }
 
