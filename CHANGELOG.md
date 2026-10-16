@@ -14,6 +14,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 - **A UPnP device description is fetched only from the default gateway:** the connection test pins the SSDP `LOCATION` to the real router's address when it is known, so a LAN host that spoofs the SSDP source address can no longer steer the fetch at some other internal host (a constrained SSRF). Found with Claude Security.
 - **A remote computer's `device_id` is validated and never read as a command-line option:** the viewer keeps a linked computer's `device_id` to the canonical UUID form before storing it, and the Linux keyring passes `--` to `secret-tool` so a value beginning with `-` is treated as data, not an option. Found with Claude Security.
 
+### Fixed
+
+- **A started session shows in the status before its viewer is told it is accepted:** the host now publishes the active session to the status *before* it sends the `accepted` reply, in both the attended and the unattended path, so there is no window where a viewer (or a test) sees the acceptance while the status still reads idle. This removes a flaky `TestAnAcceptedViewerGetsTheStream` failure under load.
+
 ## [1.7.0] - 2026-10-15
 
 Security fixes from an audit with Strix: a Windows host's AppData is private, the Linux installer and updater check every package, and a linked computer's proof is bound to the connection. AI assistants can also click, type and move files.
