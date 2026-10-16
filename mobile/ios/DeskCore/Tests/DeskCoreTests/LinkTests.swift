@@ -115,6 +115,29 @@ final class LinkTests: XCTestCase {
         XCTAssertEqual(plain.status, .untrusted)
     }
 
+    // On a reach session, an unproven peer (a signaling MITM that finished
+    // DTLS) cannot write the clipboard, inject chat or end the session: the
+    // side-effecting control messages are dropped until the link proof and
+    // auth_ok authenticate the computer.
+    func testReachDropsSideEffectsBeforeAuth() {
+        let link = DeviceLink(deviceId: "D", linkId: "L", token: "t")
+        let s = session(.reach(link))
+        var clip: String?, chat: String?
+        s.events.clipboard = { clip = $0 }
+        s.events.chat = { chat = $0 }
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        peer.events.onControlMessage(#"{"type":"permissions","permissions":{"clipboard":true}}"#)
+        peer.events.onControlMessage(#"{"type":"clipboard","id":1,"part":0,"parts":1,"text":"evil"}"#)
+        peer.events.onControlMessage(#"{"type":"chat","text":"fake"}"#)
+        peer.events.onControlMessage(#"{"type":"session_end","reason":"host"}"#)
+        XCTAssertNil(clip)
+        XCTAssertNil(chat)
+        XCTAssertNotEqual(s.status, .ended("host"))
+    }
+
     func testAWrongProofSendsNothing() {
         let link = DeviceLink(deviceId: "D", linkId: "L", token: "secret-token")
         let s = session(.reach(link))

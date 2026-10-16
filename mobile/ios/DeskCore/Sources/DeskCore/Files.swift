@@ -132,7 +132,7 @@ public final class FilesClient {
                     let name = o?["name"].str(255) ?? ""
                     guard !name.isEmpty else { return nil }
                     return FileEntry(name: name, dir: o?["dir"].isTrue ?? false,
-                                     size: Int64(max(0, o?["size"].num ?? 0)), mtime: Int64(o?["mtime"].num ?? 0))
+                                     size: max(0, o?["size"].int64 ?? 0), mtime: o?["mtime"].int64 ?? 0)
                 }
                 finish(.success(entries))
             case "files_error":
@@ -202,7 +202,7 @@ public final class FilesClient {
             case "download_ready":
                 name = FilesClient.safeName(m["name"].str(255))
                 if name.isEmpty { name = FilesClient.safeName((path as NSString).lastPathComponent) }
-                size = Int64(max(0, JSON.object(m)["size"].num))
+                size = max(0, JSON.object(m)["size"].int64)
                 do {
                     sink = try ready(name, size)
                 } catch {
@@ -227,7 +227,10 @@ public final class FilesClient {
             guard data.count >= 8, let sink else { return }
             let off = data.prefix(8).reduce(Int64(0)) { $0 << 8 | Int64($1) }
             let piece = data.dropFirst(8)
-            guard off >= 0, off + Int64(piece.count) <= size else {
+            // Non-trapping bounds: off can be any Int64 (even Int64.max), so
+            // off + piece.count would overflow and abort the app. size >= 0
+            // and 0 <= off <= size make size - off safe.
+            guard off >= 0, off <= size, size - off >= Int64(piece.count) else {
                 self?.send(.obj(("type", "cancel"), ("id", .string(id))))
                 finish(.failure(FilesError("the computer sent a bad piece")))
                 return
