@@ -514,15 +514,21 @@ public final class DeskSession: RtcPeerEvents {
         switch m["type"].str(40) {
         case "auth_proof":
             guard case let .reach(link) = door, !nonce.isEmpty else { return }
-            // proof2 ties the proof to this connection's certificates; a
-            // computer that once gave it must always give it, or someone in
-            // the middle could fall back to the plain proof.
+            // proof2 ties the proof to this connection's certificates.
+            // Binding is fail-closed: whenever this connection has DTLS
+            // fingerprints (every real WebRTC connection does), a valid
+            // proof2 is required and a proof2-less auth_proof is refused, no
+            // matter the link's prior state. Otherwise someone in the middle
+            // could strip proof2 on a link's first reach and fall back to the
+            // plain proof to steal the token. The plain proof is accepted
+            // only when the connection has no fingerprints at all (a
+            // genuinely unbindable, legacy path).
             let host = DeskSession.fingerprint(sdp: offerSdp), mine = DeskSession.fingerprint(sdp: answerSdp)
             let canBind = !host.isEmpty && !mine.isEmpty
             let proof2: String? = m["proof2"] == nil ? nil : o["proof2"].str(100)
             let bound = canBind && proof2.map { DeskSession.same($0, DeskSession.linkProofBound(token: link.token, nonce: nonce, host: host, viewer: mine)) } == true
             let plain = DeskSession.same(o["proof"].str(100), DeskSession.linkProof(token: link.token, nonce: nonce))
-            let ok = bound || (plain && !link.bound && (proof2 == nil || !canBind))
+            let ok = bound || (plain && !canBind && !link.bound)
             guard o["link_id"].str(64) == link.linkId, ok else {
                 finish(.untrusted)
                 return
