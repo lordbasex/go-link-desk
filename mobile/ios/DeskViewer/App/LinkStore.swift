@@ -110,7 +110,7 @@ final class LinkStore {
     }
 
     /** Whether this device has a passcode, so a link can be protected. */
-    static var canProtect: Bool {
+    nonisolated static var canProtect: Bool {
         LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
     }
 
@@ -183,7 +183,7 @@ final class LinkStore {
         SecItemAdd(add as CFDictionary, nil)
     }
 
-    private static func storeSecret(account: String, _ secret: Secret) throws {
+    nonisolated private static func storeSecret(account: String, _ secret: Secret) throws {
         guard canProtect else { throw LinkError.noPasscode }
         guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .userPresence, nil) else {
             throw LinkError.keychain(errSecParam)
