@@ -78,11 +78,11 @@ public enum LinkAuth {
         return key.isValidSignature(signature, for: message)
     }
 
-    static func base64url(_ data: Data) -> String {
+    public static func base64url(_ data: Data) -> String {
         data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
 
-    static func fromBase64url(_ s: String) -> Data? {
+    public static func fromBase64url(_ s: String) -> Data? {
         var b = s.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         while b.count % 4 != 0 { b += "=" }
         return Data(base64Encoded: b)
