@@ -8,8 +8,8 @@ import { Field, MenuCtx, Switch, Txt, usePal } from '../ui/widgets.jsx';
 import { ymd, hhmm } from '../ui/format.js';
 const DEFAULT_SIGNAL = 'wss://signal.go-link.org/ws', DEFAULT_WEB = 'https://desk.go-link.org';
 const OFF = false;
-const IDLE = [0, 15, 30, 60, 120, 240];
-const idleLabel = (m) => (m === 0 ? L('Never') : m >= 60 ? (m === 60 ? L('1 hour') : Lf('%d hours', m / 60)) : Lf('%d minutes', m));
+const IDLE = [0, 5, 15, 30, 60];
+const idleLabel = (m) => (m === 0 ? L('Never') : m % 60 === 0 ? Lf('After %d h', m / 60) : Lf('After %d min', m));
 const set = (key) => (value) => engine.send('settings.set', { key, value });
 
 export function prefsSpec(s, local = {}) {
