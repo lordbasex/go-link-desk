@@ -9,10 +9,12 @@ import { fyne } from '../../ui/tokens.js';
 import { MenuLayer, Pal } from '../../ui/widgets.jsx';
 import { trayItems } from '../../views/tray.jsx';
 import { palette } from '../../ui/tokens.js';
+globalThis.__glStill = true;
 const FILE = '/home/lord/LordOS-appui/home/scene.txt';
 function Scene({ spec }) {
   const s = useEngine();
   if (!s.config) return null;
+  setLanguage(s.config.language);
   const q = Object.fromEntries(spec.split(';').map((x) => x.split('=')));
   const w = Number(q.w || 1120), h = Number(q.h || 680);
   const v = q.view || 'main';

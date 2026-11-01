@@ -30,7 +30,7 @@ const OVER = new Set(['timeout', 'busy', 'unavailable', 'off', 'declined', 'ende
 function Spinner() {
   const p = usePal();
   const [i, set] = useState(0);
-  useEffect(() => { const t = setInterval(() => set((v) => (v + 1) % 8), 100); return () => clearInterval(t); }, []);
+  useEffect(() => { if (globalThis.__glStill) return undefined; const t = setInterval(() => set((v) => (v + 1) % 8), 100); return () => clearInterval(t); }, []);
   return (
     <View style={{ width: 32, height: 32 }}>
       {[...Array(8).keys()].map((k) => {

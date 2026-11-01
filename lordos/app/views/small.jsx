@@ -40,7 +40,7 @@ export function Consent({ f, s, close }) {
 }
 export function ChatLines({ f, lines }) {
   return (
-    <ScrollView style={{ flex: 1, minHeight: 120 }}>
+    <ScrollView style={{ flex: 1, minHeight: 112 }}>
       <View style={{ gap: 4 }}>{lines.map((l, i) => (
         <FLabel key={i} f={f} importance={l.mine ? 'low' : 'medium'} italic={l.note}>{l.note ? l.text : `${l.who} · ${hhmm(l.at)}\n${l.text}`}</FLabel>
       ))}</View>

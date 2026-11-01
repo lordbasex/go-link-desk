@@ -40,10 +40,12 @@ export function Switch({ on, enabled = true, onChange }) {
 }
 export function Field({ value, onChange, placeholder, onSubmit, width = 220, secure, size = 12 }) {
   const p = usePal();
+  const [shown, setShown] = useState(false);
   return (
-    <View style={{ width, height: 22, backgroundColor: p.bg, borderRadius: 2, borderWidth: 1, borderColor: p.fieldBorder, justifyContent: 'center', overflow: 'hidden' }}>
-      <TextInput value={value} onChange={onChange} onSubmit={onSubmit} placeholder={placeholder} secure={secure} size={size}
-        style={{ backgroundColor: 'transparent', borderWidth: 0, height: 20, paddingHorizontal: 4 }} />
+    <View style={{ width, height: 22, backgroundColor: p.bg, borderRadius: 2, borderWidth: 1, borderColor: p.fieldBorder, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' }}>
+      <View style={{ flex: 1 }}><TextInput value={value} onChange={onChange} onSubmit={onSubmit} placeholder={placeholder} secure={secure && !shown} size={size}
+        style={{ backgroundColor: 'transparent', borderWidth: 0, height: 20, paddingHorizontal: 4 }} /></View>
+      {secure ? <View onClick={() => setShown(!shown)} style={{ width: 24, alignItems: 'center' }}><Icon name="fyne-visibility-off" size={20} color={p.text} /></View> : null}
     </View>
   );
 }
