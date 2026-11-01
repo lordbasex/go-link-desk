@@ -1,0 +1,5 @@
+<!-- go-link Desk: a gear drawn for Fyne's SVG renderer (MIT, this project) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M18.92 10.02 L21.44 10.25 L21.44 13.75 L18.92 13.98 L18.30 15.49 L19.91 17.44 L17.44 19.91 L15.49 18.30 L13.98 18.92 L13.75 21.44 L10.25 21.44 L10.02 18.92 L8.51 18.30 L6.56 19.91 L4.09 17.44 L5.70 15.49 L5.08 13.98 L2.56 13.75 L2.56 10.25 L5.08 10.02 L5.70 8.51 L4.09 6.56 L6.56 4.09 L8.51 5.70 L10.02 5.08 L10.25 2.56 L13.75 2.56 L13.98 5.08 L15.49 5.70 L17.44 4.09 L19.91 6.56 L18.30 8.51 Z" />
+  <circle cx="12" cy="12" r="3" />
+</svg>

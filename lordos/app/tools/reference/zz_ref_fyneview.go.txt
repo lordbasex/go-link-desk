@@ -1,0 +1,24 @@
+//go:build !headless
+
+package fyneview
+
+import "fyne.io/fyne/v2"
+
+// RefFilter and RefPage: reference captures only (copied in by reference.sh, never committed in pkg/).
+func RefFilter(f string) {
+	if m := current(); m != nil {
+		m.mu.Lock()
+		m.filter, m.chose = f, true
+		m.mu.Unlock()
+		m.renderFilters()
+		m.renderTiles()
+	}
+}
+func RefPage(id string) {
+	if pw := prefsWin(); pw != nil {
+		pw.page = id
+		pw.rebuild()
+	}
+}
+func RefMain() fyne.Window { return current().win }
+func RefPrefs() fyne.Window { return prefsWin().win }

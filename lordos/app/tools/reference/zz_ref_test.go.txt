@@ -1,0 +1,182 @@
+//go:build !headless
+
+package gui
+
+import (
+	"context"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
+
+	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
+	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/fyneview"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
+)
+
+type refH struct{}
+
+func (refH) MainAction(string, string) {}
+
+func shot(t *testing.T, name string, w fyne.Window, width, height float32) {
+	t.Helper()
+	dir := os.Getenv("REF_OUT")
+	min := w.Content().MinSize()
+	if height == 0 {
+		height = min.Height
+	}
+	w.Resize(fyne.NewSize(width, height))
+	img := w.Canvas().Capture()
+	f, err := os.Create(filepath.Join(dir, name+".png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var _ image.Image = img
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s %v min %v", name, img.Bounds().Size(), min)
+}
+
+func labels() map[string]string {
+	return map[string]string{
+		"thisComputer": L("This computer"), "yourCode": L("Your code"), "copy": L("Copy"), "copied": L("Copied"), "newCode": L("New code"),
+		"hint": L("Share this code only with someone you know. Nobody legitimate will call you asking for access to your computer."),
+		"permissions": L("Permissions"), "allowed": L("Allowed"), "allow": L("Allow…"), "settings": L("Settings"),
+		"connectTo": L("Connect to another computer"), "address": L("Its 9-digit code"), "doorSession": L("Session"), "doorLink": L("Link (unattended)"),
+		"connect": L("Connect"), "demo": L("Try the demo"), "myComputers": L("My computers"), "recents": L("Recent sessions"), "clear": L("Clear"),
+		"empty": L("Computers you link with their pairing code show up here, to connect to them without a code."),
+		"favorites": L("Favorites"), "emptyFavorites": L("Mark a linked computer with the star to see it here."),
+		"emptyRecents": L("The computers you connect to with a code show up here."),
+		"colName": L("Name"), "colCode": L("Code"), "colSystem": L("System"), "colWhen": L("Last connection"),
+	}
+}
+
+func TestRefAll(t *testing.T) {
+	lang := os.Getenv("REF_LANG")
+	if lang == "" {
+		lang = "en"
+	}
+	a := test.NewTempApp(t)
+	a.Settings().SetTheme(nil)
+	st := services.NewStatusService("d", "1.8.0", "ws://x")
+	since := time.Date(2026, 11, 1, 18, 7, 0, 0, time.UTC)
+	cfg := models.Config{Unattended: models.Unattended{Enabled: true, PasswordHash: "x"}, Assistants: models.AssistantsConfig{Enabled: true}, UDPPort: 0,
+		Links: []models.Link{{ID: "l1", Name: "Federico's iPhone", CreatedAt: since, LastSeen: since, Permissions: models.Permissions{View: true, Control: true, Audio: true}}}}
+	set := services.NewSettingsService(cfg, nil, nil)
+	links := services.NewLinkService(services.LinkConfig{DeviceID: "d", Links: cfg.Links, Save: func(l []models.Link) error { return nil }}, st)
+	remotes := services.NewRemotesService(models.Remotes{Devices: []models.RemoteDevice{{DeviceID: "a", Name: "Home Mac", OS: "darwin", LastUsed: since, Favorite: true}, {DeviceID: "b", Name: "Workstation", OS: "windows", LastUsed: since}}}, nil, nil)
+	chat := services.NewChatService(func(string, []byte) bool { return true }, nil)
+	u := newUI(a, Options{Status: st, Language: lang, Settings: set, Links: links, Remotes: remotes, Chat: chat, Version: "1.8.0", WebURL: "https://desk.go-link.org",
+		Permissions: &PermissionChecks{Granted: func(k_ permKind) bool { return true }, Request: func(permKind) bool { return true }},
+		Autostart:   &Autostart{Supported: true, Enabled: func() bool { return false }, Set: func(bool) error { return nil }}})
+	fyneview.UseTheme(a)
+	_ = theme.DefaultTheme
+
+	// Home
+	if err := fyneview.OpenMain(labels(), refH{}); err != nil {
+		t.Fatal(err)
+	}
+	h := remoteview.Home{Code: "456 257 529", Link: "https://desk.go-link.org/c/uOxMUHDgzYn10kl0Qu_45Q", Status: L("Connected"), StatusOK: true, CanNew: true, Version: "v1.8.0",
+		Perms: []remoteview.Perm{{ID: "screen", Label: "s", Granted: true}, {ID: "accessibility", Label: "a", Granted: true}}}
+	h.Devices = []remoteview.Tile{
+		{ID: "a", Title: "Home Mac", Subtitle: "macOS · 11/10 13:07", Name: "Home Mac", Code: L("Linked"), System: "macOS", When: "11/10/2026 13:07", Favorite: true},
+		{ID: "b", Title: "Workstation", Subtitle: "Windows · 09/10 21:07", Name: "Workstation", Code: L("Linked"), System: "Windows", When: "09/10/2026 21:07"},
+	}
+	h.Recents = []remoteview.Tile{{ID: "464 786 468", Title: "464 786 468", Subtitle: "Studio Mac · 11/10 18:07", Name: "Studio Mac", Code: "464 786 468", System: "macOS", When: "11/10/2026 18:07"}}
+	fyneview.SetHome(h)
+	main := fyneview.RefMain()
+	shot(t, "home-cards", main, 1120, 680)
+	for i, n := range []string{"home-cards", "home-list", "home-detail"} {
+		a.Preferences().SetInt("org.go-link.desk.view", i)
+		fyneview.RefView(i)
+		shot(t, n, main, 1120, 680)
+	}
+	fyneview.RefView(0)
+	fyneview.RefFilter("favorites")
+	shot(t, "home-favorites", main, 1120, 680)
+	fyneview.RefFilter("recents")
+	shot(t, "home-recents", main, 1120, 680)
+	fyneview.RefFilter("all")
+	h2 := h
+	h2.Devices, h2.Recents = nil, nil
+	fyneview.SetHome(h2)
+	shot(t, "home-empty", main, 1120, 680)
+	fyneview.SetHome(h)
+
+	// Settings
+	u.prefs.startSet = true
+	spec := u.prefsSpec()
+	fyneview.SetPrefs(spec, true)
+	for _, id := range []string{"general", "sessions", "unattended", "assistants", "permissions"} {
+		fyneview.RefPage(id)
+		shot(t, "settings-"+id, fyneview.RefPrefs(), 640, 640)
+	}
+
+	// Consent
+	r := u.newRequest(services.ConsentRequest{Knock: models.Knock{Name: "Ana Support", Browser: "Chrome 142 on Windows"}}, time.Now().Add(47*time.Second), func(error) {})
+	r.perms.set(fullControl)
+	shot(t, "consent", r.win, 440, 0)
+	r2 := u.newRequest(services.ConsentRequest{Link: true, Knock: models.Knock{Name: "Ana Support", Browser: "Chrome 142 on Windows"}}, time.Now().Add(47*time.Second), func(error) {})
+	shot(t, "consent-link", r2.win, 440, 0)
+
+	// Session panel, chat
+	active := &models.ActiveSession{PeerID: "p", Name: "Ana Support", Browser: "Chrome 142 on Windows", Since: since, Permissions: fullControl}
+	u.panel.render(active)
+	u.panel.chat.add(services.ChatMessage{FromViewer: true, Text: "Hello, I can see your screen now.", At: since})
+	u.panel.chat.add(services.ChatMessage{Text: "Great, please check the printer.", At: since.Add(time.Minute)})
+	u.panel.showTransfer(services.Transfer{Upload: true, Name: "driver.zip", Size: 100, Done: 42})
+	shot(t, "session", u.panel.win, 320, 0)
+	active.RecordingSince = since
+	u.panel.render(active)
+	shot(t, "session-recording", u.panel.win, 320, 0)
+	u.panel.render(nil)
+
+	// Update
+	u.upd.render(L("go-link Desk is up to date"), Lf("You have %s, the newest version.", "1.8.0"), false)
+	shot(t, "update-current", u.upd.win, 440, 0)
+	u.upd.mu.Lock()
+	u.upd.known = models.UpdateInfo{Latest: "v1.9.0", URL: "https://x"}
+	u.upd.mu.Unlock()
+	u.upd.showAvailable()
+	shot(t, "update-available", u.upd.win, 440, 0)
+
+	// About: Windows' and Linux's (fyneview), and the plain Fyne one
+	u.showAbout()
+	shot(t, "about", u.about, 340, 0)
+
+	// Remote chat and files
+	rem := &remote{u: u, s: &viewer.Session{}}
+	rem.host = viewer.HostInfo{Name: "Studio Mac"}
+	c := rem.chatWindow()
+	c.add(viewer.ChatLine{FromHost: true, Text: "Hi, tell me when you are in.", At: since})
+	c.add(viewer.ChatLine{Text: "I am in.", At: since.Add(time.Minute)})
+	c.note(L("The computer may not record its screen: you see a test card."))
+	shot(t, "remote-chat", c.win, 340, 420)
+	f := rem.filesWindow()
+	f.entries = []viewer.FileEntry{{Name: "Desktop", Dir: true}, {Name: "Documents", Dir: true}, {Name: "Downloads", Dir: true}, {Name: "notes.txt", Size: 1843}, {Name: "report.pdf", Size: 2345000}}
+	f.where.SetText("~/")
+	f.list.Refresh()
+	f.status.SetText(Lf("%d items", 5))
+	shot(t, "remote-files", f.win, 520, 480)
+
+	// Call question
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go u.AskCall(ctx, "Ana Support", true)
+	time.Sleep(300 * time.Millisecond)
+	for _, w := range a.Driver().AllWindows() {
+		if w.Title() == L("Video call") {
+			shot(t, "call-ask", w, 380, 0)
+		}
+	}
+}
