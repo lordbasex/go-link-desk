@@ -41,8 +41,7 @@ export function TopBar({ s, onSettings, initial = '' }) {
       </View>
       <Btn title={L('Connect')} symbol="arrow.right" primary trailing onClick={connect} />
       <Btn title={L('Try the demo')} symbol="play.circle" onClick={() => engine.send('demo')} />
-      <View style={{ flex: 1 }} />
-      <Btn symbol="gearshape" fill="transparent" onClick={onSettings} />
+      <View style={{ position: 'absolute', right: 0, top: 0 }}><Btn symbol="gearshape" fill="transparent" onClick={onSettings} /></View>
     </View>
   );
 }

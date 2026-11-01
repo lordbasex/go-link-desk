@@ -6,7 +6,8 @@ import { engine, useEngine } from '../../engine/index.js';
 import { setLanguage } from '../../ui/i18n.js';
 import { MainWindow, viewOf, WINDOWS, Shell } from '../../index.jsx';
 import { fyne } from '../../ui/tokens.js';
-import { MenuCtx, Pal } from '../../ui/widgets.jsx';
+import { MenuLayer, Pal } from '../../ui/widgets.jsx';
+import { trayItems } from '../../views/tray.jsx';
 import { palette } from '../../ui/tokens.js';
 const FILE = '/home/lord/LordOS-appui/home/scene.txt';
 function Scene({ spec }) {
@@ -17,8 +18,9 @@ function Scene({ spec }) {
   const v = q.view || 'main';
   let body;
   if (v === 'main') body = <MainWindow key={spec} s={s} filter={q.filter} mode={q.mode ? Number(q.mode) : 0} startTab={q.tab} renameFirst={q.rename === '1'} />;
+  else if (v === 'tray') body = <Pal.Provider value={palette(s.config.theme)}><View style={{ flex: 1, backgroundColor: palette(s.config.theme).bg }}><MenuLayer menu={{ x: 0, y: 0, items: trayItems(s, () => {}) }} close={() => {}} /></View></Pal.Provider>;
   else body = viewOf(v, s, { page: q.page, remote: q.remote });
-  return <View style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, overflow: 'hidden' }}>{body}</View>;
+  return <View key={spec} style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, overflow: 'hidden' }}>{body}</View>;
 }
 function Root() {
   const [spec, setSpec] = useState('scene=home');

@@ -2,11 +2,11 @@
 // files, recent sessions and sessions to other computers, in realistic states. Replaced in stage 3.
 const NOW = () => Date.now();
 const HOME_TREE = {
-  '': [{ name: 'Desktop', dir: true }, { name: 'Documents', dir: true }, { name: 'Downloads', dir: true }, { name: 'Pictures', dir: true }, { name: 'notes.txt', size: 1843 }, { name: 'report.pdf', size: 2345000 }],
+  '': [{ name: 'Desktop', dir: true }, { name: 'Documents', dir: true }, { name: 'Downloads', dir: true }, { name: 'notes.txt', size: 1843 }, { name: 'report.pdf', size: 2345000 }],
   Documents: [{ name: 'invoices', dir: true }, { name: 'budget.ods', size: 48211 }, { name: 'contract.pdf', size: 612000 }],
   'Documents/invoices': [{ name: 'october.pdf', size: 88120 }],
   Downloads: [{ name: 'driver.zip', size: 18400000 }],
-  Desktop: [], Pictures: [{ name: 'office.jpg', size: 3100000 }],
+  Desktop: [],
 };
 const FULL = { view: true, control: true, audio: true, clipboard: true, files: true, record: false };
 
@@ -65,7 +65,7 @@ export function createFake(deliver) {
     const r = remote(id);
     if (!r) return;
     const host = { name: r.door.title && r.door.kind === 'reach' ? r.door.title : 'Studio Mac', os: 'darwin', terminal: r.door.terminal };
-    setRemote(id, { status: 'live', title: host.name, host, perms: FULL });
+    setRemote(id, { status: 'live', title: host.name, host, perms: FULL, still: thumb(1) });
     if (r.door.kind === 'join') addRecent({ code: r.door.code, name: host.name, os: host.os, at: NOW(), thumb: thumb(3) });
   }
   const scenes = {
@@ -101,12 +101,13 @@ export function createFake(deliver) {
       const r = { id: 'r1', door: { kind: 'join', code: '464786468', terminal }, title: 'Studio Mac', status: 'live', detail: '', host: { name: 'Studio Mac', os: 'darwin', terminal }, perms: FULL, hud: false, sound: true, preset: 'balanced', retina: false,
         displays: [{ id: 1, name: 'Built-in display', width: 2560, height: 1440 }, { id: 2, name: 'Studio Display', width: 3840, height: 2160 }], current: 1,
         chat: [{ fromHost: true, text: 'Hi, tell me when you are in.', at: new Date(2026, 10, 1, 15, 7).getTime() }, { text: 'I am in.', at: new Date(2026, 10, 1, 15, 8).getTime() }],
-        notes: ['no_screen_permission'], typing: false,
+        notes: ['no_screen_permission'], typing: false, still: thumb(0), 
         files: { path: '', entries: HOME_TREE[''], status: 'items' }, sent: { codec: 'H264', width: 1920, height: 1080, fps: 30, kbps: 3120, target: 4000, path: 18200 },
         tabs: [{ id: 1, name: 'zsh' }, { id: 2, name: 'build' }] };
       emit({ remotes: [r] });
     },
     remoteStatus(status) { scenes.remote(); setRemote('r1', { status }); },
+    remoteHud() { scenes.remote(); setRemote('r1', { hud: true }); },
     unattended() {
       scenes.devices();
       emit({ config: { ...s.config, unattended: { enabled: true, has_password: true }, assistants: { enabled: true, act: false } }, pairing: { code: '812 440 276' },

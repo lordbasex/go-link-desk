@@ -29,7 +29,7 @@ function mask(name, s) {
 }
 export function iconPixels(name, size, color) {
   const n = ICONS[SYMBOLS[name] || name] ? (SYMBOLS[name] || name) : 'monitor';
-  const s = SIZES.find((x) => x >= size * 2) || SIZES[SIZES.length - 1];
+  const s = SIZES.find((x) => x >= size) || SIZES[SIZES.length - 1];
   const key = `${n}|${s}|${color}`;
   let px = tinted.get(key);
   if (!px) {

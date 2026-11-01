@@ -117,14 +117,14 @@ function Terminal({ r }) {
     </View>
   );
 }
-export function RemotePage({ r, picture, onChat, onFiles }) {
+export function RemotePage({ r, onChat, onFiles }) {
   const p = usePal();
   const showOverlay = r.status !== 'live';
   return (
     <View style={{ flex: 1 }}>
       <RemoteToolbar r={r} onChat={onChat} onFiles={onFiles} />
       <View style={{ flex: 1, backgroundColor: p.video, overflow: 'hidden' }}>
-        {r.host?.terminal ? <Terminal r={r} /> : picture || null}
+        {r.host?.terminal ? <Terminal r={r} /> : r.still && r.status === 'live' ? <Image pixels={r.still} style={{ width: '100%', height: '100%' }} /> : null}
         {r.hud ? <View style={{ position: 'absolute', left: 10, top: 10, backgroundColor: 'rgba(0,0,0,0.65)' }}><Text style={{ fontFamily: 'monospace', fontSize: 11, color: p.text }}>{hudText(r.sent)}</Text></View> : null}
         {showOverlay ? <Overlay r={r} /> : null}
       </View>
@@ -175,7 +175,7 @@ export function RemoteFiles({ f, r }) {
       </View>
       <ScrollView style={{ flex: 1 }}>
         <View>{(entries || []).map((e) => (
-          <View key={e.name} onClick={() => click(e)} style={{ height: 37, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 4 }}>
+          <View key={e.name} onClick={() => click(e)} style={{ height: 37, flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderColor: f.separator }}>
             <Icon name={e.dir ? 'fyne-folder' : 'fyne-file'} size={20} color={f.fg} />
             <View style={{ flex: 1 }}><FLabel f={f} nowrap>{e.name}</FLabel></View>
             {e.dir ? null : <FLabel f={f} nowrap>{humanSize(e.size)}</FLabel>}
@@ -183,7 +183,7 @@ export function RemoteFiles({ f, r }) {
         ))}</View>
       </ScrollView>
       <FLabel f={f}>{status}</FLabel>
-      {bar != null ? <View style={{ flexDirection: 'row', gap: 4 }}><FProgress f={f} value={bar} /><FButton f={f} label={L('Stop')} icon="fyne-cancel" onClick={() => setBar(null)} /></View> : null}
+      <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'flex-end' }}>{bar != null ? <FProgress f={f} value={bar} /> : null}<FButton f={f} label={L('Stop')} icon="fyne-cancel" onClick={() => setBar(null)} /></View>
     </FWindow>
   );
 }

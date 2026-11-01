@@ -109,7 +109,7 @@ function Select({ r, enabled }) {
   const p = usePal();
   const menu = useContext(MenuCtx);
   const cur = r.options.find((o) => o.id === r.value) || r.options[0];
-  const w = Math.max(...r.options.map((o) => o.title.length)) * 7 + 40;
+  const w = Math.max(...r.options.map((o) => o.title.length)) * 5.9 + 40;
   return (
     <View onClick={enabled ? (e) => menu.open(e, r.options.map((o) => ({ title: o.title, checked: o.id === r.value, run: () => send(r, o.id) }))) : undefined}
       style={{ minWidth: w, height: 22, borderRadius: 5, backgroundColor: p.surface2, flexDirection: 'row', alignItems: 'center', paddingLeft: 9, paddingRight: 6, gap: 6 }}>
@@ -149,7 +149,7 @@ function Row({ r, onConfirm }) {
   }
   return (
     <View style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-      <View style={{ flexShrink: 1, gap: 2 }}>
+      <View style={{ flex: 1, gap: 2 }}>
         <Txt s={r.label} size={13} color={enabled ? p.text : p.faint} nowrap={false} style={{ maxWidth: 300 }} />
         {r.detail ? <Txt s={r.detail} size={11} color={p.faint} nowrap={false} style={{ maxWidth: 330 }} /> : null}
       </View>
@@ -178,7 +178,7 @@ export function Settings({ s, page: start = 'general', confirmFirst }) {
   const page = pages.find((x) => x.id === id) || pages[0];
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
-      <View style={{ backgroundColor: p.surface, paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderColor: p.border }}>
+      <View style={{ backgroundColor: p.surface, paddingTop: 8, paddingBottom: 12, alignItems: 'center', borderBottomWidth: 1, borderColor: p.border }}>
         <View style={{ flexDirection: 'row', gap: 4 }}>
           {pages.map((pg) => {
             const on = pg.id === page.id, col = on ? p.text : p.muted;
@@ -191,7 +191,7 @@ export function Settings({ s, page: start = 'general', confirmFirst }) {
         </View>
       </View>
       <ScrollView style={{ flex: 1 }}>
-        <View style={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 24 }}>
+        <View style={{ paddingTop: 25, paddingHorizontal: 20, paddingBottom: 24 }}>
           {page.sections.map((sec, i) => (
             <View key={i} style={{ marginTop: i && sec.title ? 22 : i ? 8 : 0, gap: 8 }}>
               {sec.title ? <Txt s={sec.title} size={13} w={700} color={p.text} /> : null}

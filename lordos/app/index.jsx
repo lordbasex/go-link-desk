@@ -35,7 +35,7 @@ export function Shell({ children }) {
   }), []);
   return <MenuCtx.Provider value={api}><View ref={root} style={{ flex: 1 }}>{children}<MenuLayer menu={menu} close={api.close} /></View></MenuCtx.Provider>;
 }
-export function MainWindow({ s, startTab = 'home', filter, mode, renameFirst, picture }) {
+export function MainWindow({ s, startTab = 'home', filter, mode, renameFirst }) {
   const p = palette(s.config.theme);
   const [tab, setTab] = useState(startTab);
   const act = useRef({});
@@ -56,7 +56,7 @@ export function MainWindow({ s, startTab = 'home', filter, mode, renameFirst, pi
               {s.remotes.map((r) => <Tab key={r.id} title={r.title} symbol="display" selected={tab === r.id} onClick={() => setTab(r.id)} onClose={() => engine.send('remote.close', { remote: r.id })} />)}
             </View>
           </View>
-          {selected ? <RemotePage r={selected} picture={picture} onChat={() => openView('chat', { remote: selected.id })} onFiles={() => openView('files', { remote: selected.id })} />
+          {selected ? <RemotePage r={selected} onChat={() => openView('chat', { remote: selected.id })} onFiles={() => openView('files', { remote: selected.id })} />
             : <Home s={s} onPerm={() => openView('settings')} startFilter={filter} startMode={mode} renameFirst={renameFirst} />}
         </View>
       </Shell>

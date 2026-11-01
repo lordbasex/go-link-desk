@@ -17,7 +17,7 @@ function decode(file) {           // RGBA8, not interlaced: what rsvg-convert wr
   return { w, h, px };
 }
 const rle = (a) => { let s = '', i = 0; while (i < a.length) { let n = 1; while (i + n < a.length && a[i + n] === a[i]) n++; s += String.fromCharCode(97 + a[i]) + (n > 1 ? n : ''); i += n; } return s; };
-const SIZES = [24, 44, 68];
+const SIZES = [10, 11, 13, 14, 15, 20, 22, 34];
 const out = {};
 function add(name, svg) {
   out[name] = {};
