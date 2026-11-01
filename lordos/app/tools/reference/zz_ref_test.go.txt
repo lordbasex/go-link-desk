@@ -19,7 +19,9 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/fyneview"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/permission"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/remoteview"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/trayicon"
 )
 
 type refH struct{}
@@ -67,17 +69,16 @@ func TestRefAll(t *testing.T) {
 		lang = "en"
 	}
 	a := test.NewTempApp(t)
-	a.Settings().SetTheme(nil)
 	st := services.NewStatusService("d", "1.8.0", "ws://x")
 	since := time.Date(2026, 11, 1, 18, 7, 0, 0, time.UTC)
-	cfg := models.Config{Unattended: models.Unattended{Enabled: true, PasswordHash: "x"}, Assistants: models.AssistantsConfig{Enabled: true}, UDPPort: 0,
+	cfg := models.Config{Unattended: models.Unattended{Enabled: true, PasswordHash: "x"}, Assistants: models.Assistants{Enabled: true}, UDPPort: 0,
 		Links: []models.Link{{ID: "l1", Name: "Federico's iPhone", CreatedAt: since, LastSeen: since, Permissions: models.Permissions{View: true, Control: true, Audio: true}}}}
 	set := services.NewSettingsService(cfg, nil, nil)
 	links := services.NewLinkService(services.LinkConfig{DeviceID: "d", Links: cfg.Links, Save: func(l []models.Link) error { return nil }}, st)
 	remotes := services.NewRemotesService(models.Remotes{Devices: []models.RemoteDevice{{DeviceID: "a", Name: "Home Mac", OS: "darwin", LastUsed: since, Favorite: true}, {DeviceID: "b", Name: "Workstation", OS: "windows", LastUsed: since}}}, nil, nil)
 	chat := services.NewChatService(func(string, []byte) bool { return true }, nil)
 	u := newUI(a, Options{Status: st, Language: lang, Settings: set, Links: links, Remotes: remotes, Chat: chat, Version: "1.8.0", WebURL: "https://desk.go-link.org",
-		Permissions: &PermissionChecks{Granted: func(k_ permKind) bool { return true }, Request: func(permKind) bool { return true }},
+		Permissions: &PermissionChecks{Granted: func(_ permission.Kind) bool { return true }, Request: func(permission.Kind) bool { return true }},
 		Autostart:   &Autostart{Supported: true, Enabled: func() bool { return false }, Set: func(bool) error { return nil }}})
 	fyneview.UseTheme(a)
 	_ = theme.DefaultTheme
@@ -177,6 +178,15 @@ func TestRefAll(t *testing.T) {
 	for _, w := range a.Driver().AllWindows() {
 		if w.Title() == L("Video call") {
 			shot(t, "call-ask", w, 380, 0)
+		}
+	}
+}
+
+func TestRefIcons(t *testing.T) {
+	out := os.Getenv("ICON_OUT")
+	for n, b := range map[string][]byte{"app-96.png": trayicon.RenderApp(96, false), "app-dark-96.png": trayicon.RenderApp(96, true), "icon.png": trayicon.RenderApp(256, false), "tray.png": trayicon.PNG(), "tray-live.png": trayicon.LivePNG()} {
+		if err := os.WriteFile(filepath.Join(out, n), b, 0o644); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

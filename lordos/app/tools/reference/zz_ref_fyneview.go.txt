@@ -22,3 +22,9 @@ func RefPage(id string) {
 }
 func RefMain() fyne.Window { return current().win }
 func RefPrefs() fyne.Window { return prefsWin().win }
+
+func RefView(mode int) {
+	if m := current(); m != nil {
+		m.pickView(mode)
+	}
+}
