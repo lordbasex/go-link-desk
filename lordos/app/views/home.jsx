@@ -149,9 +149,10 @@ function Tile({ t, linked, mode, onRename }) {
         <View style={{ position: 'absolute', left: 0, bottom: 0, width: TILE.w, height: 36, backgroundColor: 'rgba(0,0,0,0.72)' }} />
         <Icon name={sym} size={15} color={p.text} style={{ position: 'absolute', left: 9, top: TILE.h - 27 }} />
         <Txt s={t.title} size={12.5} w={600} color="#ffffff" style={{ position: 'absolute', left: 30, top: TILE.h - 26, width: TILE.w - 60, lineHeight: 16, overflow: 'hidden' }} />
+        {/* under the star and the menu: the ring must not take their clicks */}
+        {hover ? <View style={{ position: 'absolute', left: 0, top: 0, width: TILE.w, height: TILE.h, borderRadius: 10, borderWidth: 2, borderColor: p.accent }} /> : null}
         <View style={{ position: 'absolute', left: TILE.w - 30, top: TILE.h - 29 }}>{more}</View>
         {linked ? <View style={{ position: 'absolute', left: TILE.w - 28, top: 6 }}>{star}</View> : null}
-        {hover ? <View style={{ position: 'absolute', left: 0, top: 0, width: TILE.w, height: TILE.h, borderRadius: 10, borderWidth: 2, borderColor: p.accent }} /> : null}
       </View>
     );
   }
