@@ -11,7 +11,7 @@ const IMPORTANCE = (f) => ({ low: f.low, warning: f.warning, danger: f.error, su
 export function FLabel({ f, children, bold, importance = 'medium', italic, mono, center, nowrap, style }) {
   return (
     <View style={[{ paddingVertical: 8, paddingHorizontal: 12, minHeight: 33 }, style]}>
-      <Text style={{ fontSize: 14, lineHeight: 18, color: IMPORTANCE(f)[importance], fontWeight: bold ? WEIGHT.bold : WEIGHT.regular, fontStyle: italic ? 'italic' : 'normal',
+      <Text style={{ fontSize: 14, lineHeight: 18, color: IMPORTANCE(f)[importance], fontWeight: bold ? WEIGHT.bold : WEIGHT.regular,
         fontFamily: mono ? 'monospace' : undefined, textAlign: center ? 'center' : 'start', whiteSpace: nowrap ? 'nowrap' : 'normal' }}>{children}</Text>
     </View>
   );

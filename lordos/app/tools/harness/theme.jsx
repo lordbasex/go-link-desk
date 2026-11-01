@@ -35,10 +35,10 @@ function Root() {
           if (q.theme) engine.send('settings.set', { key: 'theme', value: q.theme });
           setSpec(v);
         }
-      } catch (e) { /* not there yet */ }
+      } catch (e) { console.error('scene', e?.message); }
     }, 250);
     return () => clearInterval(t);
   }, []);
-  return <View style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', backgroundColor: '#000000' }}><Scene spec={spec} /></View>;
+  return <View style={{ position: 'absolute', left: 0, top: 0, width: 1280, height: 800, backgroundColor: '#402040' }}><Scene spec={spec} /></View>;
 }
 render(<ThemeProvider tokens={DEFAULT_TOKENS}><Root /></ThemeProvider>);

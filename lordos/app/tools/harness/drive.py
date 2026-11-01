@@ -42,7 +42,9 @@ def save(name):
     chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
     png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(bytes(raw), 6)) + chunk(b'IEND', b'')
     open(os.path.join(OUT, name + '.png'), 'wb').write(png); print('saved', name, flush=True)
-OUT = sys.argv[1]; SCENE = os.path.expanduser('~/LordOS-appui/home/scene.txt'); i = 0
+OUT = sys.argv[1]; SCENE = '/home/lord/LordOS-appui/home/scene.txt'; i = 0
+msg(32, struct.pack('<BBHI', 1, 0, 60, 1000))   # RP_VIDEO: a viewer, or nothing is composed for us
+msg(35, b'\x01')   # RP_VMODE: lossless rectangles once the screen is still
 pump(1.5)
 for step in sys.argv[2:]:
     op, _, arg = step.partition(':')

@@ -230,7 +230,7 @@ export function Home({ s, onPerm, startFilter, startMode = 0, renameFirst }) {
       <ScrollView style={{ flex: 1 }}>
         <View style={{ paddingTop: 1, paddingBottom: 12, paddingHorizontal: 28 }}>
           {items.length === 0 ? (
-            <View style={{ borderRadius: 10, borderWidth: 1, borderColor: p.dashed, borderStyle: 'dashed', padding: 18 }}><Txt s={note} size={13} color={p.muted} nowrap={false} style={{ maxWidth: 560 }} /></View>
+            <View style={{ borderRadius: 10, borderWidth: 1, borderColor: p.dashed, padding: 18 }}><Txt s={note} size={13} color={p.muted} nowrap={false} style={{ maxWidth: 560 }} /></View>
           ) : mode === 0 ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: TILE.gap }}>{items.map((t) => <Tile key={t.id} t={t} linked={linked} mode={0} onRename={setRenaming} />)}</View>
           ) : (
