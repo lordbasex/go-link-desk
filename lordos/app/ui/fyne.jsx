@@ -5,12 +5,12 @@ import { useState } from 'react';
 import { Icon } from './icon.jsx';
 const WEIGHT = { regular: 400, bold: 600 };
 export function FWindow({ f, children, style }) {
-  return <View style={[{ flex: 1, backgroundColor: f.bg, padding: 4, gap: 4 }, style]}>{children}</View>;
+  return <View style={[{ flex: 1, backgroundColor: f.bg, padding: 8, gap: 4 }, style]}>{children}</View>;
 }
 const IMPORTANCE = (f) => ({ low: f.low, warning: f.warning, danger: f.error, success: f.success, medium: f.fg });
 export function FLabel({ f, children, bold, importance = 'medium', italic, mono, center, nowrap, style }) {
   return (
-    <View style={[{ paddingVertical: 8, paddingHorizontal: 12, minHeight: 33 }, style]}>
+    <View style={[{ paddingTop: 8, paddingBottom: 7, paddingHorizontal: 8, minHeight: 33 }, style]}>
       <Text style={{ fontSize: 14, lineHeight: 18, color: IMPORTANCE(f)[importance], fontWeight: bold ? WEIGHT.bold : WEIGHT.regular,
         fontFamily: mono ? 'monospace' : undefined, textAlign: center ? 'center' : 'start', whiteSpace: nowrap ? 'nowrap' : 'normal' }}>{children}</Text>
     </View>
@@ -19,13 +19,13 @@ export function FLabel({ f, children, bold, importance = 'medium', italic, mono,
 export const FSep = ({ f }) => <View style={{ height: 1, backgroundColor: f.separator }} />;
 export function FCheck({ f, label, on, onChange, disabled }) {
   return (
-    <View onClick={disabled || !onChange ? undefined : () => onChange(!on)} style={{ height: 33, flexDirection: 'row', alignItems: 'center', paddingLeft: 8, gap: 4 }}>
+    <View onClick={disabled || !onChange ? undefined : () => onChange(!on)} style={{ height: 33, flexDirection: 'row', alignItems: 'center', paddingLeft: 6, gap: 4 }}>
       <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: 16, height: 16, borderRadius: 3, backgroundColor: on ? f.primary : f.input, alignItems: 'center', justifyContent: 'center' }}>
           {on ? <Icon name="fyne-check" size={14} color="#ffffff" /> : null}
         </View>
       </View>
-      {label ? <Text style={{ fontSize: 14, lineHeight: 18, color: f.fg, whiteSpace: 'nowrap', marginLeft: 2 }}>{label}</Text> : null}
+      {label ? <Text style={{ fontSize: 14, lineHeight: 18, color: f.fg, whiteSpace: 'nowrap' }}>{label}</Text> : null}
     </View>
   );
 }
@@ -35,7 +35,7 @@ export function FButton({ f, label, icon, importance, onClick, disabled, style }
   const fg = disabled ? f.low : importance === 'high' ? f.onPrimary : importance === 'danger' ? f.onError : f.fg;
   return (
     <View onClick={disabled ? undefined : onClick} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={[{ height: 36, minWidth: 36, paddingHorizontal: label ? 12 : 8, borderRadius: 5, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center',
+      style={[{ height: 36, minWidth: 36, paddingHorizontal: 8, borderRadius: 5, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center',
         backgroundColor: bg, opacity: hover && !disabled ? 0.9 : 1, flexShrink: 0 }, style]}>
       {icon ? <Icon name={icon} size={20} color={fg} /> : null}
       {label ? <Text style={{ fontSize: 14, fontWeight: 600, color: fg, whiteSpace: 'nowrap' }}>{label}</Text> : null}

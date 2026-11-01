@@ -27,11 +27,12 @@ export function TopBar({ s, onSettings, initial = '' }) {
   const doorMenu = (e) => menu.open(e, [L('Session'), L('Link (unattended)')].map((title, i) => ({ title, checked: i === door, run: () => setDoor(i) })));
   return (
     <View style={{ flexDirection: 'row', height: 30, gap: 8, alignItems: 'center' }}>
-      <View style={{ flex: 1, maxWidth: 520, height: 30, borderRadius: 7, backgroundColor: p.bg, borderWidth: 1, borderColor: p.fieldBorder, flexDirection: 'row', alignItems: 'center', paddingLeft: 10, paddingRight: 8 }}>
+      <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 520, maxWidth: 520, height: 30, borderRadius: 7, backgroundColor: p.bg, borderWidth: 1, borderColor: p.fieldBorder, flexDirection: 'row', alignItems: 'center', paddingLeft: 10, paddingRight: 8 }}>
         <Icon name="display" size={15} color={p.faint} />
         <View style={{ flex: 1, justifyContent: 'center', marginLeft: 4 }}>
-          <TextInput value={addr} onChange={(v) => setAddr(formatCode(v))} onSubmit={connect} size={14} placeholder={L('Its 9-digit code')}
+          <TextInput value={addr} onChange={(v) => setAddr(formatCode(v))} onSubmit={connect} size={14}
             style={{ backgroundColor: 'transparent', borderWidth: 0, height: 28, paddingHorizontal: 4 }} />
+          {addr ? null : <Txt s={L('Its 9-digit code')} size={13} color={p.holder} style={{ position: 'absolute', left: 4, top: 6 }} />}
         </View>
         <View onClick={doorMenu} style={{ flexDirection: 'row', gap: 3, alignItems: 'center', marginLeft: 6 }}>
           <Txt s={door ? L('Link (unattended)') : L('Session')} size={11} w={500} color={p.text} />
@@ -70,7 +71,7 @@ function Panel({ s, flash, copied, onPerm }) {
   const allPerms = s.perms.every((x) => x.granted);
   return (
     <View style={{ backgroundColor: p.tintBG, borderRadius: 14, borderWidth: 1, borderColor: p.tintBorder, paddingVertical: 18, paddingHorizontal: 24, flexDirection: 'row', justifyContent: 'space-between' }}>
-      <View style={{ flexShrink: 1 }}>
+      <View style={{ flexShrink: 1, flexGrow: 1 }}>
         <Txt s={L('This computer').toUpperCase()} size={11} w={600} color={p.tintText} style={{ marginBottom: 2 }} />
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 6 }}>
           <View onClick={copy}><Txt s={code || '— — —'} size={40} w={700} color={p.accent} /></View>
@@ -82,7 +83,7 @@ function Panel({ s, flash, copied, onPerm }) {
             <View onClick={copyLink}><Txt s={middleTruncate(link, 64)} size={12} color={p.muted} /></View>
           </View>
         ) : null}
-        <Txt s={L('Share this code only with someone you know. Nobody legitimate will call you asking for access to your computer.')} size={11.5} color={p.faint} nowrap={false} style={{ maxWidth: 560 }} />
+        <Txt s={L('Share this code only with someone you know. Nobody legitimate will call you asking for access to your computer.')} size={11.5} color={p.faint} nowrap={false} style={{ maxWidth: 560, lineHeight: 14.9 }} />
       </View>
       <View style={{ alignItems: 'flex-end', gap: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -216,8 +217,8 @@ export function Home({ s, onPerm, startFilter, startMode = 0, renameFirst }) {
     : L('Computers you link with their pairing code show up here, to connect to them without a code.');
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingTop: 24, paddingHorizontal: 28 }}><Panel s={s} flash={flash} copied={copied} onPerm={onPerm} /></View>
-      <View style={{ paddingTop: 26, paddingBottom: 13, paddingHorizontal: 28, flexDirection: 'row', gap: 18, alignItems: 'center' }}>
+      <View style={{ paddingTop: 28, paddingHorizontal: 28 }}><Panel s={s} flash={flash} copied={copied} onPerm={onPerm} /></View>
+      <View style={{ paddingTop: 30, paddingBottom: 17, paddingHorizontal: 28, flexDirection: 'row', gap: 18, alignItems: 'center' }}>
         <FilterTab title={L('My computers')} on={f === 'all'} onClick={() => setFilter('all')} />
         <FilterTab title={L('Favorites')} on={f === 'favorites'} onClick={() => setFilter('favorites')} />
         <FilterTab title={L('Recent sessions')} on={f === 'recents'} onClick={() => setFilter('recents')} />
@@ -238,7 +239,7 @@ export function Home({ s, onPerm, startFilter, startMode = 0, renameFirst }) {
           )}
         </View>
       </ScrollView>
-      <View style={{ paddingTop: 6, paddingRight: 14, paddingBottom: 8, alignItems: 'flex-end' }}><Txt s={`v${s.version}`} size={11} color={p.faint} /></View>
+      <View style={{ paddingTop: 10, paddingRight: 14, paddingBottom: 8, alignItems: 'flex-end' }}><Txt s={`v${s.version}`} size={11} color={p.faint} /></View>
       {renaming ? <Rename t={renaming} close={() => setRenaming(null)} /> : null}
     </View>
   );

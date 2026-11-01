@@ -5,7 +5,7 @@ import { Icon } from './icon.jsx';
 export const Pal = createContext(null);
 export const usePal = () => useContext(Pal);
 export const Txt = ({ s, size = 13, w = 400, color, style, nowrap = true, lines }) => (
-  <Text numberOfLines={lines} style={[{ fontSize: size, fontWeight: w, color, whiteSpace: nowrap ? 'nowrap' : 'normal' }, style]}>{s}</Text>
+  <Text numberOfLines={lines} style={[{ fontSize: size, lineHeight: size * 1.21, fontWeight: w, color, whiteSpace: nowrap ? 'nowrap' : 'normal' }, style]}>{s}</Text>
 );
 // "button": 30 high, radius 7, a symbol and a title; primary is the brand's orange
 export function Btn({ title, symbol, primary, onClick, enabled = true, fill, tint, trailing, size = 13, danger, style }) {
