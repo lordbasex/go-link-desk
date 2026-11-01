@@ -84,6 +84,13 @@ type StreamConfig struct {
 	// OnChannel hands them over before the offer.
 	Channels []string
 	Logger   *slog.Logger
+	// PickCodec, when set, chooses a viewer's codec from its knock instead
+	// of pickCodec (lord-desk: frames arrive encoded, so there is no local
+	// encoder to ask). Proof of concept only.
+	PickCodec func(browser []string) string
+	// ListDisplays, when set, is what the viewers are told instead of the
+	// capture package's list (lord-desk: the session's one display).
+	ListDisplays func() []screencap.Display
 }
 
 // NewWebRTCAPI builds the WebRTC API. udpPort > 0 carries every connection
@@ -600,6 +607,13 @@ func pickDisplay(ds []screencap.Display, id uint32) screencap.Display {
 // refreshDisplays lists the screens again (none where there is no
 // capture).
 func (s *StreamService) refreshDisplays() []screencap.Display {
+	if s.cfg.ListDisplays != nil {
+		ds := s.cfg.ListDisplays()
+		s.mu.Lock()
+		s.displays = ds
+		s.mu.Unlock()
+		return ds
+	}
 	if !screencap.Supported || s.cfg.Source != "screen" {
 		return nil
 	}
@@ -952,6 +966,9 @@ func (s *StreamService) addViewer(peerID string, codecs []string, gated bool) er
 		return err
 	}
 	v := &viewer{id: peerID, pc: pc, codec: pickCodec(codecs, encoder.H264Available())}
+	if s.cfg.PickCodec != nil {
+		v.codec = s.cfg.PickCodec(codecs)
+	}
 	v.gated.Store(gated)
 	v.kbps.Store(int64(presetLimits[ParsePreset(string(s.wantNow().Preset))].kbps))
 	if !s.cfg.DataOnly {
