@@ -224,12 +224,17 @@ func (e *EncodedSource) drive(ctx context.Context, over <-chan lordshare.Reason,
 		case <-ctx.Done():
 			stop()
 			return
-		case <-closed:
-			closed, dead = nil, true
-			codec, kbps = 0, 0
 		case r := <-over:
 			end(r)
 		case <-tick:
+			if !dead {
+				select {
+				case <-closed:
+					dead = true
+					codec, kbps = 0, 0
+				default:
+				}
+			}
 			want := e.Stream.EncodedWant()
 			if want.Viewers == 0 {
 				stop()

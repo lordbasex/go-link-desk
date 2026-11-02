@@ -703,7 +703,12 @@ func TestLinkAndUnattended(t *testing.T) {
 		t.Fatal(r)
 	}
 	guest.ask("device.connect", map[string]any{"device": devices[0].ID})
-	guest.wait("the question", func() bool { return guest.remote().Status == "password" })
+	guest.wait("the question", func() bool {
+		if guest.remote().Status == "ratelimited" {
+			t.Skip("signalhub's limit on tries: a test that comes back too soon")
+		}
+		return guest.remote().Status == "password"
+	})
 	guest.send("remote.password", map[string]any{"remote": guest.remote().ID, "password": "wrong password"})
 	guest.wait("wrong", func() bool { return guest.remote().Status == "wrong" })
 	guest.send("remote.password", map[string]any{"remote": guest.remote().ID, "password": pw})
