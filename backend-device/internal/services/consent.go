@@ -31,6 +31,8 @@ var (
 	ErrDeclined = errors.New("consent: declined")
 	// ErrUnavailable: nobody can answer (a host without a window).
 	ErrUnavailable = errors.New("consent: nobody to ask")
+	// ErrInUse: the session is taken by another door, so nobody is asked.
+	ErrInUse = errors.New("consent: the session is in use")
 )
 
 // ConsentFunc adapts a function to Consent.

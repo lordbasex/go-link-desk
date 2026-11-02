@@ -55,6 +55,7 @@ export const es: Messages = {
       timeout: "Nadie respondió a tiempo en esa computadora.",
       busy: "Esa computadora está en otra sesión ahora.",
       unavailable: "Ahora nadie puede aceptar sesiones en esa computadora.",
+      in_use: "Esa computadora se está usando por Escritorio remoto. Volvé a intentar cuando termine.",
       off: "Esa computadora no permite el acceso desatendido ahora. La persona ahí lo puede activar en Ajustes.",
     },
     ended: {

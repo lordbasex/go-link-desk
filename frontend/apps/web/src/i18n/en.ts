@@ -57,6 +57,7 @@ export const en = {
       timeout: "Nobody answered at that computer in time.",
       busy: "That computer is in another session right now.",
       unavailable: "Nobody can accept sessions at that computer right now.",
+      in_use: "That computer is being used through Remote Desktop. Try again when it ends.",
       off: "That computer does not allow unattended access now. The person there can turn it on in Settings.",
     },
     ended: {

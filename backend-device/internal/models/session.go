@@ -32,6 +32,7 @@ const (
 	RejectTimeout     = "timeout"     // nobody answered in time
 	RejectBusy        = "busy"        // another session is on
 	RejectUnavailable = "unavailable" // nobody can answer: a host without a window
+	RejectInUse       = "in_use"      // the session is taken by another door (LordOS: remote desktop on 5673)
 	RejectOff         = "off"         // a linked browser, but unattended access is off
 )
 

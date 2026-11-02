@@ -439,6 +439,8 @@ func (s *SessionService) decided(peer string, k models.Knock, perm models.Permis
 			reason = models.RejectTimeout
 		case errors.Is(err, ErrUnavailable):
 			reason = models.RejectUnavailable
+		case errors.Is(err, ErrInUse):
+			reason = models.RejectInUse
 		}
 		s.reject(peer, reason)
 		return

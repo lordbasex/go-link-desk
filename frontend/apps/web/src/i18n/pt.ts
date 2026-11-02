@@ -55,6 +55,7 @@ export const pt: Messages = {
       timeout: "Ninguém respondeu a tempo naquele computador.",
       busy: "Aquele computador está em outra sessão agora.",
       unavailable: "Agora ninguém pode aceitar sessões naquele computador.",
+      in_use: "Aquele computador está sendo usado pela Área de Trabalho Remota. Tente de novo quando terminar.",
       off: "Aquele computador não permite o acesso não supervisionado agora. A pessoa lá pode ativá-lo em Ajustes.",
     },
     ended: {
