@@ -1,6 +1,6 @@
 // The main window: pkg/fyneview/main.go (top bar, tabs, this computer's panel, the filters) and
 // tiles.go (cards, list, detailed list). Same data as remoteview.Home.
-import { View, Text, Image, ScrollView, TextInput, clipboard } from '@lordos/sdk';
+import { View, Text, Image, ScrollView, TextInput, clipboard, openUrl } from '@lordos/sdk';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { engine } from '../engine/index.js';
 import { L, Lf } from '../ui/i18n.js';
@@ -40,7 +40,7 @@ export function TopBar({ s, onSettings, initial = '' }) {
         </View>
       </View>
       <Btn title={L('Connect')} symbol="arrow.right" primary trailing onClick={connect} />
-      <Btn title={L('Try the demo')} symbol="play.circle" onClick={() => engine.send('demo')} />
+      <Btn title={L('Try the demo')} symbol="play.circle" onClick={() => engine.ask('demo').catch(() => openUrl('https://desk.go-link.org/demo'))} />
       <View style={{ position: 'absolute', right: 0, top: 0 }}><Btn symbol="gearshape" fill="transparent" onClick={onSettings} /></View>
     </View>
   );

@@ -396,6 +396,7 @@ func (e *Engine) remoteRoutes() {
 		}
 		code, err := find(ctx)
 		if err != nil {
+			e.log.Warn("the demo computer is not available", "err", err)
 			return nil, Reason("demo_offline")
 		}
 		return door(viewer.DoorJoin, code)
