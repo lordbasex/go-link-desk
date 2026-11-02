@@ -75,6 +75,13 @@ function transferText(t) {
 }
 export function SessionPanel({ f, s }) {
   const a = s.active;
+  // a finished transfer says so for a moment, it isn't the panel's state
+  const [goneOf, setGoneOf] = useState(null);
+  useEffect(() => {
+    if (!s.transfer?.over) return undefined;
+    const t = setTimeout(() => setGoneOf(s.transfer), 8000);
+    return () => clearTimeout(t);
+  }, [s.transfer]);
   if (!a) return <FWindow f={f} />;
   const name = a.name || L('Someone');
   const rec = recordingText(a);
@@ -87,7 +94,7 @@ export function SessionPanel({ f, s }) {
       <FLabel f={f}>{Lf('Since %s', hhmm(a.since))}</FLabel>
       <FLabel f={f}>{L('Can see your screen, and:')}</FLabel>
       <PermChecks f={f} value={a.permissions} onChange={(permissions) => engine.send('session.permissions', { permissions })} />
-      {s.transfer ? <FLabel f={f}>{transferText(s.transfer)}</FLabel> : null}
+      {s.transfer && s.transfer !== goneOf ? <FLabel f={f}>{transferText(s.transfer)}</FLabel> : null}
       <FLabel f={f} bold>{L('Chat')}</FLabel>
       <ChatLines f={f} lines={lines} />
       <ChatInput f={f} typing={s.typing ? Lf('%s is typing…', a.name || L('The viewer')) : ''} onTyping={(on) => engine.send('chat.typing', { on })} onSend={(text) => { engine.send('chat.send', { text }); return true; }} />
