@@ -51,6 +51,9 @@ var version = "0.0.0-dev"
 // appFD is the inherited socket to the app.
 const appFD = 3
 
+// homeFD is the home folder, for listing it.
+const homeFD = 5
+
 // goneGrace is how long the engine stays after the app leaves, for the
 // refusals of whoever was being asked to reach them.
 const goneGrace = 500 * time.Millisecond
@@ -143,10 +146,36 @@ func shareCheck(c *lordshare.Client) error {
 	default:
 	}
 	st, ok := c.Check(time.Second)
-	if !ok || st.Blocked != lordshare.OK {
+	if !ok {
 		return services.ErrUnavailable
 	}
-	return nil
+	switch st.Blocked {
+	case lordshare.OK:
+		return nil
+	case lordshare.RemoteDesktop, lordshare.Busy:
+		return services.ErrInUse
+	}
+	return services.ErrUnavailable
+}
+
+// homeLister reads the home folder through the descriptor lord-server left
+// on fd 5. The sandbox has no rule on the home folder itself, because a rule
+// would reach the hidden folders under it, so this is the only way to list it.
+func homeLister(home string) func() ([]os.DirEntry, error) {
+	var st syscall.Stat_t
+	if syscall.Fstat(homeFD, &st) != nil || st.Mode&syscall.S_IFMT != syscall.S_IFDIR {
+		return nil
+	}
+	f := os.NewFile(homeFD, home)
+	var mu sync.Mutex
+	return func() ([]os.DirEntry, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return nil, err
+		}
+		return f.ReadDir(-1)
+	}
 }
 
 // warningFile marks that the person saw the scam warning once.
@@ -293,6 +322,7 @@ func run(args []string) error {
 	guard := &services.FilesGuard{Home: home, Downloads: downloads, Send: stream.SendFiles, Log: logger}
 	files := services.NewFilesService(home, downloads, guard.SendFiles, logger)
 	guard.Next = files.Handle
+	files.SetHomeLister(homeLister(home))
 	stream.OnFiles(guard.HandleFiles)
 	call := services.NewCallService(stream, services.SystemCallMedia{}, logger)
 	call.SetConsent(callAsk)

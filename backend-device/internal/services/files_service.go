@@ -67,9 +67,10 @@ type Transfer struct {
 //	viewer  {"type":"done","id":"d1"} or {"type":"cancel","id":"d1"}
 //	host    {"type":"download_error","id":"d1","error":"…"}  /  {"type":"files_error","id":"l1","error":"…"}
 type FilesService struct {
-	home      string // what a viewer may browse
-	received  string // where uploads land
-	maxUpload int64  // the largest upload (MaxUpload, less on a demonstration host)
+	home      string                        // what a viewer may browse
+	received  string                        // where uploads land
+	homeList  func() ([]os.DirEntry, error) // lists the home folder itself, if not by name
+	maxUpload int64                         // the largest upload (MaxUpload, less on a demonstration host)
 	send      func(peerID string, isString bool, data []byte) bool
 	log       *slog.Logger
 
@@ -454,13 +455,24 @@ type fileEntry struct {
 	MTime int64  `json:"mtime"` // unix seconds
 }
 
+// SetHomeLister replaces the listing of the home folder itself: LordOS's
+// sandbox gives no name-based read of it, only an inherited descriptor.
+func (f *FilesService) SetHomeLister(read func() ([]os.DirEntry, error)) { f.homeList = read }
+
+func (f *FilesService) readDir(dir string) ([]os.DirEntry, error) {
+	if f.homeList != nil && dir == f.homeReal() {
+		return f.homeList()
+	}
+	return os.ReadDir(dir)
+}
+
 func (f *FilesService) list(peerID string, m filesMsg) {
 	dir, err := f.resolve(m.Path)
 	if err != nil {
 		f.reply(peerID, map[string]any{"type": "files_error", "id": m.ID, "error": err.Error()})
 		return
 	}
-	des, err := os.ReadDir(dir)
+	des, err := f.readDir(dir)
 	if err != nil {
 		f.reply(peerID, map[string]any{"type": "files_error", "id": m.ID, "error": err.Error()})
 		return

@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/ids"
@@ -169,7 +170,8 @@ func writePrivate(path string, data []byte) error {
 		return err
 	}
 	defer os.Remove(tmp.Name()) // no-op after a successful rename
-	if err := tmp.Chmod(0o600); err != nil {
+	// LordOS's sandbox refuses chmod; os.CreateTemp already made it 0600.
+	if err := tmp.Chmod(0o600); err != nil && !errors.Is(err, syscall.EPERM) {
 		tmp.Close()
 		return err
 	}
