@@ -1,4 +1,5 @@
 // A test theme for an isolated headless session: one scene at a time, chosen by the file SCENE_FILE.
+import './use-fake.js';
 import { View, ThemeProvider, DEFAULT_TOKENS, fs } from '@lordos/sdk';
 import { render } from '@lordos/runtime';
 import { useEffect, useState } from 'react';

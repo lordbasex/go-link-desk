@@ -1,7 +1,7 @@
 // A session to another computer: internal/gui/remote.go and remote_panels.go, and the toolbar, overlay
 // and details as pkg/remoteview/remoteview_darwin.m draws them (go-link's Windows build opens the
 // browser here, so the Mac's is the reference).
-import { View, Text, ScrollView, Image, TextInput } from '@lordos/sdk';
+import { View, Text, ScrollView, Image, TextInput, clipboard } from '@lordos/sdk';
 import { useContext, useEffect, useState } from 'react';
 import { engine } from '../engine/index.js';
 import { L, Lf } from '../ui/i18n.js';
@@ -65,7 +65,7 @@ function toolMenu(id, r) {
   if (id === 'keys') {
     const mac = r.host?.os === 'darwin' || !r.host?.os;
     const k = (title, keys) => ({ title, run: () => engine.send('remote.keys', { remote: r.id, keys }) });
-    return [{ title: L('Type the clipboard'), run: () => engine.send('remote.typeClipboard', { remote: r.id }) }, '-', ...(mac ? [
+    return [{ title: L('Type the clipboard'), run: () => engine.send('remote.typeClipboard', { remote: r.id, text: clipboard.get() || '' }) }, '-', ...(mac ? [
       k(L('Switch apps (Cmd+Tab)'), 'MetaLeft+Tab'), k(L('Spotlight (Cmd+Space)'), 'MetaLeft+Space'), k(L('Force quit (Cmd+Option+Esc)'), 'MetaLeft+AltLeft+Escape'), k(L('Lock screen (Ctrl+Cmd+Q)'), 'ControlLeft+MetaLeft+KeyQ'), k(L('Screenshot (Cmd+Shift+3)'), 'MetaLeft+ShiftLeft+Digit3'),
     ] : [k('Ctrl+Alt+Del', 'ControlLeft+AltLeft+Delete'), k(L('Switch apps (Alt+Tab)'), 'AltLeft+Tab'), k(L('Start menu (Win)'), 'MetaLeft'), k(L('Lock screen (Win+L)'), 'MetaLeft+KeyL')])];
   }

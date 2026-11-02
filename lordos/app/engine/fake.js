@@ -1,5 +1,6 @@
 // A stand-in for go-link's engine, speaking ENGINE.md's messages: the code, a knock, a session, chat,
-// files, recent sessions and sessions to other computers, in realistic states. Replaced in stage 3.
+// files, recent sessions and sessions to other computers, in realistic states. For tests: the app on LordOS
+// talks to the real engine (engine/index.js).
 const NOW = () => Date.now();
 const HOME_TREE = {
   '': [{ name: 'Desktop', dir: true }, { name: 'Documents', dir: true }, { name: 'Downloads', dir: true }, { name: 'notes.txt', size: 1843 }, { name: 'report.pdf', size: 2345000 }],
@@ -39,6 +40,7 @@ function initial() {
     remotes: [], update: { state: 'idle' }, netTest: null, notes: {},
   };
 }
+export const initialState = initial;
 export function createFake(deliver) {
   const s = initial();
   const emit = (set) => { Object.assign(s, set); deliver({ t: 'state', set }); };

@@ -50,7 +50,7 @@ type engine struct {
 	home string
 	cmd  *exec.Cmd
 	app  net.Conn
-	done chan error
+	done chan struct{}
 
 	mu    sync.Mutex
 	state map[string]json.RawMessage
@@ -100,8 +100,8 @@ func start(t *testing.T, signal string, share *os.File) *engine {
 		t.Fatal(err)
 	}
 	_ = mine.Close()
-	e := &engine{t: t, home: home, cmd: cmd, app: conn, done: make(chan error, 1), state: map[string]json.RawMessage{}, res: map[int64]map[string]json.RawMessage{}}
-	go func() { e.done <- cmd.Wait() }()
+	e := &engine{t: t, home: home, cmd: cmd, app: conn, done: make(chan struct{}), state: map[string]json.RawMessage{}, res: map[int64]map[string]json.RawMessage{}}
+	go func() { _ = cmd.Wait(); close(e.done) }()
 	go e.read()
 	t.Cleanup(func() {
 		_ = conn.Close()
