@@ -148,7 +148,11 @@ var (
 // Key: a macOS virtual key code pressed or released, with the modifiers
 // held.
 func (in *Input) Key(macCode int, down, repeat bool, mods int) {
-	code := keymap.FromMac(macCode)
+	in.KeyCode(keymap.FromMac(macCode), down, repeat, mods)
+}
+
+// KeyCode: a key by the protocol's own code.
+func (in *Input) KeyCode(code uint16, down, repeat bool, mods int) {
 	if code == 0 {
 		return
 	}

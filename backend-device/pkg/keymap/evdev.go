@@ -49,3 +49,19 @@ func EvdevOfX11(sym int) int {
 	}
 	return -1
 }
+
+var fromEvdev = func() map[int]uint16 {
+	m := map[int]uint16{}
+	for _, k := range Keys {
+		if e := k.Evdev(); e >= 0 {
+			if _, ok := m[e]; !ok {
+				m[e] = Index(k.Code)
+			}
+		}
+	}
+	return m
+}()
+
+// FromEvdev is the protocol's keycode for a Linux input event code, what
+// LordOS's windows report (0 if it has none).
+func FromEvdev(code int) uint16 { return fromEvdev[code] }

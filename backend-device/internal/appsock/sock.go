@@ -67,6 +67,7 @@ type Msg struct {
 	Inside  bool    `json:"inside"`
 	Mods    int     `json:"mods"`
 	Keycode int     `json:"keycode"`
+	Evdev   int     `json:"evdev"`
 }
 
 // Handler answers one message: data for the answer, or an error whose

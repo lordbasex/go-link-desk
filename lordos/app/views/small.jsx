@@ -1,5 +1,5 @@
 // go-link's small windows, in Fyne's look: consent.go, session.go, chat.go, call.go, update.go, about.go.
-import { View, Text, ScrollView, Image } from '@lordos/sdk';
+import { View, Text, ScrollView, Image, media, MediaView } from '@lordos/sdk';
 import { useEffect, useState } from 'react';
 import { engine } from '../engine/index.js';
 import { L, Lf } from '../ui/i18n.js';
@@ -119,6 +119,45 @@ export function CallAsk({ f, s, close }) {
     </FWindow>
   );
 }
+const APP = 'go-link-desk';
+// A call's media: the visitor's camera and voice come through the engine to the system's decoder, and this computer's
+// camera and microphone go the other way. The system asks for each permission, lights its indicators and can cut either
+// at once; if it says no, the engine hears so and the box in the window goes off.
+function CallPicture({ c }) {
+  const [id, setId] = useState(0);
+  const [mine, setMine] = useState(0);
+  useEffect(() => {
+    if (!media.available() || !c.tag) return undefined;
+    let nid = 0;
+    try { nid = media.live(APP, c.tag); } catch (e) { return undefined; }
+    if (nid) setId(nid);
+    return () => { media.close(nid); setId(0); };
+  }, [c.tag]);
+  useEffect(() => {
+    if (!id) return;
+    media.liveMic(APP, id, !!c.hostMic).then((ok) => { if (c.hostMic && !ok) engine.send('call.set', { mic: false }); });
+  }, [id, c.hostMic]);
+  useEffect(() => {
+    if (!c.hostCamera || !media.available()) return undefined;
+    let nid = 0, gone = false;
+    const dev = media.cameras()[0]?.device;
+    const refuse = () => engine.send('call.set', { camera: false });
+    if (!dev) { refuse(); return undefined; }
+    media.camera(APP, dev, { width: 640, height: 480, link: c.tag, codec: c.codec === 'vp8' ? 'vp8' : 'h264', kbps: 600 }).then((n) => {
+      if (gone) { media.close(n); return; }
+      if (!n) { refuse(); return; }
+      nid = n;
+      setMine(n);
+    }, refuse);
+    return () => { gone = true; media.close(nid); setMine(0); };
+  }, [c.hostCamera, c.tag, c.codec]);
+  return (
+    <View style={{ flex: 1, minHeight: 360, backgroundColor: '#000000' }}>
+      {id ? <MediaView media={id} style={{ flex: 1 }} /> : null}
+      {mine ? <View style={{ position: 'absolute', right: 8, bottom: 8, width: 120, height: 90 }}><MediaView media={mine} style={{ flex: 1 }} /></View> : null}
+    </View>
+  );
+}
 export function CallWindow({ f, s }) {
   const c = s.call;
   if (!c) return <FWindow f={f} />;
@@ -126,7 +165,7 @@ export function CallWindow({ f, s }) {
   const note = !c.viewerCamera && !c.viewerMic ? Lf('%s has the camera and microphone off.', name) : !c.viewerCamera ? Lf('%s has the camera off.', name) : !c.viewerMic ? Lf('%s has the microphone off.', name) : Lf('In a call with %s', name);
   return (
     <View style={{ flex: 1, backgroundColor: f.bg }}>
-      <View style={{ flex: 1, minHeight: 360, backgroundColor: '#000000' }} />
+      <CallPicture c={c} />
       <FLabel f={f}>{note}</FLabel>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <FCheck f={f} label={L('My camera')} on={c.hostCamera} onChange={(camera) => engine.send('call.set', { camera })} />

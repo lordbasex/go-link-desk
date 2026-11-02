@@ -16,13 +16,17 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/viewer"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/keymap"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/lordlive"
 )
 
-// remote is one session to another computer. The picture isn't here yet
-// (ENGINE.md, Not defined yet): frames are counted, not shown.
+// remote is one session to another computer. The picture and sound go to the
+// system's decoder over a live link, which the app opens with tag when it
+// shows the session (ENGINE.md, Live media).
 type remote struct {
 	e     *Engine
 	id    string
+	tag   int
 	door  viewer.Door
 	s     *viewer.Session
 	input *viewer.Input
@@ -51,6 +55,7 @@ type remote struct {
 	linked   *viewer.NewLink
 	logged   bool
 	pointer  map[string]any
+	live     *lordlive.Stream
 }
 
 // statusWord is ENGINE.md's word for a viewer.Status.
@@ -115,7 +120,7 @@ func (r *remote) view() map[string]any {
 	m := map[string]any{
 		"id": r.id, "door": r.doorView(), "title": r.title, "status": statusWord(r.status), "left": r.status.Left, "hud": r.hud, "sound": r.sound,
 		"preset": string(r.preset), "retina": r.retina, "current": r.current, "chat": orNone(r.chat), "notes": orNone(r.notes), "typing": r.typing,
-		"host": nil, "perms": r.perms, "sent": nil, "tabs": orNone(r.tabs), "frames": r.frames, "keyframes": r.keys, "pointer": r.pointer,
+		"tag": r.tag, "host": nil, "perms": r.perms, "sent": nil, "tabs": orNone(r.tabs), "frames": r.frames, "keyframes": r.keys, "pointer": r.pointer,
 	}
 	if r.host != nil {
 		m["host"] = map[string]any{"name": r.host.Name, "os": r.host.OS, "terminal": r.host.Terminal}
@@ -181,6 +186,7 @@ func (e *Engine) closeRemotes() {
 }
 
 func (r *remote) close() {
+	r.unwatchLive()
 	r.s.HangUp()
 	r.stop()
 }
@@ -206,7 +212,7 @@ func (e *Engine) open(door viewer.Door, title string) *remote {
 	}
 	e.mu.Lock()
 	e.seq++
-	r := &remote{e: e, id: fmt.Sprintf("r%d", e.seq), door: door, title: title, sound: true, preset: viewer.PresetBalanced}
+	r := &remote{e: e, id: fmt.Sprintf("r%d", e.seq), tag: firstRemoteTag + e.seq, door: door, title: title, sound: true, preset: viewer.PresetBalanced}
 	e.remotes = append(e.remotes, r)
 	e.mu.Unlock()
 	r.s = viewer.New(viewer.Options{
@@ -214,10 +220,17 @@ func (e *Engine) open(door viewer.Door, title string) *remote {
 		SignalURL: signal, OwnDeviceID: cfg.DeviceID, Logger: e.log, Events: r.events(),
 	})
 	r.input = viewer.NewInput(r.s)
+	r.watchLive()
 	r.ctx, r.stop = context.WithCancel(e.Ctx)
 	e.pushRemotes()
 	r.s.Dial(r.ctx)
 	return r
+}
+
+func (r *remote) hearing() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sound
 }
 
 func (r *remote) set(fn func()) {
@@ -228,6 +241,7 @@ func (r *remote) set(fn func()) {
 }
 
 func (r *remote) events() viewer.Events {
+	start := time.Now()
 	return viewer.Events{
 		Status: func(st viewer.Status) {
 			r.set(func() { r.status = st })
@@ -272,7 +286,19 @@ func (r *remote) events() viewer.Events {
 			if f.Keyframe {
 				r.keys++
 			}
+			live := r.live
 			r.mu.Unlock()
+			if live != nil && !live.Video(f.Codec, f.Keyframe, time.Since(start), f.Data) {
+				r.s.RequestKeyframe()
+			}
+		},
+		Opus: func(pkt []byte) {
+			r.mu.Lock()
+			live := r.live
+			r.mu.Unlock()
+			if live != nil && r.hearing() {
+				live.Opus(pkt)
+			}
 		},
 		CursorPos: func(x, y float64, visible bool) {
 			r.mu.Lock()
@@ -439,6 +465,10 @@ func (e *Engine) remoteRoutes() {
 	}))
 	s.Handle("remote.wheel", on(func(r *remote, m Msg) (any, error) { r.input.Wheel(m.DX, m.DY, m.Lines); return nil, nil }))
 	s.Handle("remote.key", on(func(r *remote, m Msg) (any, error) {
+		if m.Evdev != 0 {
+			r.input.KeyCode(keymap.FromEvdev(m.Evdev), m.Down, m.Repeat, m.Mods)
+			return nil, nil
+		}
 		r.input.Key(m.Keycode, m.Down, m.Repeat, m.Mods)
 		return nil, nil
 	}))

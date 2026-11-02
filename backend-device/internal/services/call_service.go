@@ -8,9 +8,11 @@ import (
 	"errors"
 	"image"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/pion/rtp"
 	"github.com/pion/rtp/codecs"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
@@ -68,6 +70,28 @@ type CallMedia interface {
 	StartVoice(mic bool, onMic func([]int16)) (CallVoice, error)
 }
 
+// EncodedCallMedia is call media for a program with no encoders or decoders
+// of its own, whose system does that work: pictures and sound pass through
+// here as they are, in both directions.
+type EncodedCallMedia interface {
+	CallMedia
+	// StartEncodedCamera sends the camera's pictures, in codec, to onPicture
+	// until stop. wantKey is asked with each one whether a keyframe is due.
+	StartEncodedCamera(codec string, wantKey func() bool, onPicture func(data []byte, pts time.Duration)) (stop func(), err error)
+	// StartEncodedVoice plays what it's given and sends the microphone, as
+	// Opus at 48 kHz in 20 ms packets, to onMic.
+	StartEncodedVoice(onMic func(packet []byte)) (EncodedVoice, error)
+	// ShowCamera shows one picture of the viewer's camera.
+	ShowCamera(codec string, pts time.Duration, data []byte, askKey func())
+}
+
+// EncodedVoice is a running call sound, in Opus.
+type EncodedVoice interface {
+	Play(packet []byte)
+	Mute(muted bool)
+	Stop()
+}
+
 // CallVoice is a running call sound.
 type CallVoice interface {
 	Play(samples []int16) // the other side's voice, 16-bit mono at 48 kHz
@@ -83,6 +107,8 @@ type CallStatus struct {
 	HostMic      bool
 	ViewerCamera bool
 	ViewerMic    bool
+	// CameraCodec is what the host's camera is encoded in.
+	CameraCodec string
 }
 
 // CallService is the video call between the viewer in session and the
@@ -101,6 +127,7 @@ type CallService struct {
 	cancel  context.CancelFunc // a pending question
 	stopCam func()
 	voice   CallVoice
+	coded   EncodedVoice
 	camEnc  videoEncoder
 	// camMu: the camera's frames encode one at a time, and its encoder is
 	// never closed under one (a camera's stop does not wait for the frame
@@ -243,18 +270,32 @@ func (c *CallService) start(peerID string, ans CallAnswer) {
 	if !ok {
 		return
 	}
-	voice, err := c.media.StartVoice(true, c.micSamples(out))
+	var (
+		voice CallVoice
+		coded EncodedVoice
+		err   error
+	)
+	if m, ok := c.media.(EncodedCallMedia); ok {
+		coded, err = m.StartEncodedVoice(func(pkt []byte) {
+			_ = out.Mic.WriteSample(media.Sample{Data: pkt, Duration: 20 * time.Millisecond})
+		})
+	} else {
+		voice, err = c.media.StartVoice(true, c.micSamples(out))
+	}
 	if err != nil {
 		c.log.Warn("call sound unavailable", "err", err)
 	}
 	c.mu.Lock()
 	c.status.State = CallActive
-	c.status.HostMic = ans.Mic && voice != nil
-	c.voice = voice
+	c.status.HostMic = ans.Mic && (voice != nil || coded != nil)
+	c.voice, c.coded = voice, coded
 	c.seenCam, c.seenMic = false, false
 	c.mu.Unlock()
 	if voice != nil {
 		voice.Mute(!ans.Mic)
+	}
+	if coded != nil {
+		coded.Mute(!ans.Mic)
 	}
 	out.AskKeyframe()
 	c.log.Info("call started", "peer_id", peerID, "camera", ans.Camera, "mic", ans.Mic)
@@ -319,6 +360,21 @@ func (c *CallService) SetCamera(on bool) {
 	if !ok {
 		return
 	}
+	if m, ok := c.media.(EncodedCallMedia); ok {
+		stopCam, err := m.StartEncodedCamera(out.Codec, out.Keyframe, func(data []byte, pts time.Duration) { out.Camera.write(data, pts) })
+		c.mu.Lock()
+		if err != nil {
+			c.status.HostCamera = false
+			c.log.Warn("camera unavailable", "err", err)
+		} else {
+			c.stopCam = stopCam
+			c.status.HostCamera = true
+			c.status.CameraCodec = out.Codec
+		}
+		c.mu.Unlock()
+		c.changed()
+		return
+	}
 	stopCam, err := c.media.StartCamera(func(f Frame) {
 		c.camMu.Lock()
 		defer c.camMu.Unlock()
@@ -372,11 +428,14 @@ func (c *CallService) SetCamera(on bool) {
 // SetMic mutes or unmutes the host's microphone during a call.
 func (c *CallService) SetMic(on bool) {
 	c.mu.Lock()
-	v := c.voice
-	c.status.HostMic = on && v != nil
+	v, coded := c.voice, c.coded
+	c.status.HostMic = on && (v != nil || coded != nil)
 	c.mu.Unlock()
 	if v != nil {
 		v.Mute(!on)
+	}
+	if coded != nil {
+		coded.Mute(!on)
 	}
 	c.changed()
 }
@@ -384,8 +443,8 @@ func (c *CallService) SetMic(on bool) {
 // End hangs up the call, if any (either side, or the session ending).
 func (c *CallService) End() {
 	c.mu.Lock()
-	cancel, stop, voice, enc, mic := c.cancel, c.stopCam, c.voice, c.camEnc, c.micEnc
-	c.cancel, c.stopCam, c.voice, c.camEnc, c.micEnc = nil, nil, nil, nil, nil
+	cancel, stop, voice, enc, mic, coded := c.cancel, c.stopCam, c.voice, c.camEnc, c.micEnc, c.coded
+	c.cancel, c.stopCam, c.voice, c.camEnc, c.micEnc, c.coded = nil, nil, nil, nil, nil, nil
 	was := c.status.State
 	if was == CallRinging || was == CallActive {
 		c.status.State = CallEnded
@@ -411,6 +470,9 @@ func (c *CallService) End() {
 	}
 	if voice != nil {
 		voice.Stop()
+	}
+	if coded != nil {
+		coded.Stop()
 	}
 	if mic != nil {
 		mic.Close()
@@ -454,7 +516,59 @@ func (c *CallService) track(peerID string, track *webrtc.TrackRemote) {
 	c.readMic(peerID, track)
 }
 
+// passCamera hands the viewer's pictures on undecoded.
+func (c *CallService) passCamera(peerID string, track *webrtc.TrackRemote, m EncodedCallMedia) {
+	codec, depack := "vp8", rtp.Depacketizer(&codecs.VP8Packet{})
+	if strings.EqualFold(track.Codec().MimeType, webrtc.MimeTypeH264) {
+		codec, depack = "h264", &codecs.H264Packet{}
+	}
+	sb := samplebuilder.New(128, depack, 90000)
+	ask := func() {
+		if out, ok := c.stream.CallOut(peerID); ok {
+			out.AskKeyframe()
+		}
+	}
+	var pts time.Duration
+	for {
+		pkt, _, err := track.ReadRTP()
+		if err != nil {
+			return
+		}
+		if !c.active(peerID) {
+			continue
+		}
+		sb.Push(pkt)
+		for s := sb.Pop(); s != nil; s = sb.Pop() {
+			pts += s.Duration
+			m.ShowCamera(codec, pts, s.Data, ask)
+		}
+	}
+}
+
+// passMic hands the viewer's voice on undecoded.
+func (c *CallService) passMic(peerID string, track *webrtc.TrackRemote) {
+	for {
+		pkt, _, err := track.ReadRTP()
+		if err != nil {
+			return
+		}
+		if !c.active(peerID) || len(pkt.Payload) == 0 {
+			continue
+		}
+		c.mu.Lock()
+		v := c.coded
+		c.mu.Unlock()
+		if v != nil {
+			v.Play(pkt.Payload)
+		}
+	}
+}
+
 func (c *CallService) readCamera(peerID string, track *webrtc.TrackRemote) {
+	if m, ok := c.media.(EncodedCallMedia); ok {
+		c.passCamera(peerID, track, m)
+		return
+	}
 	if !decoder.HasH264 || track.Codec().MimeType != webrtc.MimeTypeH264 {
 		drainTrack(track)
 		return
@@ -500,6 +614,10 @@ func (c *CallService) readCamera(peerID string, track *webrtc.TrackRemote) {
 func (c *CallService) readMic(peerID string, track *webrtc.TrackRemote) {
 	if track.Codec().MimeType != webrtc.MimeTypeOpus {
 		drainTrack(track)
+		return
+	}
+	if _, ok := c.media.(EncodedCallMedia); ok {
+		c.passMic(peerID, track)
 		return
 	}
 	dec, err := decoder.NewOpus(1)

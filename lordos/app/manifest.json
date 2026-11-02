@@ -1,6 +1,6 @@
 {
   "id": "go-link-desk",
-  "version": "1.8.0-test2",
+  "version": "1.8.0-test3",
   "name": "Desk go-link",
   "description": { "en": "go-link Desk's remote desktop", "es": "El escritorio remoto de go-link Desk", "pt": "A área de trabalho remota do go-link Desk" },
   "icon": "icon.png",

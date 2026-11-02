@@ -185,7 +185,10 @@ type Events struct {
 	Notice      func(code string)
 	Video       func(Frame)
 	// Audio is the computer's sound: 16-bit mono at 48 kHz.
-	Audio     func(samples []int16)
+	Audio func(samples []int16)
+	// Opus, when set, takes the sound as it arrives and Audio isn't used:
+	// for a program with no decoder of its own.
+	Opus      func(packet []byte)
 	Cursor    func(CursorShape)
 	CursorPos func(x, y float64, visible bool)
 	// Clipboard: something new was copied on the computer.

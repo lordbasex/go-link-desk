@@ -5,6 +5,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -151,5 +152,15 @@ func TestSocketCallConsent(t *testing.T) {
 	c.Gone()
 	if _, err := c.AskCall(context.Background(), "Ana", true); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)
+	}
+}
+
+func TestADeclaredNameCantReorderTheQuestion(t *testing.T) {
+	if got := declared("Bank\u202egnp.exe\n\x07 support\u200f"); got != "Bankgnp.exe support" {
+		t.Fatalf("%q", got)
+	}
+	long := declared(strings.Repeat("a", 500))
+	if len([]rune(long)) != 64 {
+		t.Fatalf("%d", len(long))
 	}
 }

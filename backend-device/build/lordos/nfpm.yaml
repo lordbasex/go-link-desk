@@ -23,7 +23,7 @@ description: |-
   Share this computer's screen with a 9-digit code. Outbound only, and
   everyone who comes in is accepted at the computer.
 depends:
-  - lordos (>= 0.8.7.1)
+  - lordos (>= 0.8.8~)
 contents:
   - src: "@DIR@"
     dst: /usr/lib/lordos-apps/go-link-desk

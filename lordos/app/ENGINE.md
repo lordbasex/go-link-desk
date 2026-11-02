@@ -39,11 +39,11 @@ stay. The first frame after connecting has every field. The app holds no state o
 | `ports` | `null` or `{ asked, open, via, outside, port }` | `PortMapper` |
 | `consent` | `null` or `{ id, name, browser, link, deadline, warning }`. `warning` is true until the scam warning has been shown once | `Consent.Ask` |
 | `callAsk` | `null` or `{ name, video }` | `CallConsent.AskCall` |
-| `call` | `null` or `{ name, hostCamera, hostMic, viewerCamera, viewerMic }` | `CallService` |
+| `call` | `null` or `{ name, hostCamera, hostMic, viewerCamera, viewerMic, codec, tag }` | `CallService` |
 | `chat` | `[{ fromViewer, text, at }]`, this session's | `ChatService` |
 | `typing` | bool | `ChatService` |
 | `transfer` | `null` or `{ upload, name, size, done, over, err }` | `FilesService` |
-| `remotes` | sessions to other computers: `[{ id, door, title, status, left, host: { name, os, terminal }, perms, hud, sound, preset, retina, displays, current, chat, notes, typing, sent, tabs, frames, keyframes }]`; `frames` and `keyframes` count what arrived, every few seconds | `viewer.Session` |
+| `remotes` | sessions to other computers: `[{ id, tag, door, title, status, left, host: { name, os, terminal }, perms, hud, sound, preset, retina, displays, current, chat, notes, typing, sent, tabs, frames, keyframes }]`; `frames` and `keyframes` count what arrived, every few seconds | `viewer.Session` |
 | `update` | `{ state, latest, url }`; `state`: `idle`, `checking`, `current`, `available`, `error`. Never `installing`: the updater is off, and APT updates | none on LordOS, see below |
 | `netTest` | `null` or `running` | `network.test` |
 | `engineGone` | set only by the app: the engine isn't there, so nobody can come in | `engine/index.js` |
@@ -76,7 +76,7 @@ A list too long for a frame loses its oldest elements, never the frame. A field'
 | `remote.close`, `remote.password`, `remote.chat`, `remote.typing` | `remote`, `password`, `text`, `on` | a session to another computer |
 | `remote.tool` | `remote`, `tool` (`info`, `sound`, `preset`, `retina`, `display`, `fullscreen`), `value` | its toolbar |
 | `remote.keys`, `remote.typeClipboard` | `remote`, `keys`; `text`, the app's clipboard: the engine has none outside a share | its Keys menu |
-| `remote.pointer`, `remote.button`, `remote.wheel`, `remote.key` | `remote`, `x`, `y` (0 to 1), `inside`; `button`, `down`; `dx`, `dy`, `lines`; `keycode`, `down`, `repeat`, `mods` | its input |
+| `remote.pointer`, `remote.button`, `remote.wheel`, `remote.key` | `remote`, `x`, `y` (0 to 1), `inside`; `button`, `down`; `dx`, `dy`, `lines`; `keycode` or `evdev`, `down`, `repeat`, `mods` | its input |
 | `files.list` (asks), `files.download` (asks), `files.upload` (asks), `files.reveal` | `remote`, `path`, `name` | see Files |
 | `update.check`, `network.test` | | see below |
 | `quit` | | stops the engine |
@@ -120,9 +120,25 @@ API has no way to ask but a share, so the system's prompt comes with the first o
 A visitor who knocks while the session is taken (5673, or another app) is turned down as `in_use`, with nobody asked
 (`SocketConsent.Ready`, GO-LINK.md section 5). With the API gone or the session locked, it's `unavailable`.
 
+## Live media
+
+The engine is pure Go, with no decoder or encoder, and pictures don't fit this socket. LordOS's live media links do the
+work (LordOS: PACKAGED-APPS.md, "Live media"): the app opens a stream with `media.live(app, tag)` and shows it in a
+`MediaView`; the engine gets its end of the link on fd 6, under the same tag, and passes what travels.
+
+| Tag | Opened by | What travels |
+|---|---|---|
+| `remotes[].tag` | `views/remote.jsx`, while the session is `live` | the other computer's picture and sound, one way |
+| `call.tag` | `views/small.jsx`, while a call lasts | the visitor's camera and voice to this computer; with `call.hostMic`, the microphone back |
+| `call.tag`, a camera | `views/small.jsx`, while `call.hostCamera` | this computer's camera, in `call.codec` |
+
+The app asks the person for the camera and the microphone (`media.camera`, `media.liveMic`), and if the answer is no it
+sends `call.set` with that device off. The system lights the indicators and can cut either at once. An engine that isn't
+shown anything drops pictures until the next keyframe, and asks for one. What's decoded isn't the engine's to see.
+
+A session's input goes as `remote.pointer`, `remote.button` and `remote.wheel`, by position over the picture, and
+`remote.key` with `evdev`, what LordOS's windows report.
+
 ## Not defined yet
 
-The picture and sound of a session to another computer (`MediaView`, GO-LINK.md 7) and a terminal's output need a
-stream of their own and don't fit 64 KB frames. The engine is pure Go, with no decoder, and the system has no API that
-takes encoded frames from an app: frames are counted and dropped, and today's views show a still. So are call sound and
-the camera: the engine has no audio or camera device, and a call opens with neither.
+A terminal's output needs a stream of its own and doesn't fit 64 KB frames: the Terminal view still shows a fixed picture.

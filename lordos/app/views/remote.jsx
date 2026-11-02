@@ -1,8 +1,8 @@
 // A session to another computer: internal/gui/remote.go and remote_panels.go, and the toolbar, overlay
 // and details as pkg/remoteview/remoteview_darwin.m draws them (go-link's Windows build opens the
 // browser here, so the Mac's is the reference).
-import { View, Text, ScrollView, Image, TextInput, clipboard } from '@lordos/sdk';
-import { useContext, useEffect, useState } from 'react';
+import { View, Text, ScrollView, Image, TextInput, clipboard, media, MediaView, addListener } from '@lordos/sdk';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { engine } from '../engine/index.js';
 import { L, Lf } from '../ui/i18n.js';
 import { Icon } from '../ui/icon.jsx';
@@ -117,14 +117,62 @@ function Terminal({ r }) {
     </View>
   );
 }
-export function RemotePage({ r, onChat, onFiles }) {
+const APP = 'go-link-desk';
+const MODS = (e) => (e.shift ? 1 : 0) | (e.ctrl ? 2 : 0) | (e.alt ? 4 : 0) | (e.meta ? 8 : 0);   // pkg/inputproto
+// The session's picture: the engine has no decoder, so what arrives goes through it to the system's, and shows here
+// (ENGINE.md, Live media). Input goes back by position over the picture, 0 to 1, as go-link's own viewers do.
+function Live({ r, selected }) {
+  const box = useRef(null);
+  const size = useRef({ width: 0, height: 0 });
+  const [id, setId] = useState(0);
+  const last = useRef(0);
+  useEffect(() => {
+    if (!media.available() || !r.tag) return undefined;
+    let nid = 0;
+    try { nid = media.live(APP, r.tag); } catch (e) { return undefined; }
+    if (!nid) return undefined;
+    setId(nid);
+    const off = media.on(nid, (type, d) => { if (type === 'info' && d.width) size.current = d; });
+    return () => { off(); media.close(nid); setId(0); };
+  }, [r.tag]);
+  useEffect(() => {
+    if (!selected || !r.perms?.control) return undefined;
+    const send = (e, down) => engine.send('remote.key', { remote: r.id, evdev: e.code || 0, down, repeat: !!e.repeat, mods: MODS(e) });
+    const a = addListener('keydown', (e) => send(e, true)), b = addListener('keyup', (e) => send(e, false));
+    return () => { a(); b(); };
+  }, [selected, r.id, r.perms?.control]);
+  const at = (e) => {
+    const [x, y, w, h] = lord.getLayout(box.current.id);
+    const pw = size.current.width || w, ph = size.current.height || h;
+    const k = Math.min(w / pw, h / ph), ox = x + (w - pw * k) / 2, oy = y + (h - ph * k) / 2;
+    const px = (e.x - ox) / (pw * k), py = (e.y - oy) / (ph * k);
+    return { x: Math.max(0, Math.min(1, px)), y: Math.max(0, Math.min(1, py)), inside: px >= 0 && px <= 1 && py >= 0 && py <= 1 };
+  };
+  useEffect(() => addListener('pointerup', (e) => {
+    if (box.current) engine.send('remote.button', { remote: r.id, button: e.button || 0, down: false, ...at(e) });
+  }), [r.id]);
+  const move = (e) => {
+    const t = Date.now();
+    if (t - last.current < 8) return;      // no more than the pointer's own channel can use
+    last.current = t;
+    engine.send('remote.pointer', { remote: r.id, ...at(e) });
+  };
+  return (
+    <View ref={box} style={{ flex: 1 }} onMouseMove={move}
+      onMouseDown={(e) => engine.send('remote.button', { remote: r.id, button: e.button || 0, down: true, ...at(e) })}
+      onWheel={(e) => engine.send('remote.wheel', { remote: r.id, dx: e.deltaX || 0, dy: e.deltaY || 0, lines: true })}>
+      {id ? <MediaView media={id} style={{ flex: 1 }} /> : null}
+    </View>
+  );
+}
+export function RemotePage({ r, onChat, onFiles, selected = true }) {
   const p = usePal();
   const showOverlay = r.status !== 'live';
   return (
     <View style={{ flex: 1 }}>
       <RemoteToolbar r={r} onChat={onChat} onFiles={onFiles} />
       <View style={{ flex: 1, backgroundColor: p.video, overflow: 'hidden' }}>
-        {r.host?.terminal ? <Terminal r={r} /> : r.still && r.status === 'live' ? <Image pixels={r.still} style={{ width: '100%', height: '100%' }} /> : null}
+        {r.host?.terminal ? <Terminal r={r} /> : r.still && r.status === 'live' ? <Image pixels={r.still} style={{ width: '100%', height: '100%' }} /> : r.status === 'live' ? <Live r={r} selected={selected} /> : null}
         {r.hud ? <View style={{ position: 'absolute', left: 10, top: 10, backgroundColor: 'rgba(0,0,0,0.65)' }}><Text style={{ fontFamily: 'monospace', fontSize: 11, color: p.text }}>{hudText(r.sent)}</Text></View> : null}
         {showOverlay ? <Overlay r={r} /> : null}
       </View>

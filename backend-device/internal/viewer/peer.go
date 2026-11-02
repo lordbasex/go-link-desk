@@ -261,6 +261,17 @@ func (p *peer) keyframe() {
 }
 
 func (p *peer) readAudio(track *webrtc.TrackRemote) {
+	if fn := p.s.opts.Events.Opus; fn != nil {
+		for {
+			pkt, _, err := track.ReadRTP()
+			if err != nil {
+				return
+			}
+			if len(pkt.Payload) > 0 {
+				fn(pkt.Payload)
+			}
+		}
+	}
 	dec, err := decoder.NewOpus(1)
 	if err != nil {
 		drain(track)

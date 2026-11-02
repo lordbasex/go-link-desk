@@ -22,6 +22,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/lordlive"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/netprobe"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
@@ -51,6 +52,7 @@ type Deps struct {
 	Links          *services.LinkService
 	Remotes        *services.RemotesService
 	Ports          *services.PortMapper
+	Live           *lordlive.Hub // the live links (nil: pictures are counted, not shown)
 
 	Version, Hostname, LocalIP, WebURL, SignalURL string
 	DataDir                                       string // the app's data folder: thumbnails
@@ -300,7 +302,7 @@ func (e *Engine) pushCall(c services.CallStatus) {
 		e.Sock.Set("call", nil)
 		return
 	}
-	e.Sock.Set("call", map[string]any{"name": c.Name, "hostCamera": c.HostCamera, "hostMic": c.HostMic, "viewerCamera": c.ViewerCamera, "viewerMic": c.ViewerMic})
+	e.Sock.Set("call", map[string]any{"name": c.Name, "hostCamera": c.HostCamera, "hostMic": c.HostMic, "viewerCamera": c.ViewerCamera, "viewerMic": c.ViewerMic, "codec": c.CameraCodec, "tag": CallTag})
 }
 
 func (e *Engine) pushTransfer(t services.Transfer) {

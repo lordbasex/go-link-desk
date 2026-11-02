@@ -40,6 +40,7 @@ import (
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/inject"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/instancelock"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/linkauth"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/lordlive"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/lordshare"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/netprobe"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
@@ -58,7 +59,11 @@ const homeFD = 5
 // refusals of whoever was being asked to reach them.
 const goneGrace = 500 * time.Millisecond
 
+// live is where the system's media links arrive.
+var live = lordlive.NewHub()
+
 func main() {
+	_ = live.Take() // before anything else can get that number
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "go-link-desk:", err)
 		os.Exit(1)
@@ -324,7 +329,12 @@ func run(args []string) error {
 	guard.Next = files.Handle
 	files.SetHomeLister(homeLister(home))
 	stream.OnFiles(guard.HandleFiles)
-	call := services.NewCallService(stream, services.SystemCallMedia{}, logger)
+	go func() {
+		if err := live.Serve(); err != nil {
+			logger.Info("no live links", "err", err)
+		}
+	}()
+	call := services.NewCallService(stream, &appsock.LiveCallMedia{Hub: live}, logger)
 	call.SetConsent(callAsk)
 	session.SetUnattended(settings)
 	unattended := services.NewUnattendedService(services.UnattendedConfig{
@@ -420,7 +430,7 @@ func run(args []string) error {
 		Sock: sock, Ctx: ctx, Quit: cancel, Status: status, NewCode: session.NewCode,
 		EndSession:     func() { session.End(models.EndHost) },
 		SetPermissions: session.SetPermissions,
-		Consent:        consent, CallAsk: callAsk, Chat: chat, Call: call, Files: files, Settings: settings, Links: links, Remotes: remotes, Ports: ports,
+		Consent:        consent, CallAsk: callAsk, Chat: chat, Call: call, Files: files, Settings: settings, Links: links, Remotes: remotes, Ports: ports, Live: live,
 		Version: version, Hostname: hostName(), LocalIP: localIP(), WebURL: cfg.EffectiveWebURL(), SignalURL: target,
 		DataDir: dir, Home: home, Downloads: downloads, Logger: logger,
 		Perms: func() []appsock.Perm { return systemPerms(share) },

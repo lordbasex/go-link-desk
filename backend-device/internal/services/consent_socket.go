@@ -5,11 +5,30 @@ package services
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 )
+
+// declared is what a stranger says of themselves, made fit for the question
+// a person answers: one line, at most 64 characters, and no marks that
+// reorder or hide what's around them.
+func declared(s string) string {
+	out := make([]rune, 0, 64)
+	for _, r := range strings.ToValidUTF8(s, "") {
+		if len(out) == 64 {
+			break
+		}
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return strings.TrimSpace(string(out))
+}
 
 // ConsentPrompt is a request as the app shows it.
 type ConsentPrompt struct {
@@ -92,7 +111,7 @@ func (c *SocketConsent) Ask(ctx context.Context, req ConsentRequest) (models.Per
 		deadline = time.Now().Add(ConsentTimeout)
 	}
 	warning := c.Warned != nil && !c.Warned()
-	c.Show(&ConsentPrompt{ID: p.id, Name: req.Knock.Name, Browser: req.Knock.Browser, Link: req.Link, Deadline: deadline.UnixMilli(), Warning: warning})
+	c.Show(&ConsentPrompt{ID: p.id, Name: declared(req.Knock.Name), Browser: declared(req.Knock.Browser), Link: req.Link, Deadline: deadline.UnixMilli(), Warning: warning})
 	if warning && c.SetWarned != nil {
 		c.SetWarned()
 	}
