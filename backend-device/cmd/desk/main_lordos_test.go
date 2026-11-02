@@ -736,7 +736,9 @@ func TestRealShare(t *testing.T) {
 	host.ask("consent.answer", map[string]any{"consent": host.consentID(), "accept": true, "permissions": everything})
 	guest.wait("live", func() bool { return guest.remote().Status == "live" })
 	host.wait("the permissions", func() bool { return strings.Contains(host.field("perms"), `"id":"screen","granted":true`) })
-	guest.wait("a keyframe", func() bool { return strings.Contains(guest.field("remotes"), `"keyframes":`) && guest.remote().Frames > 0 && !strings.Contains(guest.field("remotes"), `"keyframes":0`) })
+	guest.wait("a keyframe", func() bool {
+		return strings.Contains(guest.field("remotes"), `"keyframes":`) && guest.remote().Frames > 0 && !strings.Contains(guest.field("remotes"), `"keyframes":0`)
+	})
 	guest.wait("the session's size", func() bool { return strings.Contains(guest.field("remotes"), `"width":1280`) })
 	r := guest.remote()
 	// The pointer goes in through the API and comes back as the session's.
