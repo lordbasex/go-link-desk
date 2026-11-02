@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
+#
+# Desk go-link for LordOS: the engine and the React app, one tree under the
+# read-only app root (LordOS: docs/GO-LINK.md 3.2). @VERSION@, @ARCH@ (Go's:
+# amd64, arm64) and @DIR@ (the signed, unpacked app, with `engine` in it)
+# are filled in a copy of this file. The engine is built with
+#
+#   CGO_ENABLED=0 go build -trimpath -tags headless,lordos -o @DIR@/engine ./cmd/desk
+#
+# No maintainer scripts. It doesn't conflict with the Linux package.
+name: go-link-desk-lordos
+version: "@VERSION@"
+arch: "@ARCH@"
+platform: linux
+section: net
+priority: optional
+maintainer: Federico Pereira <lord.basex@gmail.com>
+vendor: go-link
+homepage: https://desk.go-link.org
+license: MIT
+description: |-
+  Remote desktop, peer to peer, for LordOS.
+  Share this computer's screen with a 9-digit code. Outbound only, and
+  everyone who comes in is accepted at the computer.
+depends:
+  - lordos (>= 0.8.7.1)
+contents:
+  - src: "@DIR@"
+    dst: /usr/lib/lordos-apps/go-link-desk
+    type: tree
+    file_info: { owner: root, group: root }
