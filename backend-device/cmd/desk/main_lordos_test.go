@@ -658,6 +658,13 @@ func TestLinkAndUnattended(t *testing.T) {
 	}
 	_ = json.Unmarshal([]byte(host.field("pairing")), &p)
 
+	const pw = "a long password"
+	if _, r := host.ask("settings.set", map[string]any{"key": "password", "value": pw + "\n" + pw}); r != "" {
+		t.Fatal(r)
+	}
+	if _, r := host.ask("settings.set", map[string]any{"key": "unattended", "value": true}); r != "" {
+		t.Fatal(r)
+	}
 	guest.ask("connect", map[string]any{"kind": "claim", "code": p.Code})
 	host.wait("the request", func() bool { return strings.Contains(host.field("consent"), `"link":true`) })
 	host.ask("consent.answer", map[string]any{"consent": host.consentID(), "accept": true, "permissions": everything})
@@ -673,16 +680,15 @@ func TestLinkAndUnattended(t *testing.T) {
 	guest.send("remote.close", map[string]any{"remote": guest.remote().ID})
 	host.wait("the visit over", func() bool { return host.field("active") == "null" })
 
-	// Off: nobody comes back.
+	// Turned off, nobody comes back.
+	if _, r := host.ask("settings.set", map[string]any{"key": "unattended", "value": false}); r != "" {
+		t.Fatal(r)
+	}
 	guest.ask("device.connect", map[string]any{"device": devices[0].ID})
 	guest.wait("off", func() bool { return guest.remote().Status == "off" })
 	guest.send("remote.close", map[string]any{"remote": guest.remote().ID})
 
-	// On, with its password; a wrong one first.
-	const pw = "a long password"
-	if _, r := host.ask("settings.set", map[string]any{"key": "password", "value": pw + "\n" + pw}); r != "" {
-		t.Fatal(r)
-	}
+	// On again, with its password; a wrong one first.
 	if _, r := host.ask("settings.set", map[string]any{"key": "unattended", "value": true}); r != "" {
 		t.Fatal(r)
 	}

@@ -136,7 +136,10 @@ func (e *Engine) state() {
 	e.pushStatus(e.Status.Snapshot())
 	e.Status.OnChange(e.pushStatus)
 	e.pushConfig(e.Settings.Get())
-	e.Settings.OnChange(e.pushConfig)
+	e.Settings.OnChange(func(c models.Config) {
+		e.pushConfig(c)
+		e.pushLinks() // a new link is saved here
+	})
 	e.pushLinks()
 	e.Links.OnChange(e.pushLinks)
 	e.pushRemoteList(e.Remotes.Get())
