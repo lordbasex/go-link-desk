@@ -62,6 +62,7 @@ type engine struct {
 // fd 4 (nil: none, so an engine with no API).
 func start(t *testing.T, signal string, share *os.File) *engine {
 	t.Helper()
+	real := signal == realShareSignal
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +70,9 @@ func start(t *testing.T, signal string, share *os.File) *engine {
 	dir := filepath.Join(home, ".local", "share", "lordos", "appdata", "go-link-desk")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
+	}
+	if signal == realShareSignal {
+		signal = os.Getenv("DESK_E2E_SIGNAL")
 	}
 	if signal != "" {
 		store := repositories.NewConfigFile(filepath.Join(dir, "device.json"))
@@ -84,6 +88,9 @@ func start(t *testing.T, signal string, share *os.File) *engine {
 	mine, theirs := socketpair(t)
 	cmd := exec.Command(os.Args[0])
 	cmd.Env = []string{"DESK_ENGINE=1", "HOME=" + home, "PATH=/usr/bin:/bin", "USER=tester"}
+	if real {
+		cmd.Env = append(cmd.Env, "XDG_RUNTIME_DIR="+os.Getenv("DESK_E2E_RUNTIME"))
+	}
 	cmd.ExtraFiles = []*os.File{theirs}
 	if share != nil {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, share)
@@ -213,6 +220,9 @@ func TestNoTestFlagInThisBuild(t *testing.T) {
 		}
 	}
 }
+
+// realShareSignal: this host's share is the running session's API.
+const realShareSignal = "real share"
 
 // offline is a signaling server nobody answers at.
 const offline = "ws://127.0.0.1:9/ws"
@@ -710,6 +720,47 @@ func TestLinkAndUnattended(t *testing.T) {
 	host.send("link.revoke", map[string]any{"link": links[0].ID})
 	guest.wait("revoked", func() bool { return guest.remote().Status == "ended_revoked" || guest.remote().Status == "unlinked" })
 	_ = share
+}
+
+// The real API of a running session (a test session on a test machine, with
+// this program granted): DESK_E2E_RUNTIME is its XDG_RUNTIME_DIR.
+func TestRealShare(t *testing.T) {
+	hub(t)
+	if os.Getenv("DESK_E2E_RUNTIME") == "" {
+		t.Skip("DESK_E2E_RUNTIME isn't set")
+	}
+	host := start(t, realShareSignal, nil)
+	guest := start(t, os.Getenv("DESK_E2E_SIGNAL"), nil)
+	guest.ask("connect", map[string]any{"kind": "join", "code": host.code()})
+	host.wait("the request", func() bool { return strings.Contains(host.field("consent"), `"deadline"`) })
+	host.ask("consent.answer", map[string]any{"consent": host.consentID(), "accept": true, "permissions": everything})
+	guest.wait("live", func() bool { return guest.remote().Status == "live" })
+	host.wait("the permissions", func() bool { return strings.Contains(host.field("perms"), `"id":"screen","granted":true`) })
+	guest.wait("a keyframe", func() bool { return strings.Contains(guest.field("remotes"), `"keyframes":`) && guest.remote().Frames > 0 && !strings.Contains(guest.field("remotes"), `"keyframes":0`) })
+	guest.wait("the session's size", func() bool { return strings.Contains(guest.field("remotes"), `"width":1280`) })
+	r := guest.remote()
+	// The pointer goes in through the API and comes back as the session's.
+	guest.wait("control", func() bool { return strings.Contains(guest.field("remotes"), `"control":true`) })
+	guest.send("remote.pointer", map[string]any{"remote": r.ID, "x": 0.25, "y": 0.75, "inside": true})
+	guest.wait("the pointer back", func() bool {
+		guest.send("remote.pointer", map[string]any{"remote": r.ID, "x": 0.25, "y": 0.75, "inside": true})
+		return strings.Contains(guest.field("remotes"), `"x":0.25`)
+	})
+	guest.send("remote.chat", map[string]any{"remote": r.ID, "text": "over the real API"})
+	host.wait("the chat", func() bool { return strings.Contains(host.field("chat"), "over the real API") })
+	// The session ends and locks: nobody else comes in behind the lock.
+	if _, why := host.ask("settings.set", map[string]any{"key": "lock_on_end", "value": true}); why != "" {
+		t.Fatal(why)
+	}
+	host.send("session.end", nil)
+	guest.wait("the end", func() bool { return strings.HasPrefix(guest.remote().Status, "ended") })
+	time.Sleep(time.Second)
+	guest.send("remote.close", map[string]any{"remote": r.ID})
+	guest.ask("connect", map[string]any{"kind": "join", "code": host.code()})
+	guest.wait("the refusal", func() bool { return guest.remote().Status == "unavailable" })
+	if host.field("consent") != "null" {
+		t.Fatal(host.field("consent"))
+	}
 }
 
 func TestProtocolAgainstViewOfFakeEngine(t *testing.T) {

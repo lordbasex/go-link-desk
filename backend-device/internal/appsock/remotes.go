@@ -50,6 +50,7 @@ type remote struct {
 	keys     int
 	linked   *viewer.NewLink
 	logged   bool
+	pointer  map[string]any
 }
 
 // statusWord is ENGINE.md's word for a viewer.Status.
@@ -114,7 +115,7 @@ func (r *remote) view() map[string]any {
 	m := map[string]any{
 		"id": r.id, "door": r.doorView(), "title": r.title, "status": statusWord(r.status), "left": r.status.Left, "hud": r.hud, "sound": r.sound,
 		"preset": string(r.preset), "retina": r.retina, "current": r.current, "chat": orNone(r.chat), "notes": orNone(r.notes), "typing": r.typing,
-		"host": nil, "perms": r.perms, "sent": nil, "tabs": orNone(r.tabs), "frames": r.frames, "keyframes": r.keys,
+		"host": nil, "perms": r.perms, "sent": nil, "tabs": orNone(r.tabs), "frames": r.frames, "keyframes": r.keys, "pointer": r.pointer,
 	}
 	if r.host != nil {
 		m["host"] = map[string]any{"name": r.host.Name, "os": r.host.OS, "terminal": r.host.Terminal}
@@ -271,6 +272,11 @@ func (r *remote) events() viewer.Events {
 			if f.Keyframe {
 				r.keys++
 			}
+			r.mu.Unlock()
+		},
+		CursorPos: func(x, y float64, visible bool) {
+			r.mu.Lock()
+			r.pointer = map[string]any{"x": x, "y": y, "visible": visible}
 			r.mu.Unlock()
 		},
 		Chat: func(l viewer.ChatLine) {
