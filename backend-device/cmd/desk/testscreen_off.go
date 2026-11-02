@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
-//go:build !desk_test_screen
+//go:build !desk_test_screen && !lordos
 
 package main
 

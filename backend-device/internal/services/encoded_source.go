@@ -197,6 +197,7 @@ func (e *EncodedSource) drive(ctx context.Context, over <-chan lordshare.Reason,
 	var codec, kbps int
 	var lastKey time.Time
 	hear, gone := false, false // gone: the system said no until the viewers leave
+	dead, closed := false, share.Done()
 	stop := func() {
 		if codec != 0 {
 			share.Stop()
@@ -223,12 +224,9 @@ func (e *EncodedSource) drive(ctx context.Context, over <-chan lordshare.Reason,
 		case <-ctx.Done():
 			stop()
 			return
-		case <-share.Done():
-			if codec != 0 {
-				end(lordshare.NoIndicator)
-			}
-			<-ctx.Done()
-			return
+		case <-closed:
+			closed, dead = nil, true
+			codec, kbps = 0, 0
 		case r := <-over:
 			end(r)
 		case <-tick:
@@ -236,6 +234,10 @@ func (e *EncodedSource) drive(ctx context.Context, over <-chan lordshare.Reason,
 			if want.Viewers == 0 {
 				stop()
 				gone, hear = false, false
+				continue
+			}
+			if dead && !gone {
+				end(lordshare.NoIndicator)
 				continue
 			}
 			lc := lordCodec(want.Codec)

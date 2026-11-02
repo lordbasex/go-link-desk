@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
+//go:build !lordos
+
 // Command desk runs the go-link Desk host: it registers with signalhub,
 // keeps an invite-only session room open and shows its code, asks the
 // person at the computer about every viewer that knocks, and streams to

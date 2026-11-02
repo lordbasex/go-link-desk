@@ -185,3 +185,17 @@ func TestEncodedCodecNeverHigh(t *testing.T) {
 		t.Fatal("High isn't what the session sends")
 	}
 }
+
+func TestNoAPIEndsTheVisit(t *testing.T) {
+	h := newHarness(t)
+	close(h.d.done)
+	h.s.set(EncodedWant{Viewers: 1, Codec: CodecH264, Kbps: 2000})
+	h.tick <- time.Now()
+	h.tick <- time.Now()
+	if got := <-h.ends; got != lordshare.NoIndicator.String() {
+		t.Fatal(got)
+	}
+	if has(h.d.list(), "start h264") != 0 {
+		t.Fatal(h.d.list())
+	}
+}
