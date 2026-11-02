@@ -453,4 +453,3 @@ func systemPerms(share *lordshare.Client) []appsock.Perm {
 		{ID: "accessibility", Granted: ok && st.Granted&lordshare.FlagInput != 0},
 	}
 }
-
