@@ -16,7 +16,7 @@ import { trayItems } from './views/tray.jsx';
 
 const ID = 'go-link-desk';
 export const WINDOWS = {
-  consent: { w: 440, h: 533, title: 'Connection request' }, session: { w: 320, h: 650, title: 'go-link Desk session' }, callask: { w: 380, h: 199, title: 'Video call' }, call: { w: 480, h: 480, title: 'Video call' },
+  consent: { w: 440, h: 660, title: 'Connection request' }, session: { w: 320, h: 650, title: 'go-link Desk session' }, callask: { w: 380, h: 199, title: 'Video call' }, call: { w: 480, h: 480, title: 'Video call' },
   settings: { w: 640, h: 640, title: 'Settings' }, about: { w: 340, h: 370, title: 'About go-link Desk' }, update: { w: 440, h: 139, title: 'Software update' }, chat: { w: 340, h: 420, title: 'Chat' }, files: { w: 520, h: 480, title: 'Files' },
 };
 const openView = (view, extra = {}) => { const d = WINDOWS[view]; wm.open(ID, { instance: extra.remote ? `${view}-${extra.remote}` : view, args: { view, ...extra }, frame: { w: d.w, h: d.h } }); };
