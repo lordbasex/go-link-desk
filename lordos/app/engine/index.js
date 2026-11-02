@@ -2,6 +2,7 @@
 // nothing else in the app knows what is behind it. ENGINE.md is the protocol. On LordOS that's the engine on the
 // broker's socket; the fake answers only where a test asks for it (tools/harness/use-fake.js) or outside LordOS.
 import { useEffect, useState } from 'react';
+import { companion } from '@lordos/sdk';
 import { createFake, initialState } from './fake.js';
 import { createSocket } from './socket.js';
 
@@ -10,9 +11,8 @@ function createTransport(onMessage) {
   if (!onLordOS || globalThis.GOLINK_FAKE) return createFake(onMessage);
   // The app's engine is gone, or was never there: nothing to show, and nobody can come in.
   const gone = () => onMessage({ t: 'state', set: { ...initialState(), signal: 'disconnected', engineGone: true } });
-  const conn = lord.broker?.companion?.();
-  if (!conn) { gone(); return { send() {} }; }
-  return createSocket(conn, onMessage, gone);
+  // the app host starts the companion; what it says, and what the engine sends, arrive here
+  return createSocket(companion, onMessage, gone);
 }
 let state = {};
 const watchers = new Set();

@@ -1,7 +1,7 @@
 // Desk go-link: go-link Desk's window as a native LordOS app. Everything it knows comes from
 // engine/index.js. It's one window component that shows the view its window was opened for, since
 // go-link's request, session panel, chat, files, call, update, About and Settings are windows of their own.
-import { View, Image, useAppWindow, useTheme, wm, clipboard, useSettings } from '@lordos/sdk';
+import { View, Image, useAppWindow, useTheme, wm, clipboard, useSettings, statusItem } from '@lordos/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { engine, useEngine } from './engine/index.js';
 import { language, L, setLanguage } from './ui/i18n.js';
@@ -92,6 +92,20 @@ export default function App() {
     const act = (a) => { if (a === 'settings') openView('settings'); else if (a === 'about') openView('about'); else if (a === 'updates') openView('update'); else if (a === 'quit') wm.close(win.id); else wm.focus(win.id); };
     wm.setMenus(win.id, [{ label: 'go-link Desk', items: trayItems(s, act).map((it) => (it === '-' ? '-' : { label: it.title, onClick: it.run, disabled: it.disabled })) }]);
   }, [s.session, s.active, view]);
+  // the item by the clock: go-link's tray menu, red while a session lasts
+  const tray = useRef({});
+  useEffect(() => {
+    if (view || !win?.id) return undefined;
+    const act = (a) => { if (a === 'settings') openView('settings'); else if (a === 'about') openView('about'); else if (a === 'updates') openView('update'); else if (a === 'quit') wm.close(win.id); else wm.focus(win.id); };
+    const menu = trayItems(s, act).map((it, i) => {
+      if (it === '-') return { line: true };
+      const id = `m${i}`;
+      tray.current[id] = it.run;
+      return { id, label: it.title, off: !!it.disabled };
+    });
+    statusItem.set({ icon: 'icon.png', title: 'go-link Desk', alert: !!s.active, menu });
+    return statusItem.onSelect((id) => tray.current[id]?.());
+  }, [s.session, s.active, view, language()]);
   // the windows the engine's state asks for, from the main window only
   useEffect(() => {
     if (view) return;

@@ -1,15 +1,14 @@
 // Copyright (c) 2026 Federico Pereira <lord.basex@gmail.com>
 
 // Package appsock is the local socket between the headless engine and
-// the React app of LordOS (lordos/app/ENGINE.md): u32 length (little
-// endian), then that many bytes of UTF-8 JSON, 64 KB at most. The engine
+// the React app of LordOS (lordos/app/ENGINE.md): a SOCK_SEQPACKET socket,
+// one message is one UTF-8 JSON text, 64 KB at most. The engine
 // sends one kind of message, state, whose fields replace what the app holds;
 // the app sends requests. No text for people ever crosses it.
 package appsock
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -247,30 +246,26 @@ func (s *Sock) write() {
 	}
 }
 
-// WriteFrame writes one frame.
+// WriteFrame writes one frame: one message on the socket.
 func WriteFrame(w io.Writer, b []byte) error {
 	if len(b) > MaxFrame {
 		return ErrFrame
 	}
-	_, err := w.Write(append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(b)+4), uint32(len(b))), b...))
+	_, err := w.Write(b)
 	return err
 }
 
-// ReadFrame reads one frame.
+// ReadFrame reads one frame: one message on the socket.
 func ReadFrame(r io.Reader) ([]byte, error) {
-	var hd [4]byte
-	if _, err := io.ReadFull(r, hd[:]); err != nil {
+	b := make([]byte, MaxFrame+1)
+	n, err := r.Read(b)
+	if err != nil {
 		return nil, err
 	}
-	n := binary.LittleEndian.Uint32(hd[:])
 	if n > MaxFrame {
 		return nil, ErrFrame
 	}
-	b := make([]byte, n)
-	if _, err := io.ReadFull(r, b); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return b[:n], nil
 }
 
 // Serve runs the socket until it ends: end of file, a bad frame, or Close.

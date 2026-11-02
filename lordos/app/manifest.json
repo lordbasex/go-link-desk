@@ -1,11 +1,12 @@
 {
   "id": "go-link-desk",
-  "version": "1.8.0",
+  "version": "1.8.0-test1",
   "name": "Desk go-link",
   "description": { "en": "go-link Desk's remote desktop", "es": "El escritorio remoto de go-link Desk", "pt": "A área de trabalho remota do go-link Desk" },
   "icon": "icon.png",
   "size": [1120, 680],
   "minSize": [780, 420],
   "dock": true,
-  "permissions": ["network", "screen-share", "remote-input", "microphone", "camera"]
+  "companion": "engine",
+  "permissions": ["network", "screen-share", "remote-input", "status-item", "microphone", "camera"]
 }

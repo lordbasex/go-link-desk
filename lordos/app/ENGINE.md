@@ -1,17 +1,18 @@
 # The engine's socket
 
 What `internal/appsock` and `cmd/desk/main_lordos.go` implement and what `engine/fake.js` answers for tests. The
-app has one door to the engine, `engine/index.js`: on LordOS it opens the broker's connection (`lord.broker.companion()`,
+app has one door to the engine, `engine/index.js`: on LordOS it talks to the companion the app host started (`lord.broker.companion()` through the SDK's `companion`,
 stage 2) with `engine/socket.js`, and with no connection it shows `engineGone`, never the fake. Tests ask for the fake
 (`tools/harness/use-fake.js`).
 
 ## Transport
 
-- Fd 3 inherited from `lord-server` (GO-LINK.md 3.2): one stream socket, app on one end, engine on the other. No
+- Fd 3 inherited from `lord-server` (GO-LINK.md 3.2): one `SOCK_SEQPACKET` socket, app on one end, engine on the other. No
   listener, no path, no port. End of file on it ends the engine; the engine gone is a refusal of anyone asking
   (`ErrUnavailable`, as `NobodyToAsk` does).
-- Frames: `u32` length (little-endian), then that many bytes of UTF-8 JSON. **64 KB at most**; anything longer closes the
-  socket. Pictures don't travel here: a thumbnail is a file in the app's data folder, and the message has its path.
+- One message is one UTF-8 JSON text, **64 KB at most**; anything longer isn't delivered. Pictures don't travel here: a
+  thumbnail is a file in the app's data folder, and the message has its path. On the app's side the SDK's `companion`
+  carries it, and `{ companion: 'started' | 'refused' | 'ended', code }` are the system's own messages.
 - Every message is an object with a `t` (type). A request that wants an answer carries a numeric `id`, and gets
   `{ "t": "res", "id": n, "data": {...} }` or `{ "t": "res", "id": n, "err": "reason" }`.
 - Times are milliseconds since 1970 in UTC. Texts for people are never sent by the engine: it sends states and reasons,
@@ -98,8 +99,9 @@ clients.
   front of the file service, so a listing doesn't show links out of the home folder and a `~/Downloads` that is a link
   out of it takes nothing. `files.upload` takes `path`, the file on this side, relative to this home folder, under the
   same rule; without it, `name`.
-- Stage 2 must grant the engine this and no more for the file service: read in the home folder, write in `~/Downloads`
-  (GO-LINK.md D2). go-link's own `.ssh` filter stays.
+- The sandbox grants the file service no more than this (GO-LINK.md D10): reads of the home's visible entries as they were at
+  start, write in `~/Downloads` and the app's data folder. The home itself is listed through fd 5. go-link's own filter of
+  hidden files stays, at every level of the path.
 
 ## What the app does on its own
 
@@ -115,9 +117,8 @@ nothing waiting), `bad_code`, `not_found`, `demo_offline`, `empty`, `unknown`, `
 `not_available` (`autostart`, `assistant_pass:`, `assistant_forget:`: D4 and D9), `system_asks` (`perm.allow`: the
 API has no way to ask but a share, so the system's prompt comes with the first one).
 
-A visitor who knocks while the session is taken or the API is gone is turned down as `unavailable`, with nobody
-asked (`SocketConsent.Ready`). The `in_use` reason of GO-LINK.md section 5 needs one line in `session_service.go`
-and the website's text; other platforms' files stay untouched here.
+A visitor who knocks while the session is taken (5673, or another app) is turned down as `in_use`, with nobody asked
+(`SocketConsent.Ready`, GO-LINK.md section 5). With the API gone or the session locked, it's `unavailable`.
 
 ## Not defined yet
 
