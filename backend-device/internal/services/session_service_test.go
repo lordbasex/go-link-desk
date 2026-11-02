@@ -327,6 +327,7 @@ func TestRejectedViewersGetNothing(t *testing.T) {
 	}{
 		{"declined", func(c *askedConsent, _ *SessionService) { c.answers <- ErrDeclined }, models.RejectDeclined},
 		{"timeout", func(*askedConsent, *SessionService) {}, models.RejectTimeout},
+		{"taken by another door", func(c *askedConsent, _ *SessionService) { c.answers <- ErrInUse }, models.RejectInUse},
 		{"nobody to ask", func(_ *askedConsent, s *SessionService) {}, models.RejectUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
