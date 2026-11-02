@@ -1,8 +1,9 @@
 # The engine's socket
 
-What stage 3 implements (`internal/appsock`, `cmd/desk/ui_lordos.go`) and what `engine/fake.js` answers today. The
-app has one door to the engine, `engine/index.js`; replacing `createTransport` there with the real socket is the only
-change the app needs.
+What `internal/appsock` and `cmd/desk/main_lordos.go` implement and what `engine/fake.js` answers for tests. The
+app has one door to the engine, `engine/index.js`: on LordOS it opens the broker's connection (`lord.broker.companion()`,
+stage 2) with `engine/socket.js`, and with no connection it shows `engineGone`, never the fake. Tests ask for the fake
+(`tools/harness/use-fake.js`).
 
 ## Transport
 
@@ -41,8 +42,12 @@ stay. The first frame after connecting has every field. The app holds no state o
 | `chat` | `[{ fromViewer, text, at }]`, this session's | `ChatService` |
 | `typing` | bool | `ChatService` |
 | `transfer` | `null` or `{ upload, name, size, done, over, err }` | `FilesService` |
-| `remotes` | sessions to other computers: `[{ id, door, title, status, left, host: { name, os, terminal }, perms, hud, sound, preset, retina, displays, current, chat, notes, typing, sent, tabs }]` | `viewer.Session` |
+| `remotes` | sessions to other computers: `[{ id, door, title, status, left, host: { name, os, terminal }, perms, hud, sound, preset, retina, displays, current, chat, notes, typing, sent, tabs, frames, keyframes }]`; `frames` and `keyframes` count what arrived, every few seconds | `viewer.Session` |
 | `update` | `{ state, latest, url }`; `state`: `idle`, `checking`, `current`, `available`, `error`. Never `installing`: the updater is off, and APT updates | none on LordOS, see below |
+| `netTest` | `null` or `running` | `network.test` |
+| `engineGone` | set only by the app: the engine isn't there, so nobody can come in | `engine/index.js` |
+
+A list too long for a frame loses its oldest elements, never the frame. A field's value that hasn't changed isn't sent.
 
 `remotes[].status` is `viewer.Status` as a word: `connecting`, `waiting`, `password`, `wrong`, `checking`, `live`,
 `reconnecting`, `timeout`, `busy`, `unavailable`, `off`, `declined`, `ended`, `ended_host`, `ended_viewer`,
@@ -69,7 +74,8 @@ stay. The first frame after connecting has every field. The app holds no state o
 | `recent.connect`, `recent.remove`, `recent.clear` | `code` | Recent sessions |
 | `remote.close`, `remote.password`, `remote.chat`, `remote.typing` | `remote`, `password`, `text`, `on` | a session to another computer |
 | `remote.tool` | `remote`, `tool` (`info`, `sound`, `preset`, `retina`, `display`, `fullscreen`), `value` | its toolbar |
-| `remote.keys`, `remote.typeClipboard` | `remote`, `keys` | its Keys menu |
+| `remote.keys`, `remote.typeClipboard` | `remote`, `keys`; `text`, the app's clipboard: the engine has none outside a share | its Keys menu |
+| `remote.pointer`, `remote.button`, `remote.wheel`, `remote.key` | `remote`, `x`, `y` (0 to 1), `inside`; `button`, `down`; `dx`, `dy`, `lines`; `keycode`, `down`, `repeat`, `mods` | its input |
 | `files.list` (asks), `files.download` (asks), `files.upload` (asks), `files.reveal` | `remote`, `path`, `name` | see Files |
 | `update.check`, `network.test` | | see below |
 | `quit` | | stops the engine |
@@ -88,16 +94,34 @@ clients.
 - `files.upload` has no destination field: the sender can't choose. It lands in `~/Downloads` with go-link's own
   rename on a clash, and the answer is `{ saved }`, the name there.
 - `files.download` saves in the viewer's own `~/Downloads`.
+- Enforced twice in the engine: `services.CheckHomePath` before a request leaves or is served, `services.FilesGuard` in
+  front of the file service, so a listing doesn't show links out of the home folder and a `~/Downloads` that is a link
+  out of it takes nothing. `files.upload` takes `path`, the file on this side, relative to this home folder, under the
+  same rule; without it, `name`.
 - Stage 2 must grant the engine this and no more for the file service: read in the home folder, write in `~/Downloads`
   (GO-LINK.md D2). go-link's own `.ssh` filter stays.
 
 ## What the app does on its own
 
 Copying to the clipboard (`clipboard.set` from the SDK). Check for Updates opens the Store and `update.check` exists
-only to keep the update window's states, since `internal/updater` isn't built under `lordos`. `network.test` runs
-`netprobe`; the engine answers with the page's address, and the app opens it.
+only to keep the update window's states, since `internal/updater` isn't built under `lordos`. `network.test`, asked
+with an `id`, runs `netprobe` and answers `{ url }`, the page's address, for the app to open.
+
+## Refusals
+
+`res.err` is one of a closed list: `outside_home`, `no_session`, `no_files`, `too_late` (a consent or call answer with
+nothing waiting), `bad_code`, `not_found`, `demo_offline`, `empty`, `unknown`, `bad_value`, `bad_permissions`,
+`bad_server`, `bad_website`, `bad_port`, `bad_address`, `password_first`, `password_length`, `password_mismatch`,
+`not_available` (`autostart`, `assistant_pass:`, `assistant_forget:`: D4 and D9), `system_asks` (`perm.allow`: the
+API has no way to ask but a share, so the system's prompt comes with the first one).
+
+A visitor who knocks while the session is taken or the API is gone is turned down as `unavailable`, with nobody
+asked (`SocketConsent.Ready`). The `in_use` reason of GO-LINK.md section 5 needs one line in `session_service.go`
+and the website's text; other platforms' files stay untouched here.
 
 ## Not defined yet
 
-The picture of a session to another computer (`MediaView`, GO-LINK.md 7), its pointer and keyboard, and a terminal's
-output need a stream of their own and don't fit 64 KB frames: to design with stage 3. Today's views show a still.
+The picture and sound of a session to another computer (`MediaView`, GO-LINK.md 7) and a terminal's output need a
+stream of their own and don't fit 64 KB frames. The engine is pure Go, with no decoder, and the system has no API that
+takes encoded frames from an app: frames are counted and dropped, and today's views show a still. So are call sound and
+the camera: the engine has no audio or camera device, and a call opens with neither.
