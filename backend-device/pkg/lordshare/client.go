@@ -8,6 +8,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // State is the system's answer to a query, and what it sends when a share
@@ -80,6 +81,7 @@ type Client struct {
 	clip     string
 	clipGen  int
 	err      error
+	waiters  []chan State
 	dropped  atomic.Int64
 }
 
@@ -176,6 +178,23 @@ func clamp(v, lo, hi int) int { return max(lo, min(v, hi)) }
 
 // Query asks for a State, starts nothing and prompts nobody.
 func (c *Client) Query() { c.send(msgQuery) }
+
+// Check asks the system whether a start would go through now and waits for
+// the answer, without starting anything or prompting anyone.
+func (c *Client) Check(wait time.Duration) (State, bool) {
+	ch := make(chan State, 1)
+	c.mu.Lock()
+	c.waiters = append(c.waiters, ch)
+	c.mu.Unlock()
+	c.Query()
+	select {
+	case st := <-ch:
+		return st, true
+	case <-c.done:
+	case <-time.After(wait):
+	}
+	return State{}, false
+}
 
 // Start asks for a share. The answer is Media.Started or Media.Refused. A
 // flag that isn't granted is dropped by the system; watch State.Granted.
@@ -421,7 +440,12 @@ func (c *Client) onState(st State, m Media) {
 		st.W, st.H = c.state.W, c.state.H
 	}
 	c.state, c.haveSt = st, true
+	waiters := c.waiters
+	c.waiters = nil
 	c.mu.Unlock()
+	for _, w := range waiters {
+		w <- st
+	}
 	if m.State != nil {
 		m.State(st)
 	}

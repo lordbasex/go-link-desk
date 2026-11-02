@@ -58,12 +58,6 @@ func (f CallConsentFunc) AskCall(ctx context.Context, name string, video bool) (
 	return f(ctx, name, video)
 }
 
-// AutoAcceptCall takes every call with the camera and microphone on: the
-// end-to-end tests and measurement builds.
-var AutoAcceptCall = CallConsentFunc(func(context.Context, string, bool) (CallAnswer, error) {
-	return CallAnswer{Accept: true, Camera: true, Mic: true}, nil
-})
-
 // CallMedia is the host's camera and call sound: the computer's own, or a
 // test card and a tone for the tests.
 type CallMedia interface {

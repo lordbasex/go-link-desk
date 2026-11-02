@@ -234,3 +234,22 @@ func TestReasonsMatchTheServer(t *testing.T) {
 		t.Fatal(EndedByApp)
 	}
 }
+
+func TestCheck(t *testing.T) {
+	c, p := pair(t)
+	got := make(chan State, 1)
+	go func() {
+		st, _ := c.Check(2 * time.Second)
+		got <- st
+	}()
+	if ty, _ := p.next(); ty != msgQuery {
+		t.Fatal(ty)
+	}
+	p.send(msgState, []byte{byte(Busy), 0, 3, 0, 0, 5, 32, 3, 60, 0})
+	if st := <-got; st.Blocked != Busy {
+		t.Fatal(st)
+	}
+	if _, ok := c.Check(10 * time.Millisecond); ok {
+		t.Fatal("an answer out of nowhere")
+	}
+}

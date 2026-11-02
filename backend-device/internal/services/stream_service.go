@@ -85,12 +85,9 @@ type StreamConfig struct {
 	Channels []string
 	Logger   *slog.Logger
 	// PickCodec, when set, chooses a viewer's codec from its knock instead
-	// of pickCodec (lord-desk: frames arrive encoded, so there is no local
-	// encoder to ask). Proof of concept only.
+	// of pickCodec (LordOS: frames arrive encoded, so there is no local
+	// encoder to ask).
 	PickCodec func(browser []string) string
-	// ListDisplays, when set, is what the viewers are told instead of the
-	// capture package's list (lord-desk: the session's one display).
-	ListDisplays func() []screencap.Display
 }
 
 // NewWebRTCAPI builds the WebRTC API. udpPort > 0 carries every connection
@@ -607,13 +604,6 @@ func pickDisplay(ds []screencap.Display, id uint32) screencap.Display {
 // refreshDisplays lists the screens again (none where there is no
 // capture).
 func (s *StreamService) refreshDisplays() []screencap.Display {
-	if s.cfg.ListDisplays != nil {
-		ds := s.cfg.ListDisplays()
-		s.mu.Lock()
-		s.displays = ds
-		s.mu.Unlock()
-		return ds
-	}
 	if !screencap.Supported || s.cfg.Source != "screen" {
 		return nil
 	}
