@@ -1,5 +1,5 @@
 // go-link's small windows, in Fyne's look: consent.go, session.go, chat.go, call.go, update.go, about.go.
-import { View, Text, ScrollView, Image, media, MediaView } from '@lordos/sdk';
+import { View, Text, ScrollView, Image, media, MediaView, requestPermission } from '@lordos/sdk';
 import { useEffect, useState } from 'react';
 import { engine } from '../engine/index.js';
 import { L, Lf } from '../ui/i18n.js';
@@ -140,15 +140,18 @@ function CallPicture({ c }) {
   useEffect(() => {
     if (!c.hostCamera || !media.available()) return undefined;
     let nid = 0, gone = false;
-    const dev = media.cameras()[0]?.device;
-    const refuse = () => engine.send('call.set', { camera: false });
-    if (!dev) { refuse(); return undefined; }
-    media.camera(APP, dev, { width: 640, height: 480, link: c.tag, codec: c.codec === 'vp8' ? 'vp8' : 'h264', kbps: 600 }).then((n) => {
-      if (gone) { media.close(n); return; }
-      if (!n) { refuse(); return; }
-      nid = n;
-      setMine(n);
-    }, refuse);
+    const refuse = () => { if (!gone) engine.send('call.set', { camera: false }); };
+    // the list of cameras is empty until the permission is given
+    requestPermission(APP, 'camera').then((yes) => {
+      const dev = yes ? media.cameras()[0]?.device : null;
+      if (!dev) return refuse();
+      return media.camera(APP, dev, { width: 640, height: 480, link: c.tag, codec: c.codec === 'vp8' ? 'vp8' : 'h264', kbps: 600 }).then((n) => {
+        if (gone) { media.close(n); return; }
+        if (!n) { refuse(); return; }
+        nid = n;
+        setMine(n);
+      });
+    }).catch(refuse);
     return () => { gone = true; media.close(nid); setMine(0); };
   }, [c.hostCamera, c.tag, c.codec]);
   return (
