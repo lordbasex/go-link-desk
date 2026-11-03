@@ -125,6 +125,7 @@ struct SessionView: View {
         case .offline: return String(localized: "The computer is not on, or go-link Desk is closed there.")
         case .unlinked: return String(localized: "That computer no longer has this link (it was removed there). It was forgotten here: link it again with its pairing code.")
         case .untrusted: return String(localized: "Whoever answered could not prove it is your linked computer. Nothing was sent to it.")
+        case .keyUnusable: return String(localized: "This device's key for that computer cannot be used. It was forgotten here: link it again with its pairing code.")
         case let .passwordRefused(reason, retryAfter):
             return reason == "locked"
                 ? String(format: String(localized: "Too many wrong passwords. Try again in %d minutes."), max(1, retryAfter / 60))

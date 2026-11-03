@@ -101,6 +101,8 @@ public enum SessionStatus: Equatable, Sendable {
     case unlinked
     /** Whoever answered could not prove it is the linked computer. Nothing was sent to it. */
     case untrusted
+    /** This device's key for the link cannot sign: it was forgotten here, to be linked again. */
+    case keyUnusable
     /** Too many wrong passwords: blocked (this device) or locked (retryAfter seconds). */
     case passwordRefused(reason: String, retryAfter: Int)
 
@@ -531,11 +533,20 @@ public final class DeskSession: RtcPeerEvents {
             // the proof.
             let host = DeskSession.fingerprint(sdp: offerSdp), mine = DeskSession.fingerprint(sdp: answerSdp)
             guard o["link_id"].str(64) == link.linkId,
-                LinkAuth.verify(publicKey: link.hostKey, message: LinkAuth.hostProofMessage(nonce: nonce, host: host, viewer: mine), sig: o["sig"].str(200)),
-                let signer = keys.signer(linkId: link.linkId),
-                let mySig = try? signer.sign(LinkAuth.linkProofMessage(nonce: nonce, host: host, viewer: mine))
+                LinkAuth.verify(publicKey: link.hostKey, message: LinkAuth.hostProofMessage(nonce: nonce, host: host, viewer: mine), sig: o["sig"].str(200))
             else {
                 finish(.untrusted)
+                return
+            }
+            // The computer proved itself; now this device signs with the
+            // link's key. A key that cannot sign (gone, or made by 1.0.3
+            // without the right to sign) never will: forget the link here
+            // so it is made again, rather than blame the computer.
+            guard let signer = keys.signer(linkId: link.linkId),
+                let mySig = try? signer.sign(LinkAuth.linkProofMessage(nonce: nonce, host: host, viewer: mine))
+            else {
+                events.unlinked?()
+                finish(.keyUnusable)
                 return
             }
             nonce = ""

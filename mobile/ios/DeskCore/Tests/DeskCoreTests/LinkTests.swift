@@ -177,6 +177,40 @@ final class LinkTests: XCTestCase {
         XCTAssertFalse(peer.control.contains { $0.contains(#""type":"auth","#) && $0.contains("sig") })
     }
 
+    /** A Secure Enclave key made without the right to sign: every signature fails. */
+    private struct BrokenSigner: LinkSigner {
+        struct Refused: Error {}
+        func sign(_ message: Data) throws -> String { throw Refused() }
+    }
+
+    // The computer proved itself but this device's key cannot sign (links
+    // made by 1.0.3): the link is forgotten here to be made again, and the
+    // computer is not blamed.
+    func testAKeyThatCannotSignIsForgottenNotBlamedOnTheComputer() {
+        struct Broken: LinkKeys {
+            func make() throws -> MadeKey { throw LinkAuthError.noKeys }
+            func signer(linkId: String) -> LinkSigner? { BrokenSigner() }
+        }
+        sockets = FakeSockets()
+        clock = ManualScheduler()
+        peers = FakePeers()
+        let signal = SignalClient(url: "wss://signal.example/ws", factory: sockets, scheduler: clock)
+        let s = DeskSession(door: .reach(reachLink()), name: "Ana", ua: "go-link Desk on iOS", signal: signal, peers: peers, scheduler: clock, keys: Broken())
+        var forgotten = false
+        s.events.unlinked = { forgotten = true }
+        s.start()
+        sockets.last.receive(#"{"type":"hello","peer_id":"me"}"#)
+        sockets.last.receive(#"{"type":"paired","remote":"H"}"#)
+        fromHost(#"{"kind":"offer","sdp":"v=0"}"#)
+        let peer = peers.created[0]
+        peer.events.onControlOpen()
+        let nonce = JSONText.parseObject(peer.control.last!)!["nonce"].str()
+        peer.events.onControlMessage(#"{"type":"auth_proof","link_id":"L","sig":"\#(hostProof(nonce))"}"#)
+        XCTAssertEqual(s.status, .keyUnusable)
+        XCTAssertTrue(forgotten)
+        XCTAssertFalse(peer.control.contains { $0.contains(#""type":"auth","#) && $0.contains("sig") })
+    }
+
     func testTheSavedPasswordGoesByItself() {
         let s = session(.reach(reachLink()))
         _ = keys.register("L")
