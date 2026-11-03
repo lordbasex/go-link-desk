@@ -51,9 +51,19 @@ enum StoredKey: @unchecked Sendable {
         }
     }
 
-    /** Makes a fresh key, in the enclave when there is one. */
-    static func make(_ access: SecAccessControl) throws -> StoredKey {
+    /**
+     * Makes a fresh key, in the enclave when there is one. An enclave key
+     * signs only if its access control has .privateKeyUsage; without it the
+     * key is made but every signature fails, so a link could be made (that
+     * sends only the public half) but never used. Face ID guards the
+     * keychain item that holds the key's blob, which works only in this
+     * device's enclave, so the key itself is not gated a second time.
+     */
+    static func make() throws -> StoredKey {
         if SecureEnclave.isAvailable {
+            guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .privateKeyUsage, nil) else {
+                throw LinkStore.LinkError.keychain(errSecParam)
+            }
             return .enclave(try SecureEnclave.P256.Signing.PrivateKey(accessControl: access))
         }
         return .software(P256.Signing.PrivateKey())
@@ -150,10 +160,7 @@ final class LinkStore {
      */
     nonisolated func make() throws -> MadeKey {
         guard LinkStore.canProtect else { throw LinkError.noPasscode }
-        guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .userPresence, nil) else {
-            throw LinkError.keychain(errSecParam)
-        }
-        let key = try StoredKey.make(access)
+        let key = try StoredKey.make()
         let data = key.dataRepresentation
         return MadeKey(publicKey: key.publicKey, signer: StoredLinkSigner(key: key), persist: { account in
             try LinkStore.storeSecret(account: account, Secret(keyData: data, password: nil))

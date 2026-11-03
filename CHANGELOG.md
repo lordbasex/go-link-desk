@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **iPhone and iPad: coming back to a linked computer works:** the app made each link's key in the Secure Enclave without the right to sign (`.privateKeyUsage`), so linking worked (it sends only the public half) but every return with Face ID failed with "Whoever answered could not prove it is your linked computer". New links sign. A link made by 1.0.3, whose key can never sign, is now forgotten on this device with a message to link it again, instead of blaming the computer; revoke the old entry on the computer.
+
 ## [1.8.1] - 2026-11-03
 
 The pointer shows again in the iPhone and iPad app: since 1.8.0 the computer could lose the pointer's image when a session started, and the app drew no pointer at all. The iOS app no longer declares background audio, which App Review does not allow for it.
