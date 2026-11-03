@@ -45,8 +45,6 @@ targets:
           [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # An iPad's trackpad and mouse arrive as pointer events (hover, buttons, scrolling).
         UIApplicationSupportsIndirectInputEvents: true
-        # The computer's sound keeps playing with the screen locked for a moment.
-        UIBackgroundModes: [audio]
         # ProMotion: the picture may be shown at up to 120 Hz.
         CADisableMinimumFrameDurationOnPhone: true
         ITSAppUsesNonExemptEncryption: false

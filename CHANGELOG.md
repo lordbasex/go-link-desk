@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **iOS: no background audio mode:** the iPhone and iPad app no longer declares `audio` in `UIBackgroundModes`, so the computer's sound stops when the app leaves the screen. App Review rejected 1.0.2 under guideline 2.5.4 because the app is not a background audio player.
+
 ## [1.8.0] - 2026-10-16
 
 More security fixes from a review with Claude Security: unattended links now authenticate with keys instead of a shared token (so nothing replayable is kept in the browser and a revoke cannot be forged), a late accept cannot open a second session, revoking a computer for AI assistants cuts a live session at once, and the iOS viewer no longer crashes on untrusted numbers or download pieces. **Linked computers re-pair once:** the key change is not compatible with earlier versions, so a link made before this is dropped and made again with a code.
