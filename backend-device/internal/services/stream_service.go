@@ -242,9 +242,10 @@ type StreamService struct {
 	want        VideoWant         // the latest viewer's wishes
 	display     uint32            // the display chosen (0: the main one)
 	displays    []screencap.Display
-	beacon      uint16    // the latency beacon's state, flipped by the viewer
-	rung        int       // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
-	rungAt      time.Time // when it last changed
+	shape       *cursor.Shape // the pointer's current shape, for viewers greeted later
+	beacon      uint16        // the latency beacon's state, flipped by the viewer
+	rung        int           // the bandwidth ladder's rung (len(bandwidthLadder): no limit)
+	rungAt      time.Time     // when it last changed
 	changed     chan struct{}
 	onControl   func(peerID, kind string, data []byte)
 	onClosed    func(peerID, reason string)
@@ -901,6 +902,12 @@ func (s *StreamService) greet(v *viewer) {
 	}{"welcome", s.cfg.Welcome, s.cfg.Source, s.cfg.Features})
 	s.sendText(v.control, welcome)
 	s.sendDisplays(v)
+	s.mu.Lock()
+	shape := s.shape
+	s.mu.Unlock()
+	if shape != nil {
+		s.sendCursor(v, *shape)
+	}
 }
 
 // OnChannel hands over each viewer's Channels (DataOnly) as they are made,
@@ -1452,8 +1459,23 @@ func (s *StreamService) CursorMoved(x, y float64, visible bool) {
 }
 
 // CursorShape tells the viewers what the pointer looks like. Each viewer
-// gets an image once; after that its id is enough.
+// gets an image once; after that its id is enough. The shape is kept, so
+// a viewer whose control channel opens later gets it when greeted: the
+// screen source sends a shape only when it changes, and a viewer without
+// the image cannot draw the pointer at all.
 func (s *StreamService) CursorShape(c cursor.Shape) {
+	s.mu.Lock()
+	s.shape = &c
+	s.mu.Unlock()
+	for _, v := range s.viewerList() {
+		s.sendCursor(v, c)
+	}
+}
+
+// sendCursor sends a viewer a pointer shape: the image the first time, its
+// id after that. An image counts as had only once it went out, so a send
+// before the control channel opened is not taken for one.
+func (s *StreamService) sendCursor(v *viewer, c cursor.Shape) {
 	type msg struct {
 		Type   string `json:"type"`
 		ID     string `json:"id"`
@@ -1464,24 +1486,25 @@ func (s *StreamService) CursorShape(c cursor.Shape) {
 		Height int    `json:"height"`
 		Pixels int    `json:"pixels"` // the image's width in pixels
 	}
-	full, _ := json.Marshal(msg{"cursor", c.ID, base64.StdEncoding.EncodeToString(c.PNG), c.HotX, c.HotY, c.PointsWidth, c.PointsHeight, c.Width})
-	short, _ := json.Marshal(msg{"cursor", c.ID, "", c.HotX, c.HotY, c.PointsWidth, c.PointsHeight, c.Width})
-	for _, v := range s.viewerList() {
-		v.mu.Lock()
-		if v.cursors == nil {
-			v.cursors = make(map[string]bool)
-		}
-		seen := v.cursors[c.ID]
-		if !seen && len(v.cursors) < 64 {
-			v.cursors[c.ID] = true
-		}
-		v.mu.Unlock()
-		if seen {
-			s.SendControl(v.id, short)
-		} else {
-			s.SendControl(v.id, full)
-		}
+	v.mu.Lock()
+	seen := v.cursors[c.ID]
+	v.mu.Unlock()
+	m := msg{"cursor", c.ID, "", c.HotX, c.HotY, c.PointsWidth, c.PointsHeight, c.Width}
+	if !seen {
+		m.PNG = base64.StdEncoding.EncodeToString(c.PNG)
 	}
+	b, _ := json.Marshal(m)
+	if !s.SendControl(v.id, b) || seen {
+		return
+	}
+	v.mu.Lock()
+	if v.cursors == nil {
+		v.cursors = make(map[string]bool)
+	}
+	if len(v.cursors) < 64 {
+		v.cursors[c.ID] = true
+	}
+	v.mu.Unlock()
 }
 
 // OnBeacon is told when the viewer flips the latency beacon: a screen

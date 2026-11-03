@@ -19,6 +19,7 @@ import (
 
 	"github.com/lordbasex/go-link-desk/backend-device/internal/models"
 	"github.com/lordbasex/go-link-desk/backend-device/internal/services"
+	"github.com/lordbasex/go-link-desk/backend-device/pkg/cursor"
 	"github.com/lordbasex/go-link-desk/backend-device/pkg/signalclient"
 )
 
@@ -121,6 +122,7 @@ type ctrlMsg struct {
 	Width  int                  `json:"width"`
 	Codec  string               `json:"codec"`
 	Reason string               `json:"reason"`
+	PNG    string               `json:"png"`
 }
 
 func newStream(t *testing.T) (*services.StreamService, context.CancelFunc) {
@@ -414,5 +416,40 @@ func TestAWaitingBrowserGetsNothingUntilAdmitted(t *testing.T) {
 	case <-packets:
 	case <-time.After(10 * time.Second):
 		t.Fatal("no video after admission")
+	}
+}
+
+// The pointer's image reaches a viewer even when the shape was taken
+// before its control channel opened: the viewer cannot draw a pointer
+// without the image, and a shape that does not change (the arrow) is
+// never sent again.
+func TestThePointerImageReachesAViewerWhoseChannelOpenedLater(t *testing.T) {
+	stream, cancel := newStream(t)
+	defer cancel()
+	b := newBrowser(t, "viewer", stream)
+	msgs := make(chan ctrlMsg, 50)
+	b.pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if dc.Label() != "control" {
+			return
+		}
+		dc.OnMessage(func(m webrtc.DataChannelMessage) {
+			var got ctrlMsg
+			_ = json.Unmarshal(m.Data, &got)
+			msgs <- got
+		})
+	})
+	stream.SetSender(relay{b})
+	if err := stream.AddViewer("viewer", nil); err != nil {
+		t.Fatal(err)
+	}
+	// The screen source reports the arrow at once, before the channel is up.
+	stream.CursorShape(cursor.Shape{ID: "arrow", PNG: []byte{1, 2, 3}, HotX: 1, HotY: 1, Width: 34, Height: 46, PointsWidth: 17, PointsHeight: 23})
+	if got := waitForMsg(t, msgs, "cursor"); got.PNG == "" {
+		t.Fatal("the pointer's image never reached the viewer")
+	}
+	// Once it has the image, the same shape comes by its id alone.
+	stream.CursorShape(cursor.Shape{ID: "arrow", PNG: []byte{1, 2, 3}, HotX: 1, HotY: 1, Width: 34, Height: 46, PointsWidth: 17, PointsHeight: 23})
+	if got := waitForMsg(t, msgs, "cursor"); got.PNG != "" {
+		t.Fatal("an image the viewer has was sent again")
 	}
 }
