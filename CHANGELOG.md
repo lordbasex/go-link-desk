@@ -4,6 +4,10 @@ All notable changes to go-link Desk. Newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-03
+
+The pointer shows again in the iPhone and iPad app: since 1.8.0 the computer could lose the pointer's image when a session started, and the app drew no pointer at all. The iOS app no longer declares background audio, which App Review does not allow for it.
+
 ### Fixed
 
 - **The pointer shows again in the iPhone and iPad app:** the computer sent the pointer's image once per viewer and counted it as sent even when the viewer's control channel was not open yet, which is when the screen source reports the first shape. The viewer then only ever got the shape's id, so the iOS app (which draws the pointer from that image) showed no pointer at all, on any computer, until the shape changed to one it had never seen. An image now counts as sent only once it goes out, and the current shape is sent to each viewer when it is greeted.
